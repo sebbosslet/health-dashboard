@@ -4,6 +4,7 @@ import { useDailyLog, useSettings } from '../hooks/useData'
 import { showToast } from '../components/Toast'
 import { Toast } from '../components/Toast'
 import { useLang } from '../lib/LangContext'
+import MealLogger from '../components/MealLogger'
 
 const SUPPLEMENTS = [
   { key: 'thyroid', tKey: 'supp_thyroid', cls: 'thyroid' },
@@ -38,7 +39,7 @@ export default function TodayPage({ session }) {
   const [activeActivity, setActiveActivity] = useState(new Set())
   const [activeHabits, setActiveHabits] = useState(new Set())
   const [activeSupps, setActiveSupps] = useState(new Set(['thyroid']))
-  const [calories, setCalories] = useState('')
+  const [mealCalories, setMealCalories] = useState(0)
   const [water, setWater] = useState('')
   const [saving, setSaving] = useState(false)
 
@@ -47,10 +48,16 @@ export default function TodayPage({ session }) {
       setActiveActivity(new Set(log.activity || []))
       setActiveHabits(new Set(log.habits || []))
       setActiveSupps(new Set(log.supplements?.length ? log.supplements : ['thyroid']))
-      setCalories(log.calories || '')
       setWater(log.water || '')
     }
   }, [log])
+
+  // When meal calories update from MealLogger, auto-save to daily log
+  useEffect(() => {
+    if (mealCalories > 0) {
+      save({ calories: mealCalories })
+    }
+  }, [mealCalories])
 
   function toggle(set, setFn, key) {
     setFn(prev => { const n = new Set(prev); n.has(key) ? n.delete(key) : n.add(key); return n })
@@ -62,7 +69,6 @@ export default function TodayPage({ session }) {
       activity: Array.from(activeActivity),
       habits: Array.from(activeHabits),
       supplements: Array.from(activeSupps),
-      calories: calories ? parseInt(calories) : null,
       water: water ? parseInt(water) : null,
     })
     setSaving(false)
@@ -72,7 +78,7 @@ export default function TodayPage({ session }) {
   const calorieTarget = settings.calorie_target || 1900
   const waterTarget = settings.water_target || 2500
   const stepsTarget = settings.steps_target || 10000
-  const calPct = calories ? Math.min(100, Math.round((parseInt(calories) / calorieTarget) * 100)) : 0
+  const calPct = mealCalories ? Math.min(100, Math.round((mealCalories / calorieTarget) * 100)) : 0
   const waterPct = water ? Math.min(100, Math.round((parseInt(water) / waterTarget) * 100)) : 0
   const stepsPct = log?.steps ? Math.min(100, Math.round((log.steps / stepsTarget) * 100)) : 0
 
@@ -92,7 +98,7 @@ export default function TodayPage({ session }) {
         <div className="card">
           <div className="card-header">
             <span className="card-title">{t('today_recovery')}</span>
-            <span className="badge badge-red" style={{ background: 'rgba(194,48,48,0.08)', color: '#8b1f1f' }}>{t('today_auto_sync')}</span>
+            <span className="badge" style={{ background: 'rgba(194,48,48,0.08)', color: '#8b1f1f' }}>{t('today_auto_sync')}</span>
           </div>
           {log?.recovery_score ? (
             <div className="metric-grid">
@@ -173,32 +179,41 @@ export default function TodayPage({ session }) {
           </div>
         </div>
 
-        {/* Nutrition */}
+        {/* Nutrition - now powered by MealLogger */}
         <div className="card">
           <div className="card-header">
             <span className="card-title">{t('today_nutrition')}</span>
             <span className="badge badge-green">{t('today_ai_photo')}</span>
           </div>
-          <div style={{ padding: '12px 14px', display: 'flex', flexDirection: 'column', gap: 12 }}>
-            <div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, color: 'var(--text2)', marginBottom: 5 }}>
-                <span>{t('metric_calories')}</span>
-                <span style={{ fontWeight: 600, color: 'var(--amber)' }}>{calories || 0} / {calorieTarget.toLocaleString()} kcal</span>
-              </div>
-              <div className="bar-wrap-lg"><div className="bar bar-amber" style={{ width: `${calPct}%` }} /></div>
+
+          {/* Calorie progress bar */}
+          <div style={{ padding: '10px 14px 0' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, color: 'var(--text2)', marginBottom: 5 }}>
+              <span>{t('metric_calories')}</span>
+              <span style={{ fontWeight: 600, color: mealCalories > calorieTarget ? 'var(--red)' : 'var(--amber)' }}>
+                {mealCalories.toLocaleString()} / {calorieTarget.toLocaleString()} kcal
+              </span>
             </div>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
-              <div className="field">
-                <label className="field-label">{t('today_calories_label')}</label>
-                <input className="field-input" type="number" value={calories} onChange={e => setCalories(e.target.value)} placeholder={calorieTarget} inputMode="numeric" />
-              </div>
-              <div className="field">
-                <label className="field-label">{t('today_water_label')}</label>
-                <input className="field-input" type="number" value={water} onChange={e => setWater(e.target.value)} placeholder={waterTarget} inputMode="numeric" />
-              </div>
+            <div className="bar-wrap-lg">
+              <div className="bar" style={{ width: `${calPct}%`, background: mealCalories > calorieTarget ? 'var(--red)' : 'var(--amber)' }} />
+            </div>
+          </div>
+
+          {/* MealLogger component */}
+          <MealLogger
+            session={session}
+            date={today}
+            onCaloriesUpdated={setMealCalories}
+          />
+
+          {/* Water - stays manual */}
+          <div style={{ padding: '10px 14px 12px', borderTop: '0.5px solid var(--border)' }}>
+            <div className="field">
+              <label className="field-label">{t('today_water_label')}</label>
+              <input className="field-input" type="number" value={water} onChange={e => setWater(e.target.value)} placeholder={waterTarget} inputMode="numeric" />
             </div>
             {water && (
-              <div>
+              <div style={{ marginTop: 8 }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, color: 'var(--text2)', marginBottom: 5 }}>
                   <span>{t('metric_water')}</span>
                   <span style={{ fontWeight: 600, color: 'var(--blue)' }}>{waterPct}% {t('today_pct_of_goal')}</span>
