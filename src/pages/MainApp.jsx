@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useLang } from '../lib/LangContext'
 import TodayPage from './TodayPage'
 import CalendarPage from './CalendarPage'
@@ -18,9 +18,14 @@ const NAV_ICONS = {
 
 const NAV_KEYS = ['today', 'calendar', 'trends', 'photos', 'goals', 'profile']
 
-export default function MainApp({ session }) {
+export default function MainApp({ session, whoopCode }) {
   const [tab, setTab] = useState('today')
   const { t } = useLang()
+
+  // Auto-navigate to Profile tab when WHOOP callback arrives
+  useEffect(() => {
+    if (whoopCode) setTab('profile')
+  }, [whoopCode])
 
   return (
     <div className="app">
@@ -30,7 +35,7 @@ export default function MainApp({ session }) {
         {tab === 'trends' && <TrendsPage session={session} />}
         {tab === 'photos' && <PhotosPage session={session} />}
         {tab === 'goals' && <GoalsPage session={session} />}
-        {tab === 'profile' && <ProfilePage session={session} />}
+        {tab === 'profile' && <ProfilePage session={session} whoopCode={whoopCode} />}
       </div>
       <nav className="bottom-nav">
         {NAV_KEYS.map(id => (

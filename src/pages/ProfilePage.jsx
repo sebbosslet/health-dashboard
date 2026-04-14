@@ -7,7 +7,7 @@ import { useLang } from '../lib/LangContext'
 import LangToggle from '../components/LangToggle'
 import { format } from 'date-fns'
 
-const WHOOP_CLIENT_ID = import.meta.env.VITE_WHOOP_CLIENT_ID
+const WHOOP_CLIENT_ID = import.meta.env.VITE_WHOOP_CLIENT_ID || '21c05d0f-32b9-4aeb-94c9-3baf5349cb59'
 const REDIRECT_URI = 'https://sebs.health/whoop-callback'
 
 function generateShortcutToken() {
@@ -15,7 +15,7 @@ function generateShortcutToken() {
     .map(b => b.toString(16).padStart(2, '0')).join('')
 }
 
-export default function ProfilePage({ session }) {
+export default function ProfilePage({ session, whoopCode }) {
   const { t } = useLang()
   const { settings, saveSettings } = useSettings(session.user.id)
   const [whoopStatus, setWhoopStatus] = useState(null)
@@ -42,14 +42,8 @@ export default function ProfilePage({ session }) {
   }, [settings])
 
   useEffect(() => {
-    const url = new URL(window.location.href)
-    const code = url.searchParams.get('code')
-    const state = url.searchParams.get('state')
-    if (code && state === 'whoop') {
-      handleWhoopCallback(code)
-      window.history.replaceState({}, '', '/')
-    }
-  }, [])
+    if (whoopCode) handleWhoopCallback(whoopCode)
+  }, [whoopCode])
 
   async function checkWhoopStatus() {
     const { data } = await supabase.from('whoop_tokens').select('last_synced_at, whoop_user_id').eq('user_id', session.user.id).maybeSingle()
@@ -69,7 +63,9 @@ export default function ProfilePage({ session }) {
       scope: 'offline read:recovery read:sleep read:profile read:cycles',
       state: 'whoop',
     })
-    window.location.href = `https://api.prod.whoop.com/oauth/oauth2/auth?${params}`
+    const url = `https://api.prod.whoop.com/oauth/oauth2/auth?${params}`
+    console.log('WHOOP connect URL:', url)
+    window.location.href = url
   }
 
   async function handleWhoopCallback(code) {

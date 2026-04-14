@@ -7,8 +7,18 @@ import MainApp from './pages/MainApp'
 export default function App() {
   const [session, setSession] = useState(null)
   const [loading, setLoading] = useState(true)
+  const [whoopCode, setWhoopCode] = useState(null)
 
   useEffect(() => {
+    // Check for WHOOP OAuth callback immediately on load
+    const url = new URL(window.location.href)
+    const code = url.searchParams.get('code')
+    const state = url.searchParams.get('state')
+    if (code && state === 'whoop') {
+      setWhoopCode(code)
+      window.history.replaceState({}, '', '/')
+    }
+
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session)
       setLoading(false)
@@ -36,7 +46,7 @@ export default function App() {
 
   return (
     <LangProvider>
-      {!session ? <AuthPage /> : <MainApp session={session} />}
+      {!session ? <AuthPage /> : <MainApp session={session} whoopCode={whoopCode} />}
     </LangProvider>
   )
 }
