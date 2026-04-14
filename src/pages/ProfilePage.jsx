@@ -3,6 +3,8 @@ import { supabase } from '../lib/supabase'
 import { useSettings } from '../hooks/useData'
 import { showToast } from '../components/Toast'
 import { Toast } from '../components/Toast'
+import { useLang } from '../lib/LangContext'
+import LangToggle from '../components/LangToggle'
 import { format } from 'date-fns'
 
 const WHOOP_CLIENT_ID = import.meta.env.VITE_WHOOP_CLIENT_ID
@@ -10,11 +12,11 @@ const REDIRECT_URI = 'https://sebs.health/whoop-callback'
 
 function generateShortcutToken() {
   return Array.from(crypto.getRandomValues(new Uint8Array(24)))
-    .map(b => b.toString(16).padStart(2, '0'))
-    .join('')
+    .map(b => b.toString(16).padStart(2, '0')).join('')
 }
 
 export default function ProfilePage({ session }) {
+  const { t } = useLang()
   const { settings, saveSettings } = useSettings(session.user.id)
   const [whoopStatus, setWhoopStatus] = useState(null)
   const [syncing, setSyncing] = useState(false)
@@ -27,10 +29,7 @@ export default function ProfilePage({ session }) {
   const [startWeight, setStartWeight] = useState('')
   const [savingSettings, setSavingSettings] = useState(false)
 
-  useEffect(() => {
-    checkWhoopStatus()
-    loadShortcutToken()
-  }, [session.user.id])
+  useEffect(() => { checkWhoopStatus(); loadShortcutToken() }, [session.user.id])
 
   useEffect(() => {
     if (settings) {
@@ -42,7 +41,6 @@ export default function ProfilePage({ session }) {
     }
   }, [settings])
 
-  // Handle WHOOP callback on page load
   useEffect(() => {
     const url = new URL(window.location.href)
     const code = url.searchParams.get('code')
@@ -54,20 +52,12 @@ export default function ProfilePage({ session }) {
   }, [])
 
   async function checkWhoopStatus() {
-    const { data } = await supabase
-      .from('whoop_tokens')
-      .select('last_synced_at, whoop_user_id')
-      .eq('user_id', session.user.id)
-      .maybeSingle()
+    const { data } = await supabase.from('whoop_tokens').select('last_synced_at, whoop_user_id').eq('user_id', session.user.id).maybeSingle()
     setWhoopStatus(data)
   }
 
   async function loadShortcutToken() {
-    const { data } = await supabase
-      .from('user_settings')
-      .select('shortcut_token')
-      .eq('user_id', session.user.id)
-      .maybeSingle()
+    const { data } = await supabase.from('user_settings').select('shortcut_token').eq('user_id', session.user.id).maybeSingle()
     if (data?.shortcut_token) setShortcutToken(data.shortcut_token)
   }
 
@@ -88,23 +78,12 @@ export default function ProfilePage({ session }) {
       const res = await fetch('/.netlify/functions/whoop-auth', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          code,
-          user_id: session.user.id,
-          redirect_uri: REDIRECT_URI,
-        }),
+        body: JSON.stringify({ code, user_id: session.user.id, redirect_uri: REDIRECT_URI }),
       })
       const data = await res.json()
-      if (data.success) {
-        showToast('WHOOP connected!')
-        checkWhoopStatus()
-        syncWhoop()
-      } else {
-        showToast('WHOOP connection failed')
-      }
-    } catch (e) {
-      showToast('Connection error')
-    }
+      if (data.success) { showToast(t('profile_whoop_connected')); checkWhoopStatus(); syncWhoop() }
+      else showToast(t('profile_whoop_failed'))
+    } catch { showToast(t('profile_connection_error')) }
     setSyncing(false)
   }
 
@@ -117,31 +96,21 @@ export default function ProfilePage({ session }) {
         body: JSON.stringify({ user_id: session.user.id }),
       })
       const data = await res.json()
-      if (data.success) {
-        showToast(`Synced ${data.synced_dates?.length || 0} days`)
-        checkWhoopStatus()
-      } else {
-        showToast(data.error || 'Sync failed')
-      }
-    } catch (e) {
-      showToast('Sync error')
-    }
+      if (data.success) { showToast(`${t('profile_synced')} ${data.synced_dates?.length || 0} ${t('profile_days')}`); checkWhoopStatus() }
+      else showToast(data.error || t('profile_sync_failed'))
+    } catch { showToast(t('profile_sync_error')) }
     setSyncing(false)
   }
 
   async function disconnectWhoop() {
     await supabase.from('whoop_tokens').delete().eq('user_id', session.user.id)
     setWhoopStatus(null)
-    showToast('WHOOP disconnected')
+    showToast(t('profile_whoop_disconnected'))
   }
 
   async function generateAndSaveToken() {
     const token = generateShortcutToken()
-    await supabase.from('user_settings').upsert({
-      user_id: session.user.id,
-      shortcut_token: token,
-      updated_at: new Date().toISOString(),
-    }, { onConflict: 'user_id' })
+    await supabase.from('user_settings').upsert({ user_id: session.user.id, shortcut_token: token, updated_at: new Date().toISOString() }, { onConflict: 'user_id' })
     setShortcutToken(token)
     setShowShortcutSetup(true)
   }
@@ -156,22 +125,23 @@ export default function ProfilePage({ session }) {
       start_weight: startWeight ? parseFloat(startWeight) : null,
     })
     setSavingSettings(false)
-    showToast('Settings saved')
+    showToast(t('profile_saved'))
   }
 
-  async function handleSignOut() {
-    await supabase.auth.signOut()
-  }
-
-  const shortcutUrl = shortcutToken
-    ? `https://sebs.health/.netlify/functions/apple-health-sync`
-    : null
+  const shortcutSteps = [
+    { title: t('shortcut_step1'), sub: t('shortcut_step1_sub') },
+    { title: t('shortcut_step2'), sub: t('shortcut_step2_sub') },
+    { title: t('shortcut_step3'), sub: t('shortcut_step3_sub') },
+    { title: t('shortcut_step4'), sub: t('shortcut_step4_sub') },
+    { title: t('shortcut_step5'), sub: t('shortcut_step5_sub') },
+    { title: t('shortcut_step6'), sub: t('shortcut_step6_sub') },
+  ]
 
   return (
     <>
       <div className="page-header">
         <div>
-          <div className="page-header-title">Profile</div>
+          <div className="page-header-title">{t('profile_title')}</div>
           <div className="page-header-sub">{session.user.email}</div>
         </div>
         <div style={{ width: 34, height: 34, borderRadius: '50%', background: 'var(--green-light)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, fontSize: 14, color: 'var(--green)' }}>
@@ -181,47 +151,42 @@ export default function ProfilePage({ session }) {
 
       <div className="page-section">
 
+        {/* Language toggle */}
+        <div className="card">
+          <div className="card-header"><span className="card-title">{t('profile_language')}</span></div>
+          <div style={{ padding: '12px 14px' }}>
+            <LangToggle />
+          </div>
+        </div>
+
         {/* WHOOP */}
         <div className="card">
           <div className="card-header">
-            <span className="card-title">WHOOP</span>
+            <span className="card-title">{t('profile_whoop')}</span>
             <span className="badge" style={{ background: whoopStatus ? 'var(--green-light)' : 'var(--surface2)', color: whoopStatus ? 'var(--green)' : 'var(--text2)', border: whoopStatus ? 'none' : '0.5px solid var(--border)' }}>
-              {whoopStatus ? 'Connected' : 'Not connected'}
+              {whoopStatus ? t('profile_connected') : t('profile_not_connected')}
             </span>
           </div>
-
           {whoopStatus ? (
             <div style={{ padding: '12px 14px', display: 'flex', flexDirection: 'column', gap: 12 }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <div>
-                  <div style={{ fontSize: 13, fontWeight: 600 }}>Syncing sleep &amp; recovery</div>
+                  <div style={{ fontSize: 13, fontWeight: 600 }}>{t('profile_whoop_syncing')}</div>
                   <div style={{ fontSize: 11, color: 'var(--text2)', marginTop: 2 }}>
-                    {whoopStatus.last_synced_at
-                      ? `Last synced ${format(new Date(whoopStatus.last_synced_at), 'd MMM · HH:mm')}`
-                      : 'Not yet synced'}
+                    {whoopStatus.last_synced_at ? `${t('profile_last_synced')} ${format(new Date(whoopStatus.last_synced_at), 'd MMM · HH:mm')}` : t('profile_not_synced')}
                   </div>
                 </div>
                 <button onClick={syncWhoop} disabled={syncing} style={{ padding: '7px 14px', borderRadius: 20, background: 'var(--green-light)', border: 'none', color: 'var(--green)', fontWeight: 600, fontSize: 12, cursor: 'pointer', fontFamily: 'inherit' }}>
-                  {syncing ? 'Syncing...' : 'Sync now'}
+                  {syncing ? t('profile_syncing') : t('profile_sync_now')}
                 </button>
               </div>
-
-              <div style={{ fontSize: 11, color: 'var(--text2)', background: 'var(--surface2)', borderRadius: 8, padding: '8px 10px' }}>
-                Pulls: sleep duration, efficiency, restorative sleep, recovery score, HRV, RHR
-              </div>
-
-              <button onClick={disconnectWhoop} style={{ padding: '9px', borderRadius: 8, background: 'none', border: '0.5px solid var(--border)', color: 'var(--text3)', fontSize: 12, cursor: 'pointer', fontFamily: 'inherit' }}>
-                Disconnect WHOOP
-              </button>
+              <div style={{ fontSize: 11, color: 'var(--text2)', background: 'var(--surface2)', borderRadius: 8, padding: '8px 10px' }}>{t('profile_whoop_pulls')}</div>
+              <button onClick={disconnectWhoop} style={{ padding: '9px', borderRadius: 8, background: 'none', border: '0.5px solid var(--border)', color: 'var(--text3)', fontSize: 12, cursor: 'pointer', fontFamily: 'inherit' }}>{t('profile_disconnect_whoop')}</button>
             </div>
           ) : (
             <div style={{ padding: '12px 14px', display: 'flex', flexDirection: 'column', gap: 12 }}>
-              <div style={{ fontSize: 13, color: 'var(--text2)', lineHeight: 1.5 }}>
-                Connect WHOOP to automatically sync your sleep, recovery score, HRV, and RHR every day.
-              </div>
-              <button onClick={connectWhoop} style={{ padding: '11px', borderRadius: 8, background: 'var(--green)', border: 'none', color: 'white', fontWeight: 700, fontSize: 14, cursor: 'pointer', fontFamily: 'inherit' }}>
-                Connect WHOOP
-              </button>
+              <div style={{ fontSize: 13, color: 'var(--text2)', lineHeight: 1.5 }}>{t('profile_whoop_description')}</div>
+              <button onClick={connectWhoop} style={{ padding: '11px', borderRadius: 8, background: 'var(--green)', border: 'none', color: 'white', fontWeight: 700, fontSize: 14, cursor: 'pointer', fontFamily: 'inherit' }}>{t('profile_connect_whoop')}</button>
             </div>
           )}
         </div>
@@ -229,147 +194,97 @@ export default function ProfilePage({ session }) {
         {/* Apple Health */}
         <div className="card">
           <div className="card-header">
-            <span className="card-title">Apple Health</span>
+            <span className="card-title">{t('profile_apple')}</span>
             <span className="badge" style={{ background: shortcutToken ? 'var(--green-light)' : 'var(--surface2)', color: shortcutToken ? 'var(--green)' : 'var(--text2)', border: shortcutToken ? 'none' : '0.5px solid var(--border)' }}>
-              {shortcutToken ? 'Shortcut ready' : 'Not set up'}
+              {shortcutToken ? t('profile_shortcut_ready') : t('profile_not_setup')}
             </span>
           </div>
           <div style={{ padding: '12px 14px', display: 'flex', flexDirection: 'column', gap: 12 }}>
-            <div style={{ fontSize: 13, color: 'var(--text2)', lineHeight: 1.5 }}>
-              Syncs weight from Renpho and daily steps via an iPhone Shortcut. One tap each morning.
-            </div>
-
+            <div style={{ fontSize: 13, color: 'var(--text2)', lineHeight: 1.5 }}>{t('profile_apple_description')}</div>
             {shortcutToken ? (
               <>
                 <div style={{ background: 'var(--surface2)', borderRadius: 8, padding: '10px 12px' }}>
-                  <div style={{ fontSize: 11, color: 'var(--text2)', marginBottom: 4 }}>Your sync endpoint</div>
-                  <div style={{ fontSize: 11, fontFamily: 'var(--font-mono)', color: 'var(--text)', wordBreak: 'break-all' }}>
-                    {shortcutUrl}
-                  </div>
+                  <div style={{ fontSize: 11, color: 'var(--text2)', marginBottom: 4 }}>{t('profile_sync_endpoint')}</div>
+                  <div style={{ fontSize: 11, fontFamily: 'var(--font-mono)', color: 'var(--text)', wordBreak: 'break-all' }}>https://sebs.health/.netlify/functions/apple-health-sync</div>
                 </div>
-                <button onClick={() => setShowShortcutSetup(true)} style={{ padding: '9px', borderRadius: 8, background: 'var(--green-light)', border: 'none', color: 'var(--green)', fontWeight: 600, fontSize: 13, cursor: 'pointer', fontFamily: 'inherit' }}>
-                  View Shortcut setup guide
-                </button>
+                <button onClick={() => setShowShortcutSetup(true)} style={{ padding: '9px', borderRadius: 8, background: 'var(--green-light)', border: 'none', color: 'var(--green)', fontWeight: 600, fontSize: 13, cursor: 'pointer', fontFamily: 'inherit' }}>{t('profile_view_guide')}</button>
               </>
             ) : (
-              <button onClick={generateAndSaveToken} style={{ padding: '11px', borderRadius: 8, background: 'var(--green)', border: 'none', color: 'white', fontWeight: 700, fontSize: 14, cursor: 'pointer', fontFamily: 'inherit' }}>
-                Set up Apple Health sync
-              </button>
+              <button onClick={generateAndSaveToken} style={{ padding: '11px', borderRadius: 8, background: 'var(--green)', border: 'none', color: 'white', fontWeight: 700, fontSize: 14, cursor: 'pointer', fontFamily: 'inherit' }}>{t('profile_setup_apple')}</button>
             )}
           </div>
         </div>
 
-        {/* Targets & settings */}
+        {/* Daily targets */}
         <div className="card">
-          <div className="card-header"><span className="card-title">Daily targets</span></div>
+          <div className="card-header"><span className="card-title">{t('profile_targets')}</span></div>
           <div style={{ padding: '12px 14px', display: 'flex', flexDirection: 'column', gap: 12 }}>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-              <div className="field">
-                <label className="field-label">Calories (kcal)</label>
-                <input className="field-input" type="number" value={calorieTarget} onChange={e => setCalorieTarget(e.target.value)} inputMode="numeric" />
-              </div>
-              <div className="field">
-                <label className="field-label">Water (ml)</label>
-                <input className="field-input" type="number" value={waterTarget} onChange={e => setWaterTarget(e.target.value)} inputMode="numeric" />
-              </div>
-              <div className="field">
-                <label className="field-label">Steps</label>
-                <input className="field-input" type="number" value={stepsTarget} onChange={e => setStepsTarget(e.target.value)} inputMode="numeric" />
-              </div>
+              <div className="field"><label className="field-label">{t('profile_calories_target')}</label><input className="field-input" type="number" value={calorieTarget} onChange={e => setCalorieTarget(e.target.value)} inputMode="numeric" /></div>
+              <div className="field"><label className="field-label">{t('profile_water_target')}</label><input className="field-input" type="number" value={waterTarget} onChange={e => setWaterTarget(e.target.value)} inputMode="numeric" /></div>
+              <div className="field"><label className="field-label">{t('profile_steps_target')}</label><input className="field-input" type="number" value={stepsTarget} onChange={e => setStepsTarget(e.target.value)} inputMode="numeric" /></div>
             </div>
           </div>
         </div>
 
+        {/* Weight goal */}
         <div className="card">
-          <div className="card-header"><span className="card-title">Weight goal</span></div>
+          <div className="card-header"><span className="card-title">{t('profile_weight_goal')}</span></div>
           <div style={{ padding: '12px 14px', display: 'flex', flexDirection: 'column', gap: 12 }}>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-              <div className="field">
-                <label className="field-label">Starting weight (kg)</label>
-                <input className="field-input" type="number" step="0.1" value={startWeight} onChange={e => setStartWeight(e.target.value)} placeholder="83.8" inputMode="decimal" />
-              </div>
-              <div className="field">
-                <label className="field-label">Target weight (kg)</label>
-                <input className="field-input" type="number" step="0.1" value={targetWeight} onChange={e => setTargetWeight(e.target.value)} placeholder="70.0" inputMode="decimal" />
-              </div>
+              <div className="field"><label className="field-label">{t('profile_start_weight')}</label><input className="field-input" type="number" step="0.1" value={startWeight} onChange={e => setStartWeight(e.target.value)} placeholder="83.8" inputMode="decimal" /></div>
+              <div className="field"><label className="field-label">{t('profile_target_weight')}</label><input className="field-input" type="number" step="0.1" value={targetWeight} onChange={e => setTargetWeight(e.target.value)} placeholder="70.0" inputMode="decimal" /></div>
             </div>
             {targetWeight && startWeight && (
               <div style={{ fontSize: 12, color: 'var(--text2)', background: 'var(--green-light)', borderRadius: 8, padding: '8px 10px' }}>
-                {(parseFloat(startWeight) - parseFloat(targetWeight)).toFixed(1)} kg to lose · ~{Math.ceil((parseFloat(startWeight) - parseFloat(targetWeight)) / 0.5)} weeks at 0.5 kg/week
+                {(parseFloat(startWeight) - parseFloat(targetWeight)).toFixed(1)} {t('profile_to_lose')} · ~{Math.ceil((parseFloat(startWeight) - parseFloat(targetWeight)) / 0.5)} {t('profile_weeks_at')}
               </div>
             )}
             <button className="btn-primary" onClick={handleSaveSettings} disabled={savingSettings}>
-              {savingSettings ? 'Saving...' : 'Save settings'}
+              {savingSettings ? t('profile_saving') : t('profile_save_settings')}
             </button>
           </div>
         </div>
 
-        {/* Sign out */}
-        <button onClick={handleSignOut} style={{ padding: '12px', borderRadius: 10, background: 'none', border: '0.5px solid var(--border)', color: 'var(--text2)', fontSize: 14, cursor: 'pointer', fontFamily: 'inherit', width: '100%' }}>
-          Sign out
+        <button onClick={() => supabase.auth.signOut()} style={{ padding: '12px', borderRadius: 10, background: 'none', border: '0.5px solid var(--border)', color: 'var(--text2)', fontSize: 14, cursor: 'pointer', fontFamily: 'inherit', width: '100%' }}>
+          {t('profile_sign_out')}
         </button>
-
         <div style={{ height: 8 }} />
       </div>
 
-      {/* Shortcut setup guide sheet */}
+      {/* Shortcut guide sheet */}
       {showShortcutSetup && shortcutToken && (
         <div className="sheet-overlay" onClick={() => setShowShortcutSetup(false)}>
           <div className="sheet" onClick={e => e.stopPropagation()}>
             <div className="sheet-handle" />
-            <div className="sheet-title">Apple Health Shortcut setup</div>
-            <div style={{ fontSize: 12, color: 'var(--text2)', textAlign: 'center', padding: '0 20px 14px' }}>Takes about 2 minutes on your iPhone</div>
+            <div className="sheet-title">{t('shortcut_title')}</div>
+            <div style={{ fontSize: 12, color: 'var(--text2)', textAlign: 'center', padding: '0 20px 14px' }}>{t('shortcut_sub')}</div>
             <div className="sheet-divider" />
-
             <div style={{ padding: '0 16px', display: 'flex', flexDirection: 'column', gap: 14 }}>
-
-              {[
-                { n: 1, title: 'Open Shortcuts app on your iPhone', sub: 'Built-in Apple app — search for it if needed' },
-                { n: 2, title: 'Tap + to create a new Shortcut', sub: 'Top right corner' },
-                { n: 3, title: 'Add action: "Get Health Sample"', sub: 'Search for it · select Weight · Most Recent Sample' },
-                { n: 4, title: 'Add another action: "Get Health Sample"', sub: 'Select Step Count · Today' },
-                { n: 5, title: 'Add action: "Get Contents of URL"', sub: 'Set Method to POST · URL below' },
-              ].map(s => (
-                <div key={s.n} style={{ display: 'flex', gap: 12, alignItems: 'flex-start' }}>
-                  <div style={{ width: 24, height: 24, borderRadius: '50%', background: 'var(--green)', color: 'white', fontSize: 11, fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, marginTop: 1 }}>{s.n}</div>
-                  <div>
-                    <div style={{ fontSize: 13, fontWeight: 600 }}>{s.title}</div>
-                    <div style={{ fontSize: 11, color: 'var(--text2)', marginTop: 2 }}>{s.sub}</div>
-                  </div>
+              {shortcutSteps.map((s, i) => (
+                <div key={i} style={{ display: 'flex', gap: 12, alignItems: 'flex-start' }}>
+                  <div style={{ width: 24, height: 24, borderRadius: '50%', background: 'var(--green)', color: 'white', fontSize: 11, fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, marginTop: 1 }}>{i + 1}</div>
+                  <div><div style={{ fontSize: 13, fontWeight: 600 }}>{s.title}</div><div style={{ fontSize: 11, color: 'var(--text2)', marginTop: 2 }}>{s.sub}</div></div>
                 </div>
               ))}
-
               <div style={{ background: 'var(--surface2)', borderRadius: 8, padding: '10px 12px' }}>
-                <div style={{ fontSize: 11, color: 'var(--text2)', marginBottom: 6 }}>POST to this URL:</div>
-                <div style={{ fontSize: 11, fontFamily: 'var(--font-mono)', color: 'var(--text)', wordBreak: 'break-all', marginBottom: 8 }}>
-                  https://sebs.health/.netlify/functions/apple-health-sync
-                </div>
-                <div style={{ fontSize: 11, color: 'var(--text2)', marginBottom: 4 }}>Request body (JSON):</div>
-                <div style={{ fontSize: 10, fontFamily: 'var(--font-mono)', color: 'var(--text)', background: 'var(--surface)', borderRadius: 6, padding: '8px', lineHeight: 1.6 }}>
+                <div style={{ fontSize: 11, color: 'var(--text2)', marginBottom: 6 }}>{t('shortcut_post_to')}</div>
+                <div style={{ fontSize: 11, fontFamily: 'var(--font-mono)', color: 'var(--text)', wordBreak: 'break-all', marginBottom: 8 }}>https://sebs.health/.netlify/functions/apple-health-sync</div>
+                <div style={{ fontSize: 11, color: 'var(--text2)', marginBottom: 4 }}>{t('shortcut_body')}</div>
+                <div style={{ fontSize: 10, fontFamily: 'var(--font-mono)', background: 'var(--surface)', borderRadius: 6, padding: '8px', lineHeight: 1.6 }}>
                   {`{\n  "shortcut_token": "${shortcutToken}",\n  "weight": [Weight Sample],\n  "steps": [Step Count]\n}`}
                 </div>
               </div>
-
-              <div style={{ display: 'flex', gap: 12, alignItems: 'flex-start' }}>
-                <div style={{ width: 24, height: 24, borderRadius: '50%', background: 'var(--green)', color: 'white', fontSize: 11, fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, marginTop: 1 }}>6</div>
-                <div>
-                  <div style={{ fontSize: 13, fontWeight: 600 }}>Name it "Sync health" and add to Home Screen</div>
-                  <div style={{ fontSize: 11, color: 'var(--text2)', marginTop: 2 }}>Tap each morning after weighing in</div>
-                </div>
-              </div>
-
               <div className="privacy-note">
                 <svg width="14" height="14" viewBox="0 0 14 14" fill="none" style={{ flexShrink: 0, marginTop: 1 }}><rect x="3" y="6.5" width="8" height="6" rx="1.2" stroke="var(--text3)" strokeWidth="1.1"/><path d="M5 6.5V5a2 2 0 014 0v1.5" stroke="var(--text3)" strokeWidth="1.1" strokeLinecap="round"/></svg>
-                <div className="privacy-text"><strong>Your token is private.</strong> Only your iPhone Shortcut uses it. Never share this token with anyone.</div>
+                <div className="privacy-text"><strong>{t('shortcut_token_private')}</strong> {t('shortcut_token_sub')}</div>
               </div>
-
-              <button className="btn-primary" onClick={() => setShowShortcutSetup(false)}>Done</button>
+              <button className="btn-primary" onClick={() => setShowShortcutSetup(false)}>{t('shortcut_done')}</button>
               <div style={{ height: 4 }} />
             </div>
           </div>
         </div>
       )}
-
       <Toast />
     </>
   )

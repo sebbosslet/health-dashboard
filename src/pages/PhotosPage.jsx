@@ -1,3 +1,4 @@
+import { useLang } from '../lib/LangContext'
 import { useState, useEffect, useRef } from 'react'
 import { format } from 'date-fns'
 import { supabase } from '../lib/supabase'
@@ -5,6 +6,7 @@ import { showToast } from '../components/Toast'
 import { Toast } from '../components/Toast'
 
 export default function PhotosPage({ session }) {
+  const { t } = useLang()
   const [tab, setTab] = useState('timeline')
   const [photos, setPhotos] = useState([])
   const [photoType, setPhotoType] = useState('face')
@@ -99,7 +101,7 @@ export default function PhotosPage({ session }) {
     <>
       <div className="page-header">
         <div>
-          <div className="page-header-title">Progress photos</div>
+          <div className="page-header-title">{`${t('photos_title')}`}</div>
           <div className="page-header-sub">Private · never shared</div>
         </div>
         <button onClick={() => setShowUpload(true)} style={{ width: 34, height: 34, borderRadius: 10, background: 'var(--green-light)', border: 'none', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}>
@@ -116,7 +118,7 @@ export default function PhotosPage({ session }) {
       <div style={{ display: 'flex', gap: 6, padding: '10px 12px 4px', background: 'var(--surface)', borderBottom: '0.5px solid var(--border)' }}>
         {['face', 'upper_body'].map(t => (
           <button key={t} onClick={() => setPhotoType(t)} style={{ flex: 1, padding: '7px', borderRadius: 8, border: '0.5px solid var(--border)', background: photoType === t ? 'var(--green-light)' : 'var(--surface2)', color: photoType === t ? 'var(--green)' : 'var(--text2)', fontWeight: photoType === t ? 600 : 400, fontSize: 13, cursor: 'pointer', fontFamily: 'inherit' }}>
-            {t === 'face' ? 'Face' : 'Upper body'}
+            {t === 'face' ? t('photos_face') : t('photos_upper')}
           </button>
         ))}
       </div>
@@ -255,7 +257,7 @@ export default function PhotosPage({ session }) {
               <div>
                 <div style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', color: 'var(--text2)', marginBottom: 8 }}>Photo type</div>
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
-                  {[{ key: 'face', label: 'Face', sub: 'Jawline, face definition' }, { key: 'upper_body', label: 'Upper body', sub: 'Torso, shoulders' }].map(t => (
+                  {[{ key: 'face', label: t('photos_face'), sub: 'Jawline, face definition' }, { key: 'upper_body', label: t('photos_upper'), sub: 'Torso, shoulders' }].map(t => (
                     <button key={t.key} onClick={() => setUploadType(t.key)} style={{ padding: '14px 10px', borderRadius: 12, border: `0.5px solid ${uploadType === t.key ? 'var(--green)' : 'var(--border)'}`, background: uploadType === t.key ? 'var(--green-light)' : 'var(--surface2)', cursor: 'pointer', fontFamily: 'inherit', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6 }}>
                       <div style={{ fontSize: 13, fontWeight: 600, color: uploadType === t.key ? 'var(--green)' : 'var(--text)' }}>{t.label}</div>
                       <div style={{ fontSize: 11, color: 'var(--text3)' }}>{t.sub}</div>

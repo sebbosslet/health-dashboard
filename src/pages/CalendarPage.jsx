@@ -1,3 +1,4 @@
+import { useLang } from '../lib/LangContext'
 import { useState, useMemo } from 'react'
 import { format, startOfMonth, endOfMonth, eachDayOfInterval, getDay, isSameDay, isFuture, startOfDay, subMonths, addMonths } from 'date-fns'
 import { useMonthLogs } from '../hooks/useData'
@@ -15,6 +16,7 @@ function logScore(log) {
 }
 
 export default function CalendarPage({ session }) {
+  const { t } = useLang()
   const [currentMonth, setCurrentMonth] = useState(new Date())
   const [selectedLog, setSelectedLog] = useState(null)
 
@@ -93,7 +95,7 @@ export default function CalendarPage({ session }) {
   return (
     <>
       <div className="page-header">
-        <div className="page-header-title">Calendar</div>
+        <div className="page-header-title">{`${t('cal_title')}`}</div>
         <div style={{ fontSize: 11, padding: '4px 10px', borderRadius: 20, background: 'var(--green-light)', color: 'var(--green)', fontWeight: 600 }}>
           Year view
         </div>
@@ -136,8 +138,8 @@ export default function CalendarPage({ session }) {
         {/* Legend */}
         <div style={{ display: 'flex', gap: 10, padding: '4px 12px 10px', flexWrap: 'wrap' }}>
           {[
-            { cls: 'sq-full', color: 'var(--green-light)', label: 'Fully logged' },
-            { cls: 'sq-partial', color: 'var(--amber-light)', label: 'Partial' },
+            { cls: 'sq-full', color: 'var(--green-light)', label: t('cal_fully_logged') },
+            { cls: 'sq-partial', color: 'var(--amber-light)', label: t('cal_partial') },
           ].map(l => (
             <div key={l.label} style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 10, color: 'var(--text2)' }}>
               <div style={{ width: 10, height: 10, borderRadius: 3, background: l.color, border: '0.5px solid var(--border)' }} />

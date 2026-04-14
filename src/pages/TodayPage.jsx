@@ -1,37 +1,36 @@
 import { useState, useEffect } from 'react'
 import { format } from 'date-fns'
-import { supabase } from '../lib/supabase'
 import { useDailyLog, useSettings } from '../hooks/useData'
 import { showToast } from '../components/Toast'
 import { Toast } from '../components/Toast'
+import { useLang } from '../lib/LangContext'
 
 const SUPPLEMENTS = [
-  { key: 'thyroid', label: 'Thyroid 100mcg', cls: 'thyroid' },
-  { key: 'magpill', label: 'Magnesium pill' },
-  { key: 'magdrink', label: 'Magnesium drink' },
-  { key: 'multi', label: 'Multivitamin' },
-  { key: 'zinc', label: 'Zinc' },
-  { key: 'iron', label: 'Iron' },
-  { key: 'vitb', label: 'Vitamin B' },
-  { key: 'vitd', label: 'Vitamin D' },
-  { key: 'calnat', label: 'Calcium/Natrium' },
+  { key: 'thyroid', tKey: 'supp_thyroid', cls: 'thyroid' },
+  { key: 'magpill', tKey: 'supp_magpill' },
+  { key: 'magdrink', tKey: 'supp_magdrink' },
+  { key: 'multi', tKey: 'supp_multi' },
+  { key: 'zinc', tKey: 'supp_zinc' },
+  { key: 'iron', tKey: 'supp_iron' },
+  { key: 'vitb', tKey: 'supp_vitb' },
+  { key: 'vitd', tKey: 'supp_vitd' },
+  { key: 'calnat', tKey: 'supp_calnat' },
 ]
-
 const ACTIVITIES = [
-  { key: 'gym', label: 'Gym' },
-  { key: 'run', label: 'Run' },
-  { key: 'home', label: 'Home workout' },
-  { key: 'sauna', label: 'Sauna' },
+  { key: 'gym', tKey: 'act_gym' },
+  { key: 'run', tKey: 'act_run' },
+  { key: 'home', tKey: 'act_home' },
+  { key: 'sauna', tKey: 'act_sauna' },
 ]
-
 const HABITS = [
-  { key: 'reading', label: 'Reading' },
-  { key: 'meditation', label: 'Meditation' },
-  { key: 'nophone', label: 'No phone' },
-  { key: 'journal', label: 'Journaling' },
+  { key: 'reading', tKey: 'hab_reading' },
+  { key: 'meditation', tKey: 'hab_meditation' },
+  { key: 'nophone', tKey: 'hab_nophone' },
+  { key: 'journal', tKey: 'hab_journal' },
 ]
 
 export default function TodayPage({ session }) {
+  const { t } = useLang()
   const today = new Date()
   const { log, save } = useDailyLog(session.user.id, today)
   const { settings } = useSettings(session.user.id)
@@ -54,11 +53,7 @@ export default function TodayPage({ session }) {
   }, [log])
 
   function toggle(set, setFn, key) {
-    setFn(prev => {
-      const next = new Set(prev)
-      next.has(key) ? next.delete(key) : next.add(key)
-      return next
-    })
+    setFn(prev => { const n = new Set(prev); n.has(key) ? n.delete(key) : n.add(key); return n })
   }
 
   async function handleSave() {
@@ -71,8 +66,7 @@ export default function TodayPage({ session }) {
       water: water ? parseInt(water) : null,
     })
     setSaving(false)
-    if (!error) showToast('Saved!')
-    else showToast('Error saving')
+    showToast(error ? t('today_error') : t('today_saved'))
   }
 
   const calorieTarget = settings.calorie_target || 1900
@@ -86,12 +80,10 @@ export default function TodayPage({ session }) {
     <>
       <div className="page-header">
         <div>
-          <div className="page-header-title">Today</div>
+          <div className="page-header-title">{t('today_title')}</div>
           <div className="page-header-sub">{format(today, 'EEEE, d MMMM')}</div>
         </div>
-        <div style={{ width: 32, height: 32, borderRadius: '50%', background: 'var(--green-light)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 600, fontSize: 13, color: 'var(--green)' }}>
-          S
-        </div>
+        <div style={{ width: 32, height: 32, borderRadius: '50%', background: 'var(--green-light)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, fontSize: 13, color: 'var(--green)' }}>S</div>
       </div>
 
       <div className="page-section">
@@ -99,38 +91,34 @@ export default function TodayPage({ session }) {
         {/* WHOOP Recovery */}
         <div className="card">
           <div className="card-header">
-            <span className="card-title">Recovery · WHOOP</span>
-            <span className="badge badge-red" style={{ background: 'rgba(194,48,48,0.08)', color: '#8b1f1f' }}>Auto sync</span>
+            <span className="card-title">{t('today_recovery')}</span>
+            <span className="badge badge-red" style={{ background: 'rgba(194,48,48,0.08)', color: '#8b1f1f' }}>{t('today_auto_sync')}</span>
           </div>
           {log?.recovery_score ? (
             <div className="metric-grid">
               <div className="metric-cell">
-                <div className="metric-label">Recovery</div>
+                <div className="metric-label">{t('metric_recovery')}</div>
                 <div className="metric-value" style={{ color: log.recovery_score >= 67 ? 'var(--green)' : log.recovery_score >= 34 ? 'var(--amber)' : 'var(--red)' }}>
                   {Math.round(log.recovery_score)}<span className="metric-unit">%</span>
                 </div>
               </div>
               <div className="metric-cell">
-                <div className="metric-label">HRV</div>
-                <div className="metric-value" style={{ color: 'var(--purple)' }}>
-                  {Math.round(log.hrv || 0)}<span className="metric-unit">ms</span>
-                </div>
+                <div className="metric-label">{t('metric_hrv')}</div>
+                <div className="metric-value" style={{ color: 'var(--purple)' }}>{Math.round(log.hrv || 0)}<span className="metric-unit">ms</span></div>
               </div>
               <div className="metric-cell">
-                <div className="metric-label">RHR</div>
+                <div className="metric-label">{t('metric_rhr')}</div>
                 <div className="metric-value">{Math.round(log.rhr || 0)}<span className="metric-unit">bpm</span></div>
               </div>
               <div className="metric-cell">
-                <div className="metric-label">Restorative</div>
-                <div className="metric-value" style={{ color: 'var(--purple)' }}>
-                  {(log.sleep_restorative || 0).toFixed(1)}<span className="metric-unit">h</span>
-                </div>
+                <div className="metric-label">{t('metric_restorative')}</div>
+                <div className="metric-value" style={{ color: 'var(--purple)' }}>{(log.sleep_restorative || 0).toFixed(1)}<span className="metric-unit">h</span></div>
               </div>
             </div>
           ) : (
             <div style={{ padding: '16px 14px', color: 'var(--text2)', fontSize: 13, textAlign: 'center' }}>
-              No WHOOP data yet today
-              <div style={{ fontSize: 11, marginTop: 4, color: 'var(--text3)' }}>Sync via Profile tab to connect WHOOP</div>
+              {t('today_no_whoop')}
+              <div style={{ fontSize: 11, marginTop: 4, color: 'var(--text3)' }}>{t('today_no_whoop_sub')}</div>
             </div>
           )}
         </div>
@@ -139,22 +127,18 @@ export default function TodayPage({ session }) {
         {log?.sleep_duration && (
           <div className="card">
             <div className="card-header">
-              <span className="card-title">Sleep · WHOOP</span>
+              <span className="card-title">{t('today_sleep')}</span>
               <span className="source-pill source-whoop">WHOOP</span>
             </div>
             <div className="metric-grid">
               <div className="metric-cell">
-                <div className="metric-label">Duration</div>
-                <div className="metric-value" style={{ color: 'var(--blue)' }}>
-                  {(log.sleep_duration || 0).toFixed(1)}<span className="metric-unit">h</span>
-                </div>
+                <div className="metric-label">{t('metric_duration')}</div>
+                <div className="metric-value" style={{ color: 'var(--blue)' }}>{(log.sleep_duration || 0).toFixed(1)}<span className="metric-unit">h</span></div>
                 <div className="bar-wrap"><div className="bar bar-blue" style={{ width: `${Math.min(100, (log.sleep_duration / 9) * 100)}%` }} /></div>
               </div>
               <div className="metric-cell">
-                <div className="metric-label">Efficiency</div>
-                <div className="metric-value" style={{ color: 'var(--green)' }}>
-                  {Math.round(log.sleep_efficiency || 0)}<span className="metric-unit">%</span>
-                </div>
+                <div className="metric-label">{t('metric_efficiency')}</div>
+                <div className="metric-value" style={{ color: 'var(--green)' }}>{Math.round(log.sleep_efficiency || 0)}<span className="metric-unit">%</span></div>
                 <div className="bar-wrap"><div className="bar bar-green" style={{ width: `${log.sleep_efficiency || 0}%` }} /></div>
               </div>
             </div>
@@ -164,7 +148,7 @@ export default function TodayPage({ session }) {
         {/* Steps */}
         <div className="card">
           <div className="card-header">
-            <span className="card-title">Steps today</span>
+            <span className="card-title">{t('today_steps')}</span>
             <span className="source-pill source-apple">Apple Health</span>
           </div>
           <div style={{ padding: '12px 14px' }}>
@@ -173,62 +157,51 @@ export default function TodayPage({ session }) {
                 <div style={{ fontSize: 32, fontWeight: 700, fontFamily: 'var(--font-mono)', lineHeight: 1 }}>
                   {log?.steps ? log.steps.toLocaleString() : '—'}
                 </div>
-                <div style={{ fontSize: 11, color: 'var(--text2)', marginTop: 3 }}>
-                  goal {stepsTarget.toLocaleString()}
-                </div>
+                <div style={{ fontSize: 11, color: 'var(--text2)', marginTop: 3 }}>{t('today_steps_goal')} {stepsTarget.toLocaleString()}</div>
               </div>
               {log?.steps && (
                 <div style={{ textAlign: 'right' }}>
-                  <div style={{ fontSize: 13, fontWeight: 600, color: stepsPct >= 100 ? 'var(--green)' : 'var(--text2)' }}>
-                    {stepsPct}%
-                  </div>
+                  <div style={{ fontSize: 13, fontWeight: 600, color: stepsPct >= 100 ? 'var(--green)' : 'var(--text2)' }}>{stepsPct}%</div>
                   <div style={{ fontSize: 11, color: 'var(--text3)' }}>
-                    {stepsPct >= 100 ? 'goal reached!' : `${(stepsTarget - log.steps).toLocaleString()} to go`}
+                    {stepsPct >= 100 ? t('today_steps_reached') : `${(stepsTarget - log.steps).toLocaleString()} ${t('today_steps_to_go')}`}
                   </div>
                 </div>
               )}
             </div>
-            <div className="bar-wrap-lg">
-              <div className="bar bar-green" style={{ width: `${stepsPct}%` }} />
-            </div>
-            <div style={{ fontSize: 10, color: 'var(--text3)', marginTop: 5, display: 'flex', alignItems: 'center', gap: 4 }}>
-              <svg width="10" height="10" viewBox="0 0 10 10" fill="none"><path d="M1 8l2-3 2 1.5L7.5 2 9 4" stroke="var(--text3)" strokeWidth="1" strokeLinecap="round" strokeLinejoin="round"/></svg>
-              Syncs automatically via Apple Health Shortcut
-            </div>
+            <div className="bar-wrap-lg"><div className="bar bar-green" style={{ width: `${stepsPct}%` }} /></div>
+            <div style={{ fontSize: 10, color: 'var(--text3)', marginTop: 5 }}>{t('today_steps_auto')}</div>
           </div>
         </div>
 
         {/* Nutrition */}
         <div className="card">
           <div className="card-header">
-            <span className="card-title">Nutrition</span>
-            <span className="badge badge-green">AI photo log</span>
+            <span className="card-title">{t('today_nutrition')}</span>
+            <span className="badge badge-green">{t('today_ai_photo')}</span>
           </div>
           <div style={{ padding: '12px 14px', display: 'flex', flexDirection: 'column', gap: 12 }}>
             <div>
               <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, color: 'var(--text2)', marginBottom: 5 }}>
-                <span>Calories</span>
-                <span style={{ fontWeight: 600, color: 'var(--amber)' }}>
-                  {calories || 0} / {calorieTarget.toLocaleString()} kcal
-                </span>
+                <span>{t('metric_calories')}</span>
+                <span style={{ fontWeight: 600, color: 'var(--amber)' }}>{calories || 0} / {calorieTarget.toLocaleString()} kcal</span>
               </div>
               <div className="bar-wrap-lg"><div className="bar bar-amber" style={{ width: `${calPct}%` }} /></div>
             </div>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
               <div className="field">
-                <label className="field-label">Calories (kcal)</label>
+                <label className="field-label">{t('today_calories_label')}</label>
                 <input className="field-input" type="number" value={calories} onChange={e => setCalories(e.target.value)} placeholder={calorieTarget} inputMode="numeric" />
               </div>
               <div className="field">
-                <label className="field-label">Water (ml)</label>
+                <label className="field-label">{t('today_water_label')}</label>
                 <input className="field-input" type="number" value={water} onChange={e => setWater(e.target.value)} placeholder={waterTarget} inputMode="numeric" />
               </div>
             </div>
             {water && (
               <div>
                 <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, color: 'var(--text2)', marginBottom: 5 }}>
-                  <span>Water</span>
-                  <span style={{ fontWeight: 600, color: 'var(--blue)' }}>{waterPct}% of goal</span>
+                  <span>{t('metric_water')}</span>
+                  <span style={{ fontWeight: 600, color: 'var(--blue)' }}>{waterPct}% {t('today_pct_of_goal')}</span>
                 </div>
                 <div className="bar-wrap"><div className="bar bar-blue" style={{ width: `${waterPct}%` }} /></div>
               </div>
@@ -238,12 +211,12 @@ export default function TodayPage({ session }) {
 
         {/* Activity */}
         <div className="card">
-          <div className="card-header"><span className="card-title">Activity</span></div>
+          <div className="card-header"><span className="card-title">{t('today_activity')}</span></div>
           <div style={{ padding: '10px 14px 14px' }}>
             <div className="toggle-grid">
               {ACTIVITIES.map(a => (
                 <button key={a.key} className={`toggle-btn ${activeActivity.has(a.key) ? 'active' : ''}`} onClick={() => toggle(activeActivity, setActiveActivity, a.key)}>
-                  {a.label}
+                  {t(a.tKey)}
                 </button>
               ))}
             </div>
@@ -252,12 +225,12 @@ export default function TodayPage({ session }) {
 
         {/* Evening habits */}
         <div className="card">
-          <div className="card-header"><span className="card-title">Evening habits</span></div>
+          <div className="card-header"><span className="card-title">{t('today_evening')}</span></div>
           <div style={{ padding: '10px 14px 14px' }}>
             <div className="toggle-grid">
               {HABITS.map(h => (
                 <button key={h.key} className={`toggle-btn ${activeHabits.has(h.key) ? 'active' : ''}`} onClick={() => toggle(activeHabits, setActiveHabits, h.key)}>
-                  {h.label}
+                  {t(h.tKey)}
                 </button>
               ))}
             </div>
@@ -266,26 +239,23 @@ export default function TodayPage({ session }) {
 
         {/* Supplements */}
         <div className="card">
-          <div className="card-header"><span className="card-title">Supplements</span></div>
+          <div className="card-header"><span className="card-title">{t('today_supplements')}</span></div>
           <div style={{ padding: '10px 14px 14px' }}>
             <div className="supp-grid">
               {SUPPLEMENTS.map(s => (
                 <button key={s.key} className={`supp-pill ${s.cls || ''} ${activeSupps.has(s.key) ? 'active' : ''}`} onClick={() => toggle(activeSupps, setActiveSupps, s.key)}>
-                  {s.label}
+                  {t(s.tKey)}
                 </button>
               ))}
             </div>
           </div>
         </div>
 
-        {/* Save button */}
         <button className="btn-primary" onClick={handleSave} disabled={saving}>
-          {saving ? 'Saving...' : 'Save today\'s log'}
+          {saving ? t('today_saving') : t('today_save')}
         </button>
-
         <div style={{ height: 8 }} />
       </div>
-
       <Toast />
     </>
   )

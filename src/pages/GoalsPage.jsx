@@ -1,3 +1,4 @@
+import { useLang } from '../lib/LangContext'
 import { useState, useEffect } from 'react'
 import { format } from 'date-fns'
 import { supabase } from '../lib/supabase'
@@ -45,6 +46,7 @@ function GoalRow({ goal, onEdit }) {
 }
 
 export default function GoalsPage({ session }) {
+  const { t } = useLang()
   const [goals, setGoals] = useState([])
   const [loading, setLoading] = useState(true)
   const [editing, setEditing] = useState(null)
@@ -129,7 +131,7 @@ export default function GoalsPage({ session }) {
   return (
     <>
       <div className="page-header">
-        <div className="page-header-title">Goals</div>
+        <div className="page-header-title">{`${'goals_title'}`}</div>
         <button onClick={openNew} style={{ fontSize: 11, padding: '5px 12px', borderRadius: 20, background: 'var(--green-light)', color: 'var(--green)', fontWeight: 700, border: 'none', cursor: 'pointer', fontFamily: 'inherit' }}>
           + New goal
         </button>
@@ -140,14 +142,14 @@ export default function GoalsPage({ session }) {
 
         {!loading && goals.length === 0 && (
           <div style={{ textAlign: 'center', padding: 24 }}>
-            <div style={{ fontSize: 14, color: 'var(--text2)', marginBottom: 16 }}>No goals set yet</div>
-            <button className="btn-primary" onClick={seedDefaultGoals}>Load default goals</button>
+            <div style={{ fontSize: 14, color: 'var(--text2)', marginBottom: 16 }}>${t('goals_none')}</div>
+            <button className="btn-primary" onClick={seedDefaultGoals}>{`${t('goals_load_defaults')}`}</button>
           </div>
         )}
 
         <div style={{ fontSize: 11, color: 'var(--text2)', textAlign: 'center', padding: '4px 0 2px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5 }}>
           <svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M2 6h8M7 3l3 3-3 3" stroke="var(--text2)" strokeWidth="1.1" strokeLinecap="round" strokeLinejoin="round"/></svg>
-          Tap any goal to edit
+          ${t('goals_tap_hint')}
         </div>
 
         {Object.entries(grouped).map(([cat, catGoals]) => (

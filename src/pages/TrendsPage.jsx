@@ -1,3 +1,4 @@
+import { useLang } from '../lib/LangContext'
 import { useState, useEffect } from 'react'
 import { format, subDays } from 'date-fns'
 import { supabase } from '../lib/supabase'
@@ -19,6 +20,7 @@ function MiniBarChart({ data, color, height = 52 }) {
 }
 
 export default function TrendsPage({ session }) {
+  const { t } = useLang()
   const [logs, setLogs] = useState([])
   const [period, setPeriod] = useState('7d')
   const { settings } = useSettings(session.user.id)
@@ -81,7 +83,7 @@ export default function TrendsPage({ session }) {
   return (
     <>
       <div className="page-header">
-        <div className="page-header-title">Trends</div>
+        <div className="page-header-title">{`${t('trends_title')}`}</div>
         <div style={{ display: 'flex', gap: 4 }}>
           {periodBtns.map(p => (
             <button key={p} onClick={() => setPeriod(p)} style={{ padding: '5px 10px', borderRadius: 20, fontSize: 11, border: '0.5px solid var(--border)', background: period === p ? 'var(--green-light)' : 'var(--surface2)', color: period === p ? 'var(--green)' : 'var(--text2)', fontWeight: period === p ? 600 : 400, cursor: 'pointer', fontFamily: 'inherit' }}>
