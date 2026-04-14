@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Privacy Policy · sebs.health</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      font-size: 15px; line-height: 1.7; color: #1a1a1a;
+      background: #f5f5f3; padding: 0;
+    }
+    .wrap { max-width: 680px; margin: 0 auto; padding: 48px 24px 80px; }
+    .logo { display: flex; align-items: center; gap: 10px; margin-bottom: 40px; text-decoration: none; }
+    .logo-mark { width: 36px; height: 36px; border-radius: 10px; background: #1a7a5e; display: flex; align-items: center; justify-content: center; }
+    .logo-name { font-size: 17px; font-weight: 700; color: #1a1a1a; }
+    h1 { font-size: 28px; font-weight: 700; margin-bottom: 8px; }
+    .updated { font-size: 13px; color: #888; margin-bottom: 40px; }
+    h2 { font-size: 18px; font-weight: 600; margin: 32px 0 10px; color: #1a1a1a; }
+    p { color: #444; margin-bottom: 14px; }
+    ul { color: #444; margin: 0 0 14px 20px; }
+    ul li { margin-bottom: 6px; }
+    .highlight { background: #e8f5f0; border-left: 3px solid #1a7a5e; padding: 12px 16px; border-radius: 0 8px 8px 0; margin-bottom: 14px; color: #1a1a1a; font-size: 14px; }
+    a { color: #1a7a5e; text-decoration: none; }
+    a:hover { text-decoration: underline; }
+    @media (prefers-color-scheme: dark) {
+      body { background: #111110; color: #f0eeea; }
+      .logo-name { color: #f0eeea; }
+      h1 { color: #f0eeea; }
+      h2 { color: #f0eeea; }
+      p, ul { color: #999; }
+      .highlight { background: rgba(26,122,94,0.15); color: #f0eeea; }
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <a class="logo" href="/">
+      <div class="logo-mark">
+        <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+          <path d="M10 2C6.13 2 3 5.13 3 9s3.13 7 7 7 7-3.13 7-7-3.13-7-7-7zm0 2c1.16 0 2.1.94 2.1 2.1S11.16 8.2 10 8.2s-2.1-.94-2.1-2.1S8.84 4 10 4zm0 9.94c-2.1 0-3.96-1.07-5.04-2.7.02-1.67 3.36-2.59 5.04-2.59 1.67 0 5.01.92 5.04 2.59C14.96 12.87 13.1 13.94 10 13.94z" fill="white"/>
+        </svg>
+      </div>
+      <span class="logo-name">sebs.health</span>
+    </a>
+
+    <h1>Privacy Policy</h1>
+    <div class="updated">Last updated: April 2026</div>
+
+    <div class="highlight">
+      sebs.health is a personal health dashboard built for private use by a single individual. This app is not a commercial product and does not collect, sell, or share data with any third parties.
+    </div>
+
+    <h2>Who this app is for</h2>
+    <p>sebs.health is a personal health tracking application used exclusively by its owner. It is not a public-facing product and is not available for general registration.</p>
+
+    <h2>What data is collected</h2>
+    <p>The following personal health data is stored when logged by the app user:</p>
+    <ul>
+      <li>Sleep metrics (duration, efficiency, restorative sleep)</li>
+      <li>Recovery data (HRV, resting heart rate, recovery score) via WHOOP integration</li>
+      <li>Daily step count and body weight via Apple Health integration</li>
+      <li>Calorie and nutrition data entered manually or via AI photo estimation</li>
+      <li>Habit and supplement tracking entries</li>
+      <li>Progress photos uploaded voluntarily</li>
+    </ul>
+
+    <h2>How data is stored</h2>
+    <p>All data is stored in a private Supabase database protected by row-level security. Only the authenticated account owner can read or write their own data. Progress photos are stored in private encrypted storage and are never publicly accessible.</p>
+
+    <h2>Third-party integrations</h2>
+    <p>This app connects to the following third-party services solely to retrieve health data on behalf of the account owner:</p>
+    <ul>
+      <li><strong>WHOOP</strong> — sleep and recovery metrics are fetched via the WHOOP Developer API using OAuth 2.0. No WHOOP data is shared with any other party.</li>
+      <li><strong>Apple Health</strong> — weight and step data is sent from the device via a personal iPhone Shortcut. No data is transmitted to any party other than the user's own database.</li>
+      <li><strong>Anthropic Claude API</strong> — food photos are sent to the Claude API for calorie estimation. Images are processed transiently and are not stored by Anthropic beyond normal API logging policies.</li>
+    </ul>
+
+    <h2>Data sharing</h2>
+    <p>No personal data is shared with, sold to, or accessible by any third party. This application has no advertising, analytics tracking, or external data sharing of any kind.</p>
+
+    <h2>Data retention</h2>
+    <p>Data is retained in the user's private database indefinitely unless manually deleted by the account owner. The account owner can delete their account and all associated data at any time by contacting the app administrator.</p>
+
+    <h2>Cookies</h2>
+    <p>This application uses a single authentication session cookie to keep the user logged in. No tracking or advertising cookies are used.</p>
+
+    <h2>Your rights</h2>
+    <p>As the sole user of this application, the account owner has full control over all data stored. Data can be exported or deleted upon request.</p>
+
+    <h2>Contact</h2>
+    <p>For any questions about this privacy policy or data handling, contact the app owner directly.</p>
+
+    <p style="margin-top: 40px; font-size: 13px; color: #888;">
+      <a href="/">← Back to sebs.health</a>
+    </p>
+  </div>
+</body>
+</html>
