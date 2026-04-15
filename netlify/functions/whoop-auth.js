@@ -43,7 +43,14 @@ exports.handler = async (event) => {
     }
 
     const tokens = await tokenRes.json()
-    console.log('WHOOP tokens received, keys:', Object.keys(tokens))
+    console.log('WHOOP tokens received:', JSON.stringify({
+      has_access_token: !!tokens.access_token,
+      has_refresh_token: !!tokens.refresh_token,
+      token_type: tokens.token_type,
+      expires_in: tokens.expires_in,
+      scope: tokens.scope,
+      access_token_preview: tokens.access_token?.slice(0, 20),
+    }))
     const expiresAt = new Date(Date.now() + (tokens.expires_in || 3600) * 1000).toISOString()
 
     // Get WHOOP user profile
