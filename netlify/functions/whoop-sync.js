@@ -16,22 +16,38 @@ async function whoopFetch(url, accessToken) {
   return res.json()
 }
 
-// Fetch all pages from a WHOOP endpoint using next_token pagination
-async function whoopFetchAll(baseUrl, accessToken, maxPages = 5) {
+// Paginate backwards using end= parameter since next_token doesn't work with start=
+async function whoopFetchAll(baseEndpoint, accessToken, startISO, maxPages = 10) {
   const allRecords = []
-  let nextToken = null
+  let endISO = null // start with no end filter (gets most recent)
   let page = 0
 
   do {
-    const url = nextToken
-      ? `${baseUrl}&next_token=${encodeURIComponent(nextToken)}`
-      : baseUrl
+    const url = endISO
+      ? `${baseEndpoint}&start=${startISO}&end=${endISO}&limit=10`
+      : `${baseEndpoint}&start=${startISO}&limit=10`
 
     const data = await whoopFetch(url, accessToken)
-    allRecords.push(...(data.records || []))
-    nextToken = data.next_token || null
+    const records = data.records || []
+
+    if (records.length === 0) break
+
+    allRecords.push(...records)
+
+    // Get oldest record's start time to use as end for next page
+    const oldest = records[records.length - 1]
+    const oldestTime = oldest.end || oldest.created_at
+    if (!oldestTime) break
+
+    // Move end back by 1 second to avoid fetching the same record again
+    const newEnd = new Date(new Date(oldestTime).getTime() - 1000).toISOString()
+
+    // Stop if we've gone past our start date
+    if (new Date(newEnd) < new Date(startISO)) break
+
+    endISO = newEnd
     page++
-  } while (nextToken && page < maxPages)
+  } while (page < maxPages)
 
   return allRecords
 }
@@ -92,7 +108,7 @@ exports.handler = async (event) => {
       }
     }
 
-    // Fetch last 90 days with pagination (up to 10 pages of 10 = 100 records)
+    // Fetch last 90 days using backwards pagination
     const ninetyDaysAgo = new Date()
     ninetyDaysAgo.setDate(ninetyDaysAgo.getDate() - 90)
     const startISO = ninetyDaysAgo.toISOString()
@@ -100,16 +116,8 @@ exports.handler = async (event) => {
     console.log('Fetching WHOOP data from', startISO)
 
     const [sleepRecords, recoveryRecords] = await Promise.all([
-      whoopFetchAll(
-        `https://api.prod.whoop.com/developer/v2/activity/sleep?start=${startISO}&limit=10`,
-        activeToken,
-        10
-      ),
-      whoopFetchAll(
-        `https://api.prod.whoop.com/developer/v2/recovery?start=${startISO}&limit=10`,
-        activeToken,
-        10
-      ),
+      whoopFetchAll('https://api.prod.whoop.com/developer/v2/activity/sleep?', activeToken, startISO, 10),
+      whoopFetchAll('https://api.prod.whoop.com/developer/v2/recovery?', activeToken, startISO, 10),
     ])
 
     console.log(`Fetched ${sleepRecords.length} sleep records, ${recoveryRecords.length} recovery records`)
@@ -161,7 +169,7 @@ exports.handler = async (event) => {
           ? +recovery.score.resting_heart_rate.toFixed(0) : null
       }
 
-      console.log(`Syncing ${dateStr}: sleep=${sleepDuration}h eff=${efficiency}% recovery=${updates.recovery_score}`)
+      console.log(`Syncing ${dateStr}: sleep=${sleepDuration}h recovery=${updates.recovery_score}`)
 
       const { error } = await supabase.from('daily_logs').upsert({
         user_id,
@@ -171,7 +179,7 @@ exports.handler = async (event) => {
       }, { onConflict: 'user_id,date' })
 
       if (error) console.error('Upsert error for', dateStr, JSON.stringify(error))
-      else synced.push(dateStr)
+      else if (!synced.includes(dateStr)) synced.push(dateStr)
     }
 
     // Sync any recovery records without a sleep match
