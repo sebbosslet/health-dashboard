@@ -9,15 +9,31 @@ async function whoopFetch(url, accessToken) {
   const res = await fetch(url, {
     headers: { Authorization: `Bearer ${accessToken}` },
   })
-  if (res.status === 404) {
-    console.log(`404 for ${url} - skipping`)
-    return { records: [] }
-  }
   if (!res.ok) {
     const text = await res.text()
     throw new Error(`WHOOP API error: ${res.status} ${url} - ${text}`)
   }
   return res.json()
+}
+
+// Fetch all pages from a WHOOP endpoint using next_token pagination
+async function whoopFetchAll(baseUrl, accessToken, maxPages = 5) {
+  const allRecords = []
+  let nextToken = null
+  let page = 0
+
+  do {
+    const url = nextToken
+      ? `${baseUrl}&next_token=${encodeURIComponent(nextToken)}`
+      : baseUrl
+
+    const data = await whoopFetch(url, accessToken)
+    allRecords.push(...(data.records || []))
+    nextToken = data.next_token || null
+    page++
+  } while (nextToken && page < maxPages)
+
+  return allRecords
 }
 
 exports.handler = async (event) => {
@@ -45,10 +61,9 @@ exports.handler = async (event) => {
       return { statusCode: 404, headers, body: JSON.stringify({ error: 'WHOOP not connected' }) }
     }
 
-    const accessToken = tokenRow.access_token
+    let activeToken = tokenRow.access_token
 
-    // Try to refresh the token if it's expired or close to expiry
-    let activeToken = accessToken
+    // Auto-refresh token if we have a refresh token
     if (tokenRow.refresh_token && tokenRow.refresh_token !== tokenRow.access_token) {
       try {
         const refreshRes = await fetch('https://api.prod.whoop.com/oauth/oauth2/token', {
@@ -73,35 +88,45 @@ exports.handler = async (event) => {
           console.log('Token refreshed successfully')
         }
       } catch (e) {
-        console.log('Token refresh failed, using existing token:', e.message)
+        console.log('Token refresh failed, using existing:', e.message)
       }
     }
 
-    // Fetch last 30 days
-    const today = new Date()
-    const thirtyDaysAgo = new Date(today)
+    // Fetch last 30 days with pagination (up to 5 pages of 10 = 50 records)
+    const thirtyDaysAgo = new Date()
     thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30)
     const startISO = thirtyDaysAgo.toISOString()
 
     console.log('Fetching WHOOP data from', startISO)
 
-    // WHOOP v2 API endpoints
-    const [sleepData, recoveryData] = await Promise.all([
-      whoopFetch(`https://api.prod.whoop.com/developer/v2/activity/sleep?start=${startISO}&limit=30`, activeToken),
-      whoopFetch(`https://api.prod.whoop.com/developer/v2/recovery?start=${startISO}&limit=30`, activeToken),
+    const [sleepRecords, recoveryRecords] = await Promise.all([
+      whoopFetchAll(
+        `https://api.prod.whoop.com/developer/v2/activity/sleep?start=${startISO}&limit=10`,
+        activeToken,
+        5
+      ),
+      whoopFetchAll(
+        `https://api.prod.whoop.com/developer/v2/recovery?start=${startISO}&limit=10`,
+        activeToken,
+        5
+      ),
     ])
 
-    console.log('Sleep records:', sleepData.records?.length || 0)
-    console.log('Recovery records:', recoveryData.records?.length || 0)
+    console.log(`Fetched ${sleepRecords.length} sleep records, ${recoveryRecords.length} recovery records`)
+
+    // Build recovery lookup by sleep_id
+    const recoveryBySleepId = {}
+    for (const r of recoveryRecords) {
+      if (r.sleep_id) recoveryBySleepId[r.sleep_id] = r
+    }
 
     const synced = []
 
     // Process sleep records
-    for (const sleep of (sleepData.records || [])) {
-      if (!sleep.end || sleep.nap) continue // skip naps and in-progress sleep
+    for (const sleep of sleepRecords) {
+      if (!sleep.end || sleep.nap) continue
       if (sleep.score_state !== 'SCORED') continue
 
-      // WHOOP sleep ends in morning - use end date
       const endDate = new Date(sleep.end)
       const dateStr = endDate.toISOString().split('T')[0]
 
@@ -110,7 +135,6 @@ exports.handler = async (event) => {
       const awakeMs = stage.total_awake_time_milli || 0
       const remMs = stage.total_rem_sleep_time_milli || 0
       const slowWaveMs = stage.total_slow_wave_sleep_time_milli || 0
-      const lightMs = stage.total_light_sleep_time_milli || 0
       const actualSleepMs = totalInBedMs - awakeMs
 
       const sleepDuration = +(actualSleepMs / 3600000).toFixed(2)
@@ -127,20 +151,17 @@ exports.handler = async (event) => {
         sleep_awake_pct: awakePct,
       }
 
-      // Find matching recovery using sleep_id
-      const recovery = (recoveryData.records || []).find(r => r.sleep_id === sleep.id)
-
+      // Match recovery by sleep_id
+      const recovery = recoveryBySleepId[sleep.id]
       if (recovery?.score && recovery.score_state === 'SCORED') {
         updates.recovery_score = recovery.score.recovery_score
         updates.hrv = recovery.score.hrv_rmssd_milli
-          ? +(recovery.score.hrv_rmssd_milli).toFixed(1)
-          : null
+          ? +(recovery.score.hrv_rmssd_milli).toFixed(1) : null
         updates.rhr = recovery.score.resting_heart_rate
-          ? +recovery.score.resting_heart_rate.toFixed(0)
-          : null
+          ? +recovery.score.resting_heart_rate.toFixed(0) : null
       }
 
-      console.log(`Upserting ${dateStr}: sleep=${sleepDuration}h eff=${efficiency}% recovery=${updates.recovery_score}`)
+      console.log(`Syncing ${dateStr}: sleep=${sleepDuration}h eff=${efficiency}% recovery=${updates.recovery_score}`)
 
       const { error } = await supabase.from('daily_logs').upsert({
         user_id,
@@ -149,18 +170,15 @@ exports.handler = async (event) => {
         updated_at: new Date().toISOString(),
       }, { onConflict: 'user_id,date' })
 
-      if (error) {
-        console.error('Upsert error for', dateStr, JSON.stringify(error))
-      } else {
-        synced.push(dateStr)
-      }
+      if (error) console.error('Upsert error for', dateStr, JSON.stringify(error))
+      else synced.push(dateStr)
     }
 
-    // Also sync any recovery records that don't have a matching sleep record
-    for (const recovery of (recoveryData.records || [])) {
+    // Sync any recovery records without a sleep match
+    for (const recovery of recoveryRecords) {
       if (!recovery.score || recovery.score_state !== 'SCORED') continue
       const dateStr = new Date(recovery.created_at).toISOString().split('T')[0]
-      if (synced.includes(dateStr)) continue // already handled above
+      if (synced.includes(dateStr)) continue
 
       const { error } = await supabase.from('daily_logs').upsert({
         user_id,
@@ -174,15 +192,17 @@ exports.handler = async (event) => {
       if (!error) synced.push(dateStr)
     }
 
-    // Update last synced
+    // Update last synced timestamp
     await supabase.from('whoop_tokens').update({
       last_synced_at: new Date().toISOString(),
     }).eq('user_id', user_id)
 
+    console.log(`Sync complete: ${synced.length} dates synced`)
+
     return {
       statusCode: 200,
       headers,
-      body: JSON.stringify({ success: true, synced_dates: synced }),
+      body: JSON.stringify({ success: true, synced_dates: synced, total: synced.length }),
     }
 
   } catch (err) {
