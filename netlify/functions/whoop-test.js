@@ -23,13 +23,8 @@ exports.handler = async (event) => {
 
     // Test all possible endpoint versions
     const endpoints = [
-      'https://api.prod.whoop.com/developer/v1/activity/sleep?limit=2',
-      'https://api.prod.whoop.com/developer/v2/activity/sleep?limit=2',
-      'https://api.prod.whoop.com/developer/v1/recovery?limit=2',
-      'https://api.prod.whoop.com/developer/v2/recovery?limit=2',
-      'https://api.prod.whoop.com/developer/v1/cycle?limit=2',
-      'https://api.prod.whoop.com/developer/v2/cycle?limit=2',
-      'https://api.prod.whoop.com/developer/v1/user/profile/basic',
+      'https://api.prod.whoop.com/developer/v2/activity/sleep?limit=3',
+      'https://api.prod.whoop.com/developer/v2/recovery?limit=3',
     ]
 
     for (const url of endpoints) {
@@ -37,7 +32,8 @@ exports.handler = async (event) => {
       const text = await res.text()
       let body
       try { body = JSON.parse(text) } catch { body = text.slice(0, 200) }
-      results[url] = { status: res.status, records: body?.records?.length, sample: body?.records?.[0] ? Object.keys(body.records[0]) : body }
+      // Return full first record so we can see exact field names
+      results[url] = { status: res.status, count: body?.records?.length, first_record: body?.records?.[0] }
     }
 
     return { statusCode: 200, headers, body: JSON.stringify({ tokenInfo, results }, null, 2) }
