@@ -355,7 +355,7 @@ export default function MealLogger({ session, date, onCaloriesUpdated }) {
       {/* Action buttons */}
       {!preview && !showManual && (
         <div style={{ padding: '10px 14px 12px', display: 'flex', flexDirection: 'column', gap: 8 }}>
-          <input ref={fileRef} type="file" accept="image/*" capture="environment" style={{ display: 'none' }} onChange={handleFileChange} />
+          <input ref={fileRef} type="file" accept="image/*" style={{ display: 'none' }} onChange={handleFileChange} />
 
           {analysing ? (
             <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '12px', background: 'var(--green-light)', borderRadius: 10, border: '0.5px solid var(--green-border)' }}>
@@ -372,7 +372,7 @@ export default function MealLogger({ session, date, onCaloriesUpdated }) {
                   <svg width="18" height="18" viewBox="0 0 18 18" fill="none"><rect x="1" y="3" width="16" height="12" rx="2" stroke="var(--green)" strokeWidth="1.3"/><circle cx="9" cy="9" r="3" stroke="var(--green)" strokeWidth="1.3"/><path d="M6 3L7 1.5h4L12 3" stroke="var(--green)" strokeWidth="1.3"/></svg>
                 </div>
                 <div>
-                  <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--green)' }}>{lang === 'de' ? 'Foto aufnehmen' : 'Log a meal with photo'}</div>
+                  <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--green)' }}>{lang === 'de' ? 'Foto aufnehmen oder auswählen' : 'Camera or photo library'}</div>
                   <div style={{ fontSize: 11, color: 'var(--text2)', marginTop: 2 }}>{lang === 'de' ? 'KI schätzt Kalorien automatisch' : 'AI estimates calories automatically'}</div>
                 </div>
               </button>

@@ -624,7 +624,7 @@ function MealPrepTab({ session, lang }) {
                   {lang === 'de' ? 'Fotos der Zutaten machen oder beschreiben was du verwendet hast.' : 'Take photos of ingredients or describe what you used.'}
                 </div>
 
-                <input ref={ingredientFileRef} type="file" accept="image/*" capture="environment" style={{ display: 'none' }} onChange={e => handleIngredientPhoto(e.target.files[0])} />
+                <input ref={ingredientFileRef} type="file" accept="image/*" style={{ display: 'none' }} onChange={e => handleIngredientPhoto(e.target.files[0])} />
                 <button onClick={() => ingredientFileRef.current?.click()} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 12px', borderRadius: 10, border: '1px dashed var(--green-border)', background: 'rgba(26,122,94,0.03)', cursor: 'pointer', fontFamily: 'inherit' }}>
                   <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><rect x="1" y="2" width="14" height="11" rx="2" stroke="var(--green)" strokeWidth="1.3"/><circle cx="8" cy="7.5" r="2.5" stroke="var(--green)" strokeWidth="1.3"/><path d="M5.5 2L6.3 1h3.4L10.5 2" stroke="var(--green)" strokeWidth="1.3"/></svg>
                   <span style={{ fontSize: 13, color: 'var(--green)', fontWeight: 600 }}>{lang === 'de' ? 'Zutaten fotografieren' : 'Photo ingredients'}</span>
@@ -680,7 +680,7 @@ function MealPrepTab({ session, lang }) {
                     {lang === 'de' ? 'Fotografiere jede Portion um genaue Kalorienverteilung zu berechnen.' : 'Photo each portion for accurate calorie distribution.'}
                   </div>
 
-                  <input ref={portionFileRef} type="file" accept="image/*" capture="environment" style={{ display: 'none' }} onChange={e => handlePortionPhoto(e.target.files[0])} />
+                  <input ref={portionFileRef} type="file" accept="image/*" style={{ display: 'none' }} onChange={e => handlePortionPhoto(e.target.files[0])} />
 
                   <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 8 }}>
                     {portionPhotos.map(p => (
