@@ -43,7 +43,8 @@ exports.handler = async (event) => {
     }
 
     const tokens = await tokenRes.json()
-    const expiresAt = new Date(Date.now() + tokens.expires_in * 1000).toISOString()
+    console.log('WHOOP tokens received, keys:', Object.keys(tokens))
+    const expiresAt = new Date(Date.now() + (tokens.expires_in || 3600) * 1000).toISOString()
 
     // Get WHOOP user profile
     const profileRes = await fetch('https://api.prod.whoop.com/developer/v1/user/profile/basic', {
@@ -56,15 +57,15 @@ exports.handler = async (event) => {
     const { error } = await supabase.from('whoop_tokens').upsert({
       user_id,
       access_token: tokens.access_token,
-      refresh_token: tokens.refresh_token,
+      refresh_token: tokens.refresh_token || tokens.access_token, // fallback if no refresh token
       expires_at: expiresAt,
-      whoop_user_id: String(profile.user_id || ''),
+      whoop_user_id: String(profile.user_id || profile.id || ''),
       updated_at: new Date().toISOString(),
     }, { onConflict: 'user_id' })
 
     if (error) {
-      console.error('Supabase error:', error)
-      return { statusCode: 500, headers, body: JSON.stringify({ error: 'Failed to store tokens' }) }
+      console.error('Supabase upsert error:', JSON.stringify(error))
+      return { statusCode: 500, headers, body: JSON.stringify({ error: 'Failed to store tokens', detail: error.message }) }
     }
 
     return { statusCode: 200, headers, body: JSON.stringify({ success: true, whoop_user_id: profile.user_id }) }
