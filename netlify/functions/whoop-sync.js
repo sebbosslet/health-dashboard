@@ -77,18 +77,18 @@ exports.handler = async (event) => {
       }
     }
 
-    // Fetch last 3 days
+    // Fetch last 30 days
     const today = new Date()
-    const threeDaysAgo = new Date(today)
-    threeDaysAgo.setDate(threeDaysAgo.getDate() - 3)
-    const startISO = threeDaysAgo.toISOString()
+    const thirtyDaysAgo = new Date(today)
+    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30)
+    const startISO = thirtyDaysAgo.toISOString()
 
     console.log('Fetching WHOOP data from', startISO)
 
     // WHOOP v2 API endpoints
     const [sleepData, recoveryData] = await Promise.all([
-      whoopFetch(`https://api.prod.whoop.com/developer/v2/activity/sleep?start=${startISO}&limit=5`, activeToken),
-      whoopFetch(`https://api.prod.whoop.com/developer/v2/recovery?start=${startISO}&limit=5`, activeToken),
+      whoopFetch(`https://api.prod.whoop.com/developer/v2/activity/sleep?start=${startISO}&limit=30`, activeToken),
+      whoopFetch(`https://api.prod.whoop.com/developer/v2/recovery?start=${startISO}&limit=30`, activeToken),
     ])
 
     console.log('Sleep records:', sleepData.records?.length || 0)

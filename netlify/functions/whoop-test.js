@@ -21,6 +21,8 @@ exports.handler = async (event) => {
       access_token_preview: token?.slice(0, 20),
     }
 
+    const results = {}
+
     // Test all possible endpoint versions
     const endpoints = [
       'https://api.prod.whoop.com/developer/v2/activity/sleep?limit=3',
