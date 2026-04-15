@@ -7,6 +7,7 @@ import { Toast } from '../components/Toast'
 import { useLang } from '../lib/LangContext'
 import MealLogger from '../components/MealLogger'
 import DailyIntelligence from '../components/DailyIntelligence'
+import MedSupTracker from '../components/MedSupTracker'
 
 function fmtHours(h) {
   if (!h || h <= 0) return '—'
@@ -17,17 +18,6 @@ function fmtHours(h) {
   return `${hrs}h ${mins}m`
 }
 
-const SUPPLEMENTS = [
-  { key: 'thyroid', tKey: 'supp_thyroid', cls: 'thyroid' },
-  { key: 'magpill', tKey: 'supp_magpill' },
-  { key: 'magdrink', tKey: 'supp_magdrink' },
-  { key: 'multi', tKey: 'supp_multi' },
-  { key: 'zinc', tKey: 'supp_zinc' },
-  { key: 'iron', tKey: 'supp_iron' },
-  { key: 'vitb', tKey: 'supp_vitb' },
-  { key: 'vitd', tKey: 'supp_vitd' },
-  { key: 'calnat', tKey: 'supp_calnat' },
-]
 
 // Emoji map for known activity/habit names
 const EMOJI_MAP = {
@@ -73,7 +63,6 @@ export default function TodayPage({ session }) {
 
   const [activeActivity, setActiveActivity] = useState(new Set())
   const [activeHabits, setActiveHabits] = useState(new Set())
-  const [activeSupps, setActiveSupps] = useState(new Set(['thyroid']))
   const [mealCalories, setMealCalories] = useState(0)
   const [water, setWater] = useState('')
   const [saving, setSaving] = useState(false)
@@ -82,7 +71,6 @@ export default function TodayPage({ session }) {
     if (log) {
       setActiveActivity(new Set(log.activity || []))
       setActiveHabits(new Set(log.habits || []))
-      setActiveSupps(new Set(log.supplements?.length ? log.supplements : ['thyroid']))
       setWater(log.water ? String(log.water) : '0')
     }
   }, [log])
@@ -103,7 +91,6 @@ export default function TodayPage({ session }) {
     const { error } = await save({
       activity: Array.from(activeActivity),
       habits: Array.from(activeHabits),
-      supplements: Array.from(activeSupps),
       water: water ? parseInt(water) : null,
     })
     setSaving(false)
@@ -309,19 +296,8 @@ export default function TodayPage({ session }) {
           </div>
         </div>
 
-        {/* Supplements */}
-        <div className="card">
-          <div className="card-header"><span className="card-title">{t('today_supplements')}</span></div>
-          <div style={{ padding: '10px 14px 14px' }}>
-            <div className="supp-grid">
-              {SUPPLEMENTS.map(s => (
-                <button key={s.key} className={`supp-pill ${s.cls || ''} ${activeSupps.has(s.key) ? 'active' : ''}`} onClick={() => toggle(activeSupps, setActiveSupps, s.key)}>
-                  {t(s.tKey)}
-                </button>
-              ))}
-            </div>
-          </div>
-        </div>
+        {/* Medications & Supplements */}
+        <MedSupTracker session={session} date={today} />
 
         <button className="btn-primary" onClick={handleSave} disabled={saving}>
           {saving ? t('today_saving') : t('today_save')}
