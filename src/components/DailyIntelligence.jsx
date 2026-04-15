@@ -6,7 +6,7 @@ import { showToast } from './Toast'
 
 // ─── AI Analysis Engine ───────────────────────────────────────────────────────
 
-async function generateDailyInsight(todayLog, yesterdayLog, historicalLogs, lang) {
+async function generateDailyInsight(todayLog, yesterdayLog, historicalLogs, lang, yesterdayEvents, todayEvents, travelState) {
   // Pattern analysis from historical data
   const phoneDelays = historicalLogs
     .filter(l => l.phone_away_time && l.sleep_efficiency)
@@ -53,8 +53,14 @@ SEBASTIAN'S PERSONAL PATTERNS (${historicalLogs.length} days of data):
 - Nights with reading → next day avg recovery: ${readingEffect ? readingEffect + '%' : 'insufficient data'}
 `
 
-  // Key: evening log lives on YESTERDAY, WHOOP sleep lives on TODAY
   const yesterdayDate = yesterdayLog ? format(new Date(yesterdayLog.date), 'd MMM') : 'yesterday'
+  const eventsContext = yesterdayEvents?.length
+    ? `\n- Special events yesterday: ${yesterdayEvents.map(e => e.label).join(', ')}`
+    : ''
+  const travelContext = travelState?.active
+    ? `\n- CURRENTLY TRAVELLING: ${travelState.label}, day ${Math.max(1, Math.floor((new Date() - new Date(travelState.departure_date)) / 86400000))} of trip, ${travelState.timezone_offset > 0 ? '+' : ''}${travelState.timezone_offset}h time difference — jet lag is a likely factor in sleep/recovery metrics`
+    : ''
+
   const yesterdayContext = yesterdayLog ? `
 EVENING OF ${yesterdayDate} (what happened before this sleep):
 - Activities: ${yesterdayLog.activity?.join(', ') || 'none logged'}
@@ -70,7 +76,7 @@ EVENING OF ${yesterdayDate} (what happened before this sleep):
     : 'not calculable'}
 - Wind-down quality: ${yesterdayLog.wind_down || 'not logged'}
 - Calories: ${yesterdayLog.calories ? yesterdayLog.calories + ' kcal' : 'not logged'}
-- Evening note: ${yesterdayLog.evening_note || 'none'}
+- Evening note: ${yesterdayLog.evening_note || 'none'}${eventsContext}${travelContext}
 ` : 'No evening log for yesterday'
 
   const todayContext = `
@@ -304,12 +310,14 @@ function InsightCard({ log, userId, lang }) {
       const yesterday = format(subDays(new Date(), 1), 'yyyy-MM-dd')
       const thirtyDaysAgo = format(subDays(new Date(), 30), 'yyyy-MM-dd')
 
-      const [{ data: yesterdayLog }, { data: history }] = await Promise.all([
+      const [{ data: yesterdayLog }, { data: history }, { data: yesterdayEvents }, { data: travelState }] = await Promise.all([
         supabase.from('daily_logs').select('*').eq('user_id', userId).eq('date', yesterday).maybeSingle(),
         supabase.from('daily_logs').select('*').eq('user_id', userId).gte('date', thirtyDaysAgo).lt('date', today).order('date', { ascending: true }),
+        supabase.from('daily_events').select('*').eq('user_id', userId).eq('date', yesterday),
+        supabase.from('travel_state').select('*').eq('user_id', userId).eq('active', true).maybeSingle(),
       ])
 
-      const text = await generateDailyInsight(log, yesterdayLog, history || [], lang)
+      const text = await generateDailyInsight(log, yesterdayLog, history || [], lang, yesterdayEvents || [], [], travelState)
       setInsight(text)
 
       await supabase.from('daily_logs').upsert({

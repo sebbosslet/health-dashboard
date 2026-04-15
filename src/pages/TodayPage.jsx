@@ -9,6 +9,7 @@ import MealLogger from '../components/MealLogger'
 import DailyIntelligence from '../components/DailyIntelligence'
 import MedSupTracker from '../components/MedSupTracker'
 import { MorningBriefing, ProactiveNudges } from '../components/Briefing'
+import DailyContext from '../components/DailyContext'
 
 function fmtHours(h) {
   if (!h || h <= 0) return '—'
@@ -292,6 +293,9 @@ export default function TodayPage({ session }) {
             </div>
           </div>
         </div>
+
+        {/* Day context - travel, stress, special events */}
+        <DailyContext session={session} date={today} />
 
         {/* Medications & Supplements */}
         <MedSupTracker session={session} date={today} />
