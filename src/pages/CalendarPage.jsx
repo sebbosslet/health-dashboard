@@ -5,6 +5,15 @@ import { useMonthLogs } from '../hooks/useData'
 
 const DAYS = ['Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa', 'Su']
 
+function fmtHours(h) {
+  if (!h) return '—'
+  const hrs = Math.floor(h)
+  const mins = Math.round((h - hrs) * 60)
+  if (hrs === 0) return `${mins}m`
+  if (mins === 0) return `${hrs}h`
+  return `${hrs}h ${mins}m`
+}
+
 function logScore(log) {
   if (!log) return 0
   let score = 0
@@ -227,9 +236,9 @@ export default function CalendarPage({ session }) {
                   Sleep <span className="source-pill source-whoop">WHOOP</span>
                 </div>
                 {[
-                  ['Duration', `${selectedLog.sleep_duration?.toFixed(1)}h`, 'var(--blue)'],
+                  ['Duration', fmtHours(selectedLog.sleep_duration), 'var(--blue)'],
                   ['Efficiency', `${Math.round(selectedLog.sleep_efficiency || 0)}%`, 'var(--green)'],
-                  ['Restorative', `${selectedLog.sleep_restorative?.toFixed(1)}h`, 'var(--purple)'],
+                  ['Restorative', fmtHours(selectedLog.sleep_restorative), 'var(--purple)'],
                   ['HRV', `${Math.round(selectedLog.hrv || 0)}ms`, 'var(--purple)'],
                   ['RHR', `${Math.round(selectedLog.rhr || 0)}bpm`, 'var(--text)'],
                 ].map(([label, val, color]) => (

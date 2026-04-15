@@ -6,6 +6,15 @@ import { Toast } from '../components/Toast'
 import { useLang } from '../lib/LangContext'
 import MealLogger from '../components/MealLogger'
 
+function fmtHours(h) {
+  if (!h) return '—'
+  const hrs = Math.floor(h)
+  const mins = Math.round((h - hrs) * 60)
+  if (hrs === 0) return `${mins}m`
+  if (mins === 0) return `${hrs}h`
+  return `${hrs}h ${mins}m`
+}
+
 const SUPPLEMENTS = [
   { key: 'thyroid', tKey: 'supp_thyroid', cls: 'thyroid' },
   { key: 'magpill', tKey: 'supp_magpill' },
@@ -118,7 +127,7 @@ export default function TodayPage({ session }) {
               </div>
               <div className="metric-cell">
                 <div className="metric-label">{t('metric_restorative')}</div>
-                <div className="metric-value" style={{ color: 'var(--purple)' }}>{(log.sleep_restorative || 0).toFixed(1)}<span className="metric-unit">h</span></div>
+                <div className="metric-value" style={{ color: 'var(--purple)' }}>{fmtHours(log.sleep_restorative)}</div>
               </div>
             </div>
           ) : (
@@ -139,7 +148,7 @@ export default function TodayPage({ session }) {
             <div className="metric-grid">
               <div className="metric-cell">
                 <div className="metric-label">{t('metric_duration')}</div>
-                <div className="metric-value" style={{ color: 'var(--blue)' }}>{(log.sleep_duration || 0).toFixed(1)}<span className="metric-unit">h</span></div>
+                <div className="metric-value" style={{ color: 'var(--blue)' }}>{fmtHours(log.sleep_duration)}</div>
                 <div className="bar-wrap"><div className="bar bar-blue" style={{ width: `${Math.min(100, (log.sleep_duration / 9) * 100)}%` }} /></div>
               </div>
               <div className="metric-cell">
@@ -287,4 +296,3 @@ export default function TodayPage({ session }) {
       <Toast />
     </>
   )
-}

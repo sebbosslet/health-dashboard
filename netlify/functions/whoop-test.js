@@ -12,48 +12,56 @@ exports.handler = async (event) => {
     if (!tokenRow) return { statusCode: 404, headers, body: JSON.stringify({ error: 'No token found' }) }
 
     const token = tokenRow.access_token
-    const tokenInfo = {
+    const results = {}
+
+    // Check token status
+    results.token = {
       expires_at: tokenRow.expires_at,
       is_expired: new Date(tokenRow.expires_at) < new Date(),
       has_refresh_token: !!tokenRow.refresh_token,
-      refresh_token_is_same_as_access: tokenRow.refresh_token === tokenRow.access_token,
-      last_synced: tokenRow.last_synced_at,
-      access_token_preview: token?.slice(0, 20),
     }
 
-    const results = {}
+    // Check what dates are in the database
+    const { data: dbLogs } = await supabase
+      .from('daily_logs')
+      .select('date, sleep_duration, recovery_score')
+      .eq('user_id', user_id)
+      .not('recovery_score', 'is', null)
+      .order('date', { ascending: false })
+      .limit(20)
 
-    // Test all possible endpoint versions
-    const thirtyDaysAgo = new Date()
-    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30)
-    const startISO = thirtyDaysAgo.toISOString()
-    const startDate = thirtyDaysAgo.toISOString().split('T')[0]
+    results.db_dates = dbLogs?.map(l => `${l.date} sleep=${l.sleep_duration} rec=${l.recovery_score}`)
 
-    // Test different parameter formats
-    const endpoints = [
+    // Test pagination - fetch 3 pages manually
+    const ninetyDaysAgo = new Date()
+    ninetyDaysAgo.setDate(ninetyDaysAgo.getDate() - 90)
+    const startISO = ninetyDaysAgo.toISOString()
+
+    const page1 = await fetch(
       `https://api.prod.whoop.com/developer/v2/activity/sleep?start=${startISO}&limit=10`,
-      `https://api.prod.whoop.com/developer/v2/activity/sleep?start_time=${startISO}&limit=10`,
-      `https://api.prod.whoop.com/developer/v2/activity/sleep?limit=10`,
-      `https://api.prod.whoop.com/developer/v2/recovery?limit=10`,
-      `https://api.prod.whoop.com/developer/v2/recovery?start_time=${startISO}&limit=10`,
-    ]
+      { headers: { Authorization: `Bearer ${token}` } }
+    ).then(r => r.json())
 
-    for (const url of endpoints) {
-      const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` } })
-      const text = await res.text()
-      let body
-      try { body = JSON.parse(text) } catch { body = text.slice(0, 300) }
-      const dates = body?.records?.map(r => (r.end || r.created_at || '').slice(0,10))
-      results[url] = {
-        status: res.status,
-        count: body?.records?.length,
-        next_token: body?.next_token,
-        dates,
-        error: res.status !== 200 ? body : undefined,
-      }
+    const page2 = page1.next_token ? await fetch(
+      `https://api.prod.whoop.com/developer/v2/activity/sleep?start=${startISO}&limit=10&next_token=${encodeURIComponent(page1.next_token)}`,
+      { headers: { Authorization: `Bearer ${token}` } }
+    ).then(r => r.json()) : null
+
+    const page3 = page2?.next_token ? await fetch(
+      `https://api.prod.whoop.com/developer/v2/activity/sleep?start=${startISO}&limit=10&next_token=${encodeURIComponent(page2.next_token)}`,
+      { headers: { Authorization: `Bearer ${token}` } }
+    ).then(r => r.json()) : null
+
+    results.pagination = {
+      page1_dates: page1.records?.map(r => r.end?.slice(0,10)),
+      page1_next: page1.next_token?.slice(0,20),
+      page2_dates: page2?.records?.map(r => r.end?.slice(0,10)),
+      page2_next: page2?.next_token?.slice(0,20),
+      page3_dates: page3?.records?.map(r => r.end?.slice(0,10)),
+      page3_next: page3?.next_token?.slice(0,20),
     }
 
-    return { statusCode: 200, headers, body: JSON.stringify({ tokenInfo, results }, null, 2) }
+    return { statusCode: 200, headers, body: JSON.stringify(results, null, 2) }
   } catch (err) {
     return { statusCode: 500, headers, body: JSON.stringify({ error: err.message }) }
   }
