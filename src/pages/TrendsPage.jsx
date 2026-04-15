@@ -10,7 +10,8 @@ import SleepHRAnalysis from '../components/SleepHRAnalysis'
 
 function BarChart({ data, color, height = 52, target }) {
   if (!data?.length) return <div style={{ height, background: 'var(--surface2)', borderRadius: 4 }} />
-  const max = Math.max(...data.map(d => d.value || 0), target || 1, 1)
+  const values = data.map(d => d.value).filter(v => v !== null && v > 0)
+  const max = Math.max(...values, target || 1, 1)
   return (
     <div style={{ position: 'relative' }}>
       {target && (
@@ -25,9 +26,7 @@ function BarChart({ data, color, height = 52, target }) {
           <div key={i} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'flex-end', gap: 3, height: '100%' }}>
             <div style={{
               width: '100%', borderRadius: '2px 2px 0 0',
-              background: d.value
-                ? (target && d.value > target * 1.05 ? 'var(--red)' : color)
-                : 'var(--surface2)',
+              background: d.value ? color : 'var(--surface2)',
               height: d.value ? `${Math.max(4, (d.value / max) * (height - 18))}px` : '4px',
               transition: 'height 0.3s ease',
               opacity: d.today ? 1 : 0.85,
@@ -168,20 +167,6 @@ export default function TrendsPage({ session }) {
   const [showSleepHR, setShowSleepHR] = useState(false)
   const { settings } = useSettings(session.user.id)
 
-  if (showReport) return <MonthlyReport session={session} onClose={() => setShowReport(false)} />
-  if (showSleepHR) return (
-    <div>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '16px 16px 0' }}>
-        <button onClick={() => setShowSleepHR(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text2)', display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, fontFamily: 'inherit', padding: 0 }}>
-          <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M10 3L5 8l5 5" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round"/></svg>
-          {lang === 'de' ? 'Zurück' : 'Back'}
-        </button>
-        <span style={{ fontSize: 16, fontWeight: 700 }}>💓 Sleep HR Analysis</span>
-      </div>
-      <div style={{ padding: '12px' }}><SleepHRAnalysis session={session} /></div>
-    </div>
-  )
-
   useEffect(() => {
     const days = period === '7d' ? 7 : period === '30d' ? 30 : 90
     const from = format(subDays(new Date(), days), 'yyyy-MM-dd')
@@ -200,9 +185,10 @@ export default function TrendsPage({ session }) {
   function chartData(field, labelFmt = 'd') {
     return dateRange.map(date => {
       const log = logs.find(l => l.date === date)
+      const val = log?.[field]
       return {
         label: format(new Date(date + 'T12:00'), labelFmt),
-        value: log?.[field] || 0,
+        value: val || null,
         today: date === format(new Date(), 'yyyy-MM-dd'),
       }
     })
@@ -243,6 +229,21 @@ export default function TrendsPage({ session }) {
     return { date, energy: log?.morning_energy, mood: log?.morning_mood, soreness: log?.morning_soreness }
   })
   const hasFeel = feelData.some(d => d.energy || d.mood)
+
+  if (showReport) return <MonthlyReport session={session} onClose={() => setShowReport(false)} />
+
+  if (showSleepHR) return (
+    <div>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '16px 16px 0' }}>
+        <button onClick={() => setShowSleepHR(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text2)', display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, fontFamily: 'inherit', padding: 0 }}>
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M10 3L5 8l5 5" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round"/></svg>
+          {lang === 'de' ? 'Zurück' : 'Back'}
+        </button>
+        <span style={{ fontSize: 16, fontWeight: 700 }}>💓 Sleep HR Analysis</span>
+      </div>
+      <div style={{ padding: '12px' }}><SleepHRAnalysis session={session} /></div>
+    </div>
+  )
 
   return (
     <>

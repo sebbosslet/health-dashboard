@@ -261,23 +261,20 @@ export function MorningBriefing({ session, todayLog, settings }) {
   const [dismissed, setDismissed] = useState(false)
   const hour = new Date().getHours()
 
-  // Only show in morning hours (before 1pm)
-  if (hour >= 13 || dismissed) return null
-
   useEffect(() => {
-    // Check if already generated today
+    // Don't generate outside morning hours
+    if (hour >= 13 || dismissed) { setLoading(false); return }
     if (todayLog?.ai_briefing) {
       setBriefing(todayLog.ai_briefing)
       setLoading(false)
       return
     }
-    // Only generate if we have WHOOP data
     if (!todayLog?.recovery_score && !todayLog?.sleep_duration) {
       setLoading(false)
       return
     }
     generateAndSave()
-  }, [todayLog?.recovery_score, todayLog?.sleep_duration])
+  }, [todayLog?.recovery_score, todayLog?.sleep_duration, dismissed])
 
   async function generateAndSave() {
     setLoading(true)
