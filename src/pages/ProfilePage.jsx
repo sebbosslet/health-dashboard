@@ -43,6 +43,14 @@ export default function ProfilePage({ session, whoopCode }) {
 
   useEffect(() => {
     if (whoopCode) handleWhoopCallback(whoopCode)
+    // Capture any WHOOP OAuth errors
+    const url = new URL(window.location.href)
+    const error = url.searchParams.get('error')
+    const errorDesc = url.searchParams.get('error_description')
+    if (error) {
+      console.error('WHOOP OAuth error:', error, errorDesc)
+      showToast(`WHOOP error: ${error}`)
+    }
   }, [whoopCode])
 
   async function checkWhoopStatus() {

@@ -14,8 +14,12 @@ export default function App() {
     const url = new URL(window.location.href)
     const code = url.searchParams.get('code')
     const state = url.searchParams.get('state')
+    const error = url.searchParams.get('error')
     if (code && state === 'whoop') {
       setWhoopCode(code)
+      window.history.replaceState({}, '', '/')
+    } else if (error) {
+      console.error('WHOOP OAuth error on load:', error, url.searchParams.get('error_description'))
       window.history.replaceState({}, '', '/')
     }
 
