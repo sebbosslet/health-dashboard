@@ -98,23 +98,27 @@ exports.handler = async (event) => {
 
     // Process sleep records
     for (const sleep of (sleepData.records || [])) {
-      if (!sleep.end) continue
+      if (!sleep.end || sleep.nap) continue // skip naps and in-progress sleep
+      if (sleep.score_state !== 'SCORED') continue
 
       // WHOOP sleep ends in morning - use end date
       const endDate = new Date(sleep.end)
       const dateStr = endDate.toISOString().split('T')[0]
 
       const stage = sleep.score?.stage_summary || {}
-      const totalMs = sleep.score?.total_in_bed_time_milli || 0
-      const sleepMs = sleep.score?.total_sleep_time_milli || totalMs
+      const totalInBedMs = stage.total_in_bed_time_milli || 0
+      const awakeMs = stage.total_awake_time_milli || 0
       const remMs = stage.total_rem_sleep_time_milli || 0
       const slowWaveMs = stage.total_slow_wave_sleep_time_milli || 0
-      const awakeMs = stage.total_awake_time_milli || 0
+      const lightMs = stage.total_light_sleep_time_milli || 0
+      const actualSleepMs = totalInBedMs - awakeMs
 
-      const sleepDuration = +(sleepMs / 3600000).toFixed(2)
+      const sleepDuration = +(actualSleepMs / 3600000).toFixed(2)
       const restorativeHours = +((remMs + slowWaveMs) / 3600000).toFixed(2)
-      const efficiency = totalMs > 0 ? +((sleepMs / totalMs) * 100).toFixed(1) : null
-      const awakePct = totalMs > 0 ? +((awakeMs / totalMs) * 100).toFixed(1) : null
+      const efficiency = sleep.score?.sleep_efficiency_percentage
+        ? +sleep.score.sleep_efficiency_percentage.toFixed(1)
+        : totalInBedMs > 0 ? +((actualSleepMs / totalInBedMs) * 100).toFixed(1) : null
+      const awakePct = totalInBedMs > 0 ? +((awakeMs / totalInBedMs) * 100).toFixed(1) : null
 
       const updates = {
         sleep_duration: sleepDuration,
@@ -123,13 +127,10 @@ exports.handler = async (event) => {
         sleep_awake_pct: awakePct,
       }
 
-      // Find matching recovery for this date
-      const recovery = (recoveryData.records || []).find(r => {
-        const rd = new Date(r.created_at || r.updated_at).toISOString().split('T')[0]
-        return rd === dateStr
-      })
+      // Find matching recovery using sleep_id
+      const recovery = (recoveryData.records || []).find(r => r.sleep_id === sleep.id)
 
-      if (recovery?.score) {
+      if (recovery?.score && recovery.score_state === 'SCORED') {
         updates.recovery_score = recovery.score.recovery_score
         updates.hrv = recovery.score.hrv_rmssd_milli
           ? +(recovery.score.hrv_rmssd_milli).toFixed(1)
@@ -139,7 +140,7 @@ exports.handler = async (event) => {
           : null
       }
 
-      console.log(`Upserting ${dateStr}:`, updates)
+      console.log(`Upserting ${dateStr}: sleep=${sleepDuration}h eff=${efficiency}% recovery=${updates.recovery_score}`)
 
       const { error } = await supabase.from('daily_logs').upsert({
         user_id,
@@ -157,8 +158,8 @@ exports.handler = async (event) => {
 
     // Also sync any recovery records that don't have a matching sleep record
     for (const recovery of (recoveryData.records || [])) {
-      if (!recovery.score) continue
-      const dateStr = new Date(recovery.created_at || recovery.updated_at).toISOString().split('T')[0]
+      if (!recovery.score || recovery.score_state !== 'SCORED') continue
+      const dateStr = new Date(recovery.created_at).toISOString().split('T')[0]
       if (synced.includes(dateStr)) continue // already handled above
 
       const { error } = await supabase.from('daily_logs').upsert({
