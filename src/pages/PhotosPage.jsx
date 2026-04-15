@@ -129,9 +129,9 @@ export default function PhotosPage({ session }) {
 
       {/* Type toggle */}
       <div style={{ display: 'flex', gap: 6, padding: '10px 12px 4px', background: 'var(--surface)', borderBottom: '0.5px solid var(--border)' }}>
-        {['face', 'upper_body'].map(t => (
-          <button key={t} onClick={() => setPhotoType(t)} style={{ flex: 1, padding: '7px', borderRadius: 8, border: '0.5px solid var(--border)', background: photoType === t ? 'var(--green-light)' : 'var(--surface2)', color: photoType === t ? 'var(--green)' : 'var(--text2)', fontWeight: photoType === t ? 600 : 400, fontSize: 13, cursor: 'pointer', fontFamily: 'inherit' }}>
-            {t === 'face' ? t('photos_face') : t('photos_upper')}
+        {['face', 'upper_body'].map(ptype => (
+          <button key={ptype} onClick={() => setPhotoType(ptype)} style={{ flex: 1, padding: '7px', borderRadius: 8, border: '0.5px solid var(--border)', background: photoType === ptype ? 'var(--green-light)' : 'var(--surface2)', color: photoType === ptype ? 'var(--green)' : 'var(--text2)', fontWeight: photoType === ptype ? 600 : 400, fontSize: 13, cursor: 'pointer', fontFamily: 'inherit' }}>
+            {ptype === 'face' ? t('photos_face') : t('photos_upper')}
           </button>
         ))}
       </div>
@@ -270,10 +270,10 @@ export default function PhotosPage({ session }) {
               <div>
                 <div style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', color: 'var(--text2)', marginBottom: 8 }}>Photo type</div>
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
-                  {[{ key: 'face', label: t('photos_face'), sub: 'Jawline, face definition' }, { key: 'upper_body', label: t('photos_upper'), sub: 'Torso, shoulders' }].map(t => (
-                    <button key={t.key} onClick={() => setUploadType(t.key)} style={{ padding: '14px 10px', borderRadius: 12, border: `0.5px solid ${uploadType === t.key ? 'var(--green)' : 'var(--border)'}`, background: uploadType === t.key ? 'var(--green-light)' : 'var(--surface2)', cursor: 'pointer', fontFamily: 'inherit', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6 }}>
-                      <div style={{ fontSize: 13, fontWeight: 600, color: uploadType === t.key ? 'var(--green)' : 'var(--text)' }}>{t.label}</div>
-                      <div style={{ fontSize: 11, color: 'var(--text3)' }}>{t.sub}</div>
+                  {[{ key: 'face', label: t('photos_face'), sub: 'Jawline, face definition' }, { key: 'upper_body', label: t('photos_upper'), sub: 'Torso, shoulders' }].map(opt => (
+                    <button key={opt.key} onClick={() => setUploadType(opt.key)} style={{ padding: '14px 10px', borderRadius: 12, border: `0.5px solid ${uploadType === opt.key ? 'var(--green)' : 'var(--border)'}`, background: uploadType === opt.key ? 'var(--green-light)' : 'var(--surface2)', cursor: 'pointer', fontFamily: 'inherit', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6 }}>
+                      <div style={{ fontSize: 13, fontWeight: 600, color: uploadType === opt.key ? 'var(--green)' : 'var(--text)' }}>{opt.label}</div>
+                      <div style={{ fontSize: 11, color: 'var(--text3)' }}>{opt.sub}</div>
                     </button>
                   ))}
                 </div>
