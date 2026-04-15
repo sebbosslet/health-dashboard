@@ -268,13 +268,12 @@ export default function GoalsPage({ session }) {
                 <button className="btn-primary" onClick={handleSave} disabled={mode === 'goal' ? (!editName || !editValue) : !newCategoryName.trim()} style={{ flex: 1 }}>
                   {isNew ? (lang === 'de' ? 'Hinzufügen' : 'Add') : t('goals_save')}
                 </button>
+                {!isNew && !showDeleteConfirm && (
+                  <button onClick={() => setShowDeleteConfirm(true)} style={{ padding: '9px 12px', borderRadius: 8, background: 'none', border: '0.5px solid rgba(194,48,48,0.25)', color: 'var(--red)', fontSize: 12, cursor: 'pointer', fontFamily: 'inherit', flexShrink: 0 }}>
+                    🗑
+                  </button>
+                )}
               </div>
-
-              {!isNew && !showDeleteConfirm && (
-                <button onClick={() => setShowDeleteConfirm(true)} style={{ padding: '9px', borderRadius: 8, background: 'none', border: '0.5px solid rgba(194,48,48,0.25)', color: 'var(--red)', fontSize: 12, cursor: 'pointer', fontFamily: 'inherit' }}>
-                  {t('goals_delete')}
-                </button>
-              )}
 
               {showDeleteConfirm && (
                 <div style={{ background: 'var(--red-light)', borderRadius: 10, padding: '12px 14px', display: 'flex', flexDirection: 'column', gap: 10 }}>
