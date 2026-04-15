@@ -3,6 +3,7 @@ import { useState, useEffect } from 'react'
 import { format, subDays } from 'date-fns'
 import { supabase } from '../lib/supabase'
 import { useSettings } from '../hooks/useData'
+import MonthlyReport from '../components/MonthlyReport'
 
 function MiniBarChart({ data, color, height = 52 }) {
   if (!data || data.length === 0) return <div style={{ height, background: 'var(--surface2)', borderRadius: 4 }} />
@@ -23,6 +24,11 @@ export default function TrendsPage({ session }) {
   const { t } = useLang()
   const [logs, setLogs] = useState([])
   const [period, setPeriod] = useState('7d')
+  const [showReport, setShowReport] = useState(false)
+
+  if (showReport) {
+    return <MonthlyReport session={session} onClose={() => setShowReport(false)} />
+  }
   const { settings } = useSettings(session.user.id)
 
   useEffect(() => {
@@ -95,15 +101,15 @@ export default function TrendsPage({ session }) {
 
       <div className="page-section">
 
-        {/* March report card - shows when prior month exists */}
-        <div className="card">
+        {/* Monthly report card */}
+        <div className="card" onClick={() => setShowReport(true)} style={{ cursor: 'pointer' }}>
           <div style={{ padding: '12px 14px', display: 'flex', alignItems: 'center', gap: 12 }}>
             <div style={{ width: 40, height: 40, borderRadius: 10, background: 'var(--green-light)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
               <svg width="20" height="20" viewBox="0 0 20 20" fill="none"><rect x="3" y="2" width="14" height="16" rx="2" stroke="var(--green)" strokeWidth="1.3"/><path d="M7 7h6M7 10.5h5M7 14h3" stroke="var(--green)" strokeWidth="1.2" strokeLinecap="round"/></svg>
             </div>
             <div style={{ flex: 1 }}>
-              <div style={{ fontSize: 14, fontWeight: 600 }}>Monthly report</div>
-              <div style={{ fontSize: 11, color: 'var(--text2)', marginTop: 2 }}>AI summary · habit analysis · PDF export</div>
+              <div style={{ fontSize: 14, fontWeight: 600 }}>{t('trends_monthly_report')}</div>
+              <div style={{ fontSize: 11, color: 'var(--text2)', marginTop: 2 }}>{t('trends_report_sub')}</div>
             </div>
             <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M5 3l6 5-6 5" stroke="var(--text2)" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round"/></svg>
           </div>
