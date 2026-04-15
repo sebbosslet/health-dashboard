@@ -236,7 +236,7 @@ export default function ProfilePage({ session, whoopCode, whoopError }) {
           </div>
         </div>
 
-        {/* Daily targets - calories, water, steps only */}
+        {/* Daily targets - calories, water, steps, weight */}
         <div className="card">
           <div className="card-header"><span className="card-title">{t('profile_targets')}</span></div>
           <div style={{ padding: '12px 14px', display: 'flex', flexDirection: 'column', gap: 12 }}>
@@ -245,6 +245,24 @@ export default function ProfilePage({ session, whoopCode, whoopError }) {
               <div className="field"><label className="field-label">{t('profile_water_target')}</label><input className="field-input" type="number" value={waterTarget} onChange={e => setWaterTarget(e.target.value)} inputMode="numeric" /></div>
               <div className="field"><label className="field-label">{t('profile_steps_target')}</label><input className="field-input" type="number" value={stepsTarget} onChange={e => setStepsTarget(e.target.value)} inputMode="numeric" /></div>
             </div>
+
+            <div style={{ fontSize: 11, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--text2)', marginTop: 4 }}>{lang === 'de' ? 'Gewichtsziel' : 'Weight goal'}</div>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+              <div className="field">
+                <label className="field-label">{t('profile_start_weight')}</label>
+                <input className="field-input" type="number" step="0.1" value={startWeight} onChange={e => setStartWeight(e.target.value)} placeholder="88.4" inputMode="decimal" />
+              </div>
+              <div className="field">
+                <label className="field-label">{t('profile_target_weight')}</label>
+                <input className="field-input" type="number" step="0.1" value={targetWeight} onChange={e => setTargetWeight(e.target.value)} placeholder="75.0" inputMode="decimal" />
+              </div>
+            </div>
+            {targetWeight && startWeight && (
+              <div style={{ fontSize: 12, color: 'var(--text2)', background: 'var(--green-light)', borderRadius: 8, padding: '8px 10px' }}>
+                {(parseFloat(startWeight) - parseFloat(targetWeight)).toFixed(1)} {t('profile_to_lose')} · ~{Math.ceil((parseFloat(startWeight) - parseFloat(targetWeight)) / 0.5)} {t('profile_weeks_at')}
+              </div>
+            )}
+
             <button className="btn-primary" onClick={handleSaveSettings} disabled={savingSettings}>
               {savingSettings ? t('profile_saving') : t('profile_save_settings')}
             </button>
