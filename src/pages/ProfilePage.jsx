@@ -16,7 +16,7 @@ function generateShortcutToken() {
 }
 
 export default function ProfilePage({ session, whoopCode, whoopError }) {
-  const { t } = useLang()
+  const { t, lang } = useLang()
   const { settings, saveSettings } = useSettings(session.user.id)
   const [whoopStatus, setWhoopStatus] = useState(null)
   const [syncing, setSyncing] = useState(false)
@@ -170,68 +170,73 @@ export default function ProfilePage({ session, whoopCode, whoopError }) {
           </div>
         </div>
 
-        {/* WHOOP */}
+        {/* Integrations */}
         <div className="card">
-          <div className="card-header">
-            <span className="card-title">{t('profile_whoop')}</span>
-            <span className="badge" style={{ background: whoopStatus ? 'var(--green-light)' : 'var(--surface2)', color: whoopStatus ? 'var(--green)' : 'var(--text2)', border: whoopStatus ? 'none' : '0.5px solid var(--border)' }}>
-              {whoopStatus ? t('profile_connected') : t('profile_not_connected')}
-            </span>
-          </div>
-          {whoopError && (
-            <div style={{ margin: '0 14px 12px', padding: '10px 12px', background: 'var(--red-light)', borderRadius: 8, fontSize: 12, color: 'var(--red)' }}>
-              <strong>WHOOP error:</strong> {whoopError}
-            </div>
-          )}
-          {whoopStatus ? (
-            <div style={{ padding: '12px 14px', display: 'flex', flexDirection: 'column', gap: 12 }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <div>
-                  <div style={{ fontSize: 13, fontWeight: 600 }}>{t('profile_whoop_syncing')}</div>
-                  <div style={{ fontSize: 11, color: 'var(--text2)', marginTop: 2 }}>
-                    {whoopStatus.last_synced_at ? `${t('profile_last_synced')} ${format(new Date(whoopStatus.last_synced_at), 'd MMM · HH:mm')}` : t('profile_not_synced')}
-                  </div>
-                </div>
-                <button onClick={syncWhoop} disabled={syncing} style={{ padding: '7px 14px', borderRadius: 20, background: 'var(--green-light)', border: 'none', color: 'var(--green)', fontWeight: 600, fontSize: 12, cursor: 'pointer', fontFamily: 'inherit' }}>
-                  {syncing ? t('profile_syncing') : t('profile_sync_now')}
-                </button>
-              </div>
-              <div style={{ fontSize: 11, color: 'var(--text2)', background: 'var(--surface2)', borderRadius: 8, padding: '8px 10px' }}>{t('profile_whoop_pulls')}</div>
-              <button onClick={disconnectWhoop} style={{ padding: '9px', borderRadius: 8, background: 'none', border: '0.5px solid var(--border)', color: 'var(--text3)', fontSize: 12, cursor: 'pointer', fontFamily: 'inherit' }}>{t('profile_disconnect_whoop')}</button>
-            </div>
-          ) : (
-            <div style={{ padding: '12px 14px', display: 'flex', flexDirection: 'column', gap: 12 }}>
-              <div style={{ fontSize: 13, color: 'var(--text2)', lineHeight: 1.5 }}>{t('profile_whoop_description')}</div>
-              <button onClick={connectWhoop} style={{ padding: '11px', borderRadius: 8, background: 'var(--green)', border: 'none', color: 'white', fontWeight: 700, fontSize: 14, cursor: 'pointer', fontFamily: 'inherit' }}>{t('profile_connect_whoop')}</button>
-            </div>
-          )}
-        </div>
+          <div className="card-header"><span className="card-title">{lang === 'de' ? 'Integrationen' : 'Integrations'}</span></div>
 
-        {/* Apple Health */}
-        <div className="card">
-          <div className="card-header">
-            <span className="card-title">{t('profile_apple')}</span>
-            <span className="badge" style={{ background: shortcutToken ? 'var(--green-light)' : 'var(--surface2)', color: shortcutToken ? 'var(--green)' : 'var(--text2)', border: shortcutToken ? 'none' : '0.5px solid var(--border)' }}>
-              {shortcutToken ? t('profile_shortcut_ready') : t('profile_not_setup')}
-            </span>
-          </div>
-          <div style={{ padding: '12px 14px', display: 'flex', flexDirection: 'column', gap: 12 }}>
-            <div style={{ fontSize: 13, color: 'var(--text2)', lineHeight: 1.5 }}>{t('profile_apple_description')}</div>
-            {shortcutToken ? (
-              <>
-                <div style={{ background: 'var(--surface2)', borderRadius: 8, padding: '10px 12px' }}>
-                  <div style={{ fontSize: 11, color: 'var(--text2)', marginBottom: 4 }}>{t('profile_sync_endpoint')}</div>
-                  <div style={{ fontSize: 11, fontFamily: 'var(--font-mono)', color: 'var(--text)', wordBreak: 'break-all' }}>https://sebs.health/.netlify/functions/apple-health-sync</div>
-                </div>
-                <button onClick={() => setShowShortcutSetup(true)} style={{ padding: '9px', borderRadius: 8, background: 'var(--green-light)', border: 'none', color: 'var(--green)', fontWeight: 600, fontSize: 13, cursor: 'pointer', fontFamily: 'inherit' }}>{t('profile_view_guide')}</button>
-              </>
+          {/* WHOOP row */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 14px', borderBottom: '0.5px solid var(--border)' }}>
+            <div style={{ width: 36, height: 36, borderRadius: 10, background: '#000', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+              <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+                <path d="M4 10l2.5 5L10 6l3.5 9L16 10" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+              </svg>
+            </div>
+            <div style={{ flex: 1 }}>
+              <div style={{ fontSize: 13, fontWeight: 600 }}>WHOOP</div>
+              <div style={{ fontSize: 11, color: whoopStatus ? 'var(--green)' : 'var(--text3)', marginTop: 1 }}>
+                {whoopStatus
+                  ? `✓ ${lang === 'de' ? 'Synchronisiert' : 'Syncing'} · ${whoopStatus.last_synced_at ? format(new Date(whoopStatus.last_synced_at), 'd MMM HH:mm') : lang === 'de' ? 'Noch nicht' : 'Not yet'}`
+                  : lang === 'de' ? 'Nicht verbunden' : 'Not connected'}
+              </div>
+            </div>
+            {whoopStatus ? (
+              <div style={{ display: 'flex', gap: 6 }}>
+                <button onClick={syncWhoop} disabled={syncing} style={{ padding: '6px 12px', borderRadius: 16, background: 'var(--green-light)', border: 'none', color: 'var(--green)', fontWeight: 600, fontSize: 11, cursor: 'pointer', fontFamily: 'inherit' }}>
+                  {syncing ? '...' : lang === 'de' ? 'Sync' : 'Sync'}
+                </button>
+                <button onClick={disconnectWhoop} style={{ padding: '6px 10px', borderRadius: 16, background: 'var(--surface2)', border: '0.5px solid var(--border)', color: 'var(--text3)', fontSize: 11, cursor: 'pointer', fontFamily: 'inherit' }}>✕</button>
+              </div>
             ) : (
-              <button onClick={generateAndSaveToken} style={{ padding: '11px', borderRadius: 8, background: 'var(--green)', border: 'none', color: 'white', fontWeight: 700, fontSize: 14, cursor: 'pointer', fontFamily: 'inherit' }}>{t('profile_setup_apple')}</button>
+              <button onClick={connectWhoop} style={{ padding: '6px 14px', borderRadius: 16, background: 'var(--green)', border: 'none', color: 'white', fontWeight: 600, fontSize: 11, cursor: 'pointer', fontFamily: 'inherit' }}>
+                {lang === 'de' ? 'Verbinden' : 'Connect'}
+              </button>
+            )}
+          </div>
+
+          {whoopError && (
+            <div style={{ margin: '0 14px 12px', padding: '8px 12px', background: 'var(--red-light)', borderRadius: 8, fontSize: 11, color: 'var(--red)' }}>
+              {whoopError}
+            </div>
+          )}
+
+          {/* Apple Health row */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 14px' }}>
+            <div style={{ width: 36, height: 36, borderRadius: 10, background: 'linear-gradient(135deg, #ff6b6b, #ee5a24)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+              <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+                <path d="M10 3.5C10 3.5 8 1.5 5.5 3C3 4.5 3 7.5 5 9.5L10 15L15 9.5C17 7.5 17 4.5 14.5 3C12 1.5 10 3.5 10 3.5Z" fill="white"/>
+              </svg>
+            </div>
+            <div style={{ flex: 1 }}>
+              <div style={{ fontSize: 13, fontWeight: 600 }}>Apple Health</div>
+              <div style={{ fontSize: 11, color: shortcutToken ? 'var(--green)' : 'var(--text3)', marginTop: 1 }}>
+                {shortcutToken
+                  ? `✓ ${lang === 'de' ? 'Shortcut bereit' : 'Shortcut ready'}`
+                  : lang === 'de' ? 'Nicht eingerichtet' : 'Not set up'}
+              </div>
+            </div>
+            {shortcutToken ? (
+              <button onClick={() => setShowShortcutSetup(true)} style={{ padding: '6px 12px', borderRadius: 16, background: 'var(--green-light)', border: 'none', color: 'var(--green)', fontWeight: 600, fontSize: 11, cursor: 'pointer', fontFamily: 'inherit' }}>
+                {lang === 'de' ? 'Anleitung' : 'Guide'}
+              </button>
+            ) : (
+              <button onClick={generateAndSaveToken} style={{ padding: '6px 14px', borderRadius: 16, background: 'var(--green)', border: 'none', color: 'white', fontWeight: 600, fontSize: 11, cursor: 'pointer', fontFamily: 'inherit' }}>
+                {lang === 'de' ? 'Einrichten' : 'Set up'}
+              </button>
             )}
           </div>
         </div>
 
-        {/* Daily targets */}
+        {/* Daily targets - calories, water, steps only */}
         <div className="card">
           <div className="card-header"><span className="card-title">{t('profile_targets')}</span></div>
           <div style={{ padding: '12px 14px', display: 'flex', flexDirection: 'column', gap: 12 }}>
@@ -240,22 +245,6 @@ export default function ProfilePage({ session, whoopCode, whoopError }) {
               <div className="field"><label className="field-label">{t('profile_water_target')}</label><input className="field-input" type="number" value={waterTarget} onChange={e => setWaterTarget(e.target.value)} inputMode="numeric" /></div>
               <div className="field"><label className="field-label">{t('profile_steps_target')}</label><input className="field-input" type="number" value={stepsTarget} onChange={e => setStepsTarget(e.target.value)} inputMode="numeric" /></div>
             </div>
-          </div>
-        </div>
-
-        {/* Weight goal */}
-        <div className="card">
-          <div className="card-header"><span className="card-title">{t('profile_weight_goal')}</span></div>
-          <div style={{ padding: '12px 14px', display: 'flex', flexDirection: 'column', gap: 12 }}>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-              <div className="field"><label className="field-label">{t('profile_start_weight')}</label><input className="field-input" type="number" step="0.1" value={startWeight} onChange={e => setStartWeight(e.target.value)} placeholder="83.8" inputMode="decimal" /></div>
-              <div className="field"><label className="field-label">{t('profile_target_weight')}</label><input className="field-input" type="number" step="0.1" value={targetWeight} onChange={e => setTargetWeight(e.target.value)} placeholder="70.0" inputMode="decimal" /></div>
-            </div>
-            {targetWeight && startWeight && (
-              <div style={{ fontSize: 12, color: 'var(--text2)', background: 'var(--green-light)', borderRadius: 8, padding: '8px 10px' }}>
-                {(parseFloat(startWeight) - parseFloat(targetWeight)).toFixed(1)} {t('profile_to_lose')} · ~{Math.ceil((parseFloat(startWeight) - parseFloat(targetWeight)) / 0.5)} {t('profile_weeks_at')}
-              </div>
-            )}
             <button className="btn-primary" onClick={handleSaveSettings} disabled={savingSettings}>
               {savingSettings ? t('profile_saving') : t('profile_save_settings')}
             </button>

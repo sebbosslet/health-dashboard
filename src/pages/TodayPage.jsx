@@ -18,16 +18,16 @@ const SUPPLEMENTS = [
   { key: 'calnat', tKey: 'supp_calnat' },
 ]
 const ACTIVITIES = [
-  { key: 'gym', tKey: 'act_gym' },
-  { key: 'run', tKey: 'act_run' },
-  { key: 'home', tKey: 'act_home' },
-  { key: 'sauna', tKey: 'act_sauna' },
+  { key: 'gym', tKey: 'act_gym', emoji: '🏋️' },
+  { key: 'run', tKey: 'act_run', emoji: '🏃' },
+  { key: 'home', tKey: 'act_home', emoji: '🤸' },
+  { key: 'sauna', tKey: 'act_sauna', emoji: '🧖' },
 ]
 const HABITS = [
-  { key: 'reading', tKey: 'hab_reading' },
-  { key: 'meditation', tKey: 'hab_meditation' },
-  { key: 'nophone', tKey: 'hab_nophone' },
-  { key: 'journal', tKey: 'hab_journal' },
+  { key: 'reading', tKey: 'hab_reading', emoji: '📚' },
+  { key: 'meditation', tKey: 'hab_meditation', emoji: '🧘' },
+  { key: 'nophone', tKey: 'hab_nophone', emoji: '📵' },
+  { key: 'journal', tKey: 'hab_journal', emoji: '✍️' },
 ]
 
 export default function TodayPage({ session }) {
@@ -48,7 +48,7 @@ export default function TodayPage({ session }) {
       setActiveActivity(new Set(log.activity || []))
       setActiveHabits(new Set(log.habits || []))
       setActiveSupps(new Set(log.supplements?.length ? log.supplements : ['thyroid']))
-      setWater(log.water || '')
+      setWater(log.water ? String(log.water) : '0')
     }
   }, [log])
 
@@ -206,21 +206,34 @@ export default function TodayPage({ session }) {
             onCaloriesUpdated={setMealCalories}
           />
 
-          {/* Water - stays manual */}
+          {/* Water tracker */}
           <div style={{ padding: '10px 14px 12px', borderTop: '0.5px solid var(--border)' }}>
-            <div className="field">
-              <label className="field-label">{t('today_water_label')}</label>
-              <input className="field-input" type="number" value={water} onChange={e => setWater(e.target.value)} placeholder={waterTarget} inputMode="numeric" />
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+              <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--text2)' }}>{t('metric_water')}</span>
+              <span style={{ fontSize: 12, fontWeight: 700, color: parseInt(water) >= waterTarget ? 'var(--green)' : 'var(--blue)' }}>
+                {water || 0} / {waterTarget} ml
+              </span>
             </div>
-            {!!water && (
-              <div style={{ marginTop: 8 }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, color: 'var(--text2)', marginBottom: 5 }}>
-                  <span>{t('metric_water')}</span>
-                  <span style={{ fontWeight: 600, color: 'var(--blue)' }}>{waterPct}% {t('today_pct_of_goal')}</span>
-                </div>
-                <div className="bar-wrap"><div className="bar bar-blue" style={{ width: `${waterPct}%` }} /></div>
-              </div>
-            )}
+            <div className="bar-wrap" style={{ marginBottom: 10 }}>
+              <div className="bar bar-blue" style={{ width: `${waterPct}%` }} />
+            </div>
+            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+              {[
+                { label: '1L 🫙', ml: 1000 },
+                { label: '750ml 🫙', ml: 750 },
+                { label: '500ml 🫙', ml: 500 },
+                { label: '250ml 🥛', ml: 250 },
+              ].map(btn => (
+                <button key={btn.ml} onClick={() => setWater(w => String((parseInt(w) || 0) + btn.ml))} style={{ flex: 1, minWidth: 60, padding: '8px 4px', borderRadius: 8, border: '0.5px solid var(--border)', background: 'var(--surface2)', color: 'var(--text)', fontSize: 12, fontWeight: 500, cursor: 'pointer', fontFamily: 'inherit' }}>
+                  + {btn.label}
+                </button>
+              ))}
+              {parseInt(water) > 0 && (
+                <button onClick={() => setWater('0')} style={{ padding: '8px 10px', borderRadius: 8, border: '0.5px solid var(--border)', background: 'none', color: 'var(--text3)', fontSize: 11, cursor: 'pointer', fontFamily: 'inherit' }}>
+                  ↺
+                </button>
+              )}
+            </div>
           </div>
         </div>
 
@@ -231,7 +244,7 @@ export default function TodayPage({ session }) {
             <div className="toggle-grid">
               {ACTIVITIES.map(a => (
                 <button key={a.key} className={`toggle-btn ${activeActivity.has(a.key) ? 'active' : ''}`} onClick={() => toggle(activeActivity, setActiveActivity, a.key)}>
-                  {t(a.tKey)}
+                  {a.emoji} {t(a.tKey)}
                 </button>
               ))}
             </div>
@@ -245,7 +258,7 @@ export default function TodayPage({ session }) {
             <div className="toggle-grid">
               {HABITS.map(h => (
                 <button key={h.key} className={`toggle-btn ${activeHabits.has(h.key) ? 'active' : ''}`} onClick={() => toggle(activeHabits, setActiveHabits, h.key)}>
-                  {t(h.tKey)}
+                  {h.emoji} {t(h.tKey)}
                 </button>
               ))}
             </div>

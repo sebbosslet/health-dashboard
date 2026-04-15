@@ -6,27 +6,27 @@ import { showToast } from '../components/Toast'
 import { Toast } from '../components/Toast'
 
 const TIMEFRAMES = [
-  { key: 'day', label: 'Day', example: 'daily' },
-  { key: 'week', label: 'Week', example: 'weekly' },
-  { key: 'month', label: 'Month', example: 'monthly' },
-  { key: 'quarter', label: 'Quarter', example: '90 days' },
-  { key: 'year', label: 'Year', example: 'yearly' },
+  { key: 'day', label: 'Day' },
+  { key: 'week', label: 'Week' },
+  { key: 'month', label: 'Month' },
+  { key: 'quarter', label: 'Quarter' },
+  { key: 'year', label: 'Year' },
 ]
 
-const CATEGORIES = ['Nutrition', 'Activity', 'Evening habits', 'Sleep', 'Custom']
+const DEFAULT_CATEGORIES = ['Nutrition', 'Activity', 'Evening habits', 'Sleep', 'Body', 'Custom']
 
 const DEFAULT_GOALS = [
-  { name: 'Daily calories', category: 'Nutrition', target_value: 1900, timeframe: 'day', effective_from: format(new Date(), 'yyyy-MM-dd') },
-  { name: 'Daily water', category: 'Nutrition', target_value: 2500, timeframe: 'day', effective_from: format(new Date(), 'yyyy-MM-dd') },
-  { name: 'Target weight', category: 'Nutrition', target_value: 70, timeframe: 'year', effective_from: format(new Date(), 'yyyy-MM-dd') },
-  { name: 'Gym sessions', category: 'Activity', target_value: 3, timeframe: 'week', effective_from: format(new Date(), 'yyyy-MM-dd') },
-  { name: 'Run', category: 'Activity', target_value: 2, timeframe: 'week', effective_from: format(new Date(), 'yyyy-MM-dd') },
-  { name: 'Sauna', category: 'Activity', target_value: 2, timeframe: 'week', effective_from: format(new Date(), 'yyyy-MM-dd') },
-  { name: 'Reading', category: 'Evening habits', target_value: 7, timeframe: 'week', effective_from: format(new Date(), 'yyyy-MM-dd') },
-  { name: 'Meditation', category: 'Evening habits', target_value: 5, timeframe: 'week', effective_from: format(new Date(), 'yyyy-MM-dd') },
-  { name: 'Journaling', category: 'Evening habits', target_value: 3, timeframe: 'week', effective_from: format(new Date(), 'yyyy-MM-dd') },
-  { name: 'Sleep duration', category: 'Sleep', target_value: 8, timeframe: 'day', effective_from: format(new Date(), 'yyyy-MM-dd') },
-  { name: 'Recovery score', category: 'Sleep', target_value: 67, timeframe: 'day', effective_from: format(new Date(), 'yyyy-MM-dd') },
+  { name: 'Daily calories', category: 'Nutrition', target_value: 1900, timeframe: 'day' },
+  { name: 'Daily water', category: 'Nutrition', target_value: 2500, timeframe: 'day' },
+  { name: 'Weight loss', category: 'Body', target_value: 0.5, timeframe: 'week' },
+  { name: 'Gym sessions', category: 'Activity', target_value: 3, timeframe: 'week' },
+  { name: 'Run', category: 'Activity', target_value: 2, timeframe: 'week' },
+  { name: 'Sauna', category: 'Activity', target_value: 2, timeframe: 'week' },
+  { name: 'Reading', category: 'Evening habits', target_value: 7, timeframe: 'week' },
+  { name: 'Meditation', category: 'Evening habits', target_value: 5, timeframe: 'week' },
+  { name: 'Journaling', category: 'Evening habits', target_value: 3, timeframe: 'week' },
+  { name: 'Sleep duration', category: 'Sleep', target_value: 8, timeframe: 'day' },
+  { name: 'Recovery score', category: 'Sleep', target_value: 67, timeframe: 'day' },
 ]
 
 function GoalRow({ goal, onEdit }) {
@@ -34,11 +34,13 @@ function GoalRow({ goal, onEdit }) {
     <div onClick={() => onEdit(goal)} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px', borderBottom: '0.5px solid var(--border)', cursor: 'pointer' }}>
       <div style={{ flex: 1 }}>
         <div style={{ fontSize: 13, fontWeight: 600 }}>{goal.name}</div>
-        <div style={{ fontSize: 11, color: 'var(--text2)', marginTop: 1 }}>Effective {format(new Date(goal.effective_from), 'd MMM yyyy')}</div>
+        <div style={{ fontSize: 11, color: 'var(--text2)', marginTop: 1 }}>
+          {goal.effective_from ? format(new Date(goal.effective_from), 'd MMM yyyy') : ''}
+        </div>
       </div>
       <div style={{ textAlign: 'right' }}>
-        <div style={{ fontSize: 13, fontWeight: 700, fontFamily: 'var(--font-mono)', color: 'var(--text2)' }}>{goal.target_value}</div>
-        <div style={{ fontSize: 10, color: 'var(--text3)' }}>per {goal.timeframe}</div>
+        <div style={{ fontSize: 13, fontWeight: 700, fontFamily: 'var(--font-mono)', color: 'var(--green)' }}>{goal.target_value}</div>
+        <div style={{ fontSize: 10, color: 'var(--text3)' }}>/ {goal.timeframe}</div>
       </div>
       <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M5 3l4 4-4 4" stroke="var(--text3)" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round"/></svg>
     </div>
@@ -46,12 +48,14 @@ function GoalRow({ goal, onEdit }) {
 }
 
 export default function GoalsPage({ session }) {
-  const { t } = useLang()
+  const { t, lang } = useLang()
   const [goals, setGoals] = useState([])
   const [loading, setLoading] = useState(true)
   const [editing, setEditing] = useState(null)
   const [isNew, setIsNew] = useState(false)
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
+  const [mode, setMode] = useState('goal') // 'goal' or 'category'
+  const [customCategories, setCustomCategories] = useState([])
 
   // Edit form state
   const [editName, setEditName] = useState('')
@@ -59,10 +63,14 @@ export default function GoalsPage({ session }) {
   const [editValue, setEditValue] = useState('')
   const [editTimeframe, setEditTimeframe] = useState('week')
   const [editEffective, setEditEffective] = useState(format(new Date(), 'yyyy-MM-dd'))
+  const [newCategoryName, setNewCategoryName] = useState('')
 
   async function fetchGoals() {
     const { data } = await supabase.from('goals').select('*').eq('user_id', session.user.id).order('category').order('name')
     setGoals(data || [])
+    // Derive any custom categories from existing goals
+    const cats = [...new Set((data || []).map(g => g.category))].filter(c => !DEFAULT_CATEGORIES.includes(c))
+    setCustomCategories(cats)
     setLoading(false)
   }
 
@@ -71,26 +79,36 @@ export default function GoalsPage({ session }) {
   function openEdit(goal) {
     setEditing(goal)
     setIsNew(false)
+    setMode('goal')
     setEditName(goal.name)
     setEditCategory(goal.category)
     setEditValue(String(goal.target_value))
     setEditTimeframe(goal.timeframe)
-    setEditEffective(goal.effective_from)
+    setEditEffective(goal.effective_from || format(new Date(), 'yyyy-MM-dd'))
     setShowDeleteConfirm(false)
   }
 
   function openNew() {
     setEditing({ id: null })
     setIsNew(true)
+    setMode('goal')
     setEditName('')
     setEditCategory('Activity')
     setEditValue('')
     setEditTimeframe('week')
     setEditEffective(format(new Date(), 'yyyy-MM-dd'))
+    setNewCategoryName('')
     setShowDeleteConfirm(false)
   }
 
   async function handleSave() {
+    if (mode === 'category') {
+      if (!newCategoryName.trim()) return
+      setCustomCategories(prev => [...new Set([...prev, newCategoryName.trim()])])
+      setEditing(null)
+      showToast(lang === 'de' ? 'Kategorie hinzugefügt' : 'Category added')
+      return
+    }
     const payload = {
       user_id: session.user.id,
       name: editName,
@@ -101,39 +119,50 @@ export default function GoalsPage({ session }) {
     }
     if (isNew) {
       const { error } = await supabase.from('goals').insert(payload)
-      if (!error) { showToast('Goal added'); fetchGoals(); setEditing(null) }
+      if (!error) { showToast(t('goals_added')); fetchGoals(); setEditing(null) }
     } else {
       const { error } = await supabase.from('goals').update(payload).eq('id', editing.id)
-      if (!error) { showToast('Goal saved'); fetchGoals(); setEditing(null) }
+      if (!error) { showToast(t('goals_saved')); fetchGoals(); setEditing(null) }
     }
   }
 
   async function handleDelete() {
     const { error } = await supabase.from('goals').delete().eq('id', editing.id)
-    if (!error) { showToast('Goal deleted'); fetchGoals(); setEditing(null) }
+    if (!error) { showToast(t('goals_deleted')); fetchGoals(); setEditing(null) }
   }
 
   async function seedDefaultGoals() {
-    const rows = DEFAULT_GOALS.map(g => ({ ...g, user_id: session.user.id }))
+    const rows = DEFAULT_GOALS.map(g => ({ ...g, user_id: session.user.id, effective_from: format(new Date(), 'yyyy-MM-dd') }))
     await supabase.from('goals').insert(rows)
     fetchGoals()
-    showToast('Default goals added')
+    showToast(t('goals_defaults_added'))
   }
 
-  const grouped = CATEGORIES.reduce((acc, cat) => {
+  const allCategories = [...DEFAULT_CATEGORIES.filter(c => c !== 'Custom'), ...customCategories]
+
+  const grouped = allCategories.reduce((acc, cat) => {
     const catGoals = goals.filter(g => g.category === cat)
     if (catGoals.length) acc[cat] = catGoals
     return acc
   }, {})
 
-  const summaryText = `${editValue || '—'} times per ${editTimeframe}`
+  // Also catch any goals with categories not in our list
+  goals.forEach(g => {
+    if (!allCategories.includes(g.category)) {
+      if (!grouped[g.category]) grouped[g.category] = []
+      grouped[g.category].push(g)
+    }
+  })
 
   return (
     <>
       <div className="page-header">
-        <div className="page-header-title">{`${'goals_title'}`}</div>
-        <button onClick={openNew} style={{ fontSize: 11, padding: '5px 12px', borderRadius: 20, background: 'var(--green-light)', color: 'var(--green)', fontWeight: 700, border: 'none', cursor: 'pointer', fontFamily: 'inherit' }}>
-          + New goal
+        <div>
+          <div className="page-header-title">{t('goals_title')}</div>
+          <div className="page-header-sub">{goals.length} {lang === 'de' ? 'Ziele aktiv' : 'goals active'}</div>
+        </div>
+        <button onClick={openNew} style={{ padding: '7px 14px', borderRadius: 20, background: 'var(--green)', border: 'none', color: 'white', fontWeight: 600, fontSize: 12, cursor: 'pointer', fontFamily: 'inherit' }}>
+          + {lang === 'de' ? 'Neu' : 'New'}
         </button>
       </div>
 
@@ -142,24 +171,18 @@ export default function GoalsPage({ session }) {
 
         {!loading && goals.length === 0 && (
           <div style={{ textAlign: 'center', padding: 24 }}>
-            <div style={{ fontSize: 14, color: 'var(--text2)', marginBottom: 16 }}>${t('goals_none')}</div>
-            <button className="btn-primary" onClick={seedDefaultGoals}>{`${t('goals_load_defaults')}`}</button>
+            <div style={{ fontSize: 14, color: 'var(--text2)', marginBottom: 16 }}>{t('goals_none')}</div>
+            <button className="btn-primary" onClick={seedDefaultGoals}>{t('goals_load_defaults')}</button>
           </div>
         )}
-
-        <div style={{ fontSize: 11, color: 'var(--text2)', textAlign: 'center', padding: '4px 0 2px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5 }}>
-          <svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M2 6h8M7 3l3 3-3 3" stroke="var(--text2)" strokeWidth="1.1" strokeLinecap="round" strokeLinejoin="round"/></svg>
-          ${t('goals_tap_hint')}
-        </div>
 
         {Object.entries(grouped).map(([cat, catGoals]) => (
           <div key={cat} className="card">
             <div className="card-header">
               <span className="card-title">{cat}</span>
+              <span className="badge" style={{ background: 'var(--surface2)', color: 'var(--text2)', border: '0.5px solid var(--border)' }}>{catGoals.length}</span>
             </div>
-            {catGoals.map((g, i) => (
-              <GoalRow key={g.id} goal={g} onEdit={openEdit} />
-            ))}
+            {catGoals.map(g => <GoalRow key={g.id} goal={g} onEdit={openEdit} />)}
           </div>
         ))}
 
@@ -167,96 +190,103 @@ export default function GoalsPage({ session }) {
       </div>
 
       {/* Edit / New sheet */}
-      {editing && !showDeleteConfirm && (
+      {editing && (
         <div className="sheet-overlay" onClick={() => setEditing(null)}>
           <div className="sheet" onClick={e => e.stopPropagation()}>
             <div className="sheet-handle" />
-            <div className="sheet-title">{isNew ? 'New goal' : `Edit · ${editing.name}`}</div>
+            <div className="sheet-title">{isNew ? t('goals_new_title') : t('goals_edit_title')}</div>
             <div className="sheet-divider" />
+
+            {/* Mode toggle - only shown when creating new */}
+            {isNew && (
+              <div style={{ display: 'flex', gap: 6, padding: '0 16px 14px' }}>
+                {['goal', 'category'].map(m => (
+                  <button key={m} onClick={() => setMode(m)} style={{ flex: 1, padding: '8px', borderRadius: 8, border: `0.5px solid ${mode === m ? 'var(--green-border)' : 'var(--border)'}`, background: mode === m ? 'var(--green-light)' : 'var(--surface2)', color: mode === m ? 'var(--green)' : 'var(--text2)', fontWeight: mode === m ? 600 : 400, fontSize: 13, cursor: 'pointer', fontFamily: 'inherit' }}>
+                    {m === 'goal' ? (lang === 'de' ? '🎯 Ziel' : '🎯 Goal') : (lang === 'de' ? '📁 Kategorie' : '📁 Category')}
+                  </button>
+                ))}
+              </div>
+            )}
 
             <div style={{ padding: '0 16px', display: 'flex', flexDirection: 'column', gap: 14 }}>
 
-              {isNew && (
-                <div className="field">
-                  <label className="field-label">Category</label>
-                  <select className="field-input" value={editCategory} onChange={e => setEditCategory(e.target.value)}>
-                    {CATEGORIES.map(c => <option key={c}>{c}</option>)}
-                  </select>
-                </div>
+              {mode === 'category' ? (
+                // Category creation mode
+                <>
+                  <div className="field">
+                    <label className="field-label">{lang === 'de' ? 'Kategoriename' : 'Category name'}</label>
+                    <input className="field-input" value={newCategoryName} onChange={e => setNewCategoryName(e.target.value)} placeholder={lang === 'de' ? 'z.B. Beweglichkeit' : 'e.g. Mobility'} autoFocus />
+                  </div>
+                  <div style={{ fontSize: 12, color: 'var(--text2)', background: 'var(--surface2)', borderRadius: 8, padding: '10px 12px' }}>
+                    {lang === 'de' ? 'Die Kategorie erscheint beim Erstellen neuer Ziele.' : 'The category will appear when creating new goals.'}
+                  </div>
+                </>
+              ) : (
+                // Goal creation/edit mode
+                <>
+                  <div className="field">
+                    <label className="field-label">{t('goals_name')}</label>
+                    <input className="field-input" value={editName} onChange={e => setEditName(e.target.value)} placeholder={lang === 'de' ? 'z.B. Laufen' : 'e.g. Running'} />
+                  </div>
+
+                  <div className="field">
+                    <label className="field-label">{t('goals_category')}</label>
+                    <select className="field-input" value={editCategory} onChange={e => setEditCategory(e.target.value)} style={{ cursor: 'pointer' }}>
+                      {allCategories.map(c => <option key={c} value={c}>{c}</option>)}
+                    </select>
+                  </div>
+
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+                    <div className="field">
+                      <label className="field-label">{t('goals_target')}</label>
+                      <input className="field-input" type="number" step="0.1" value={editValue} onChange={e => setEditValue(e.target.value)} inputMode="decimal" />
+                    </div>
+                    <div className="field">
+                      <label className="field-label">{t('goals_timeframe')}</label>
+                      <select className="field-input" value={editTimeframe} onChange={e => setEditTimeframe(e.target.value)} style={{ cursor: 'pointer' }}>
+                        {TIMEFRAMES.map(tf => <option key={tf.key} value={tf.key}>{lang === 'de' ? { day: 'Tag', week: 'Woche', month: 'Monat', quarter: 'Quartal', year: 'Jahr' }[tf.key] : tf.label}</option>)}
+                      </select>
+                    </div>
+                  </div>
+
+                  {editName && editValue && (
+                    <div style={{ background: 'var(--green-light)', borderRadius: 8, padding: '10px 12px', fontSize: 13, color: 'var(--green)', fontWeight: 600 }}>
+                      {editValue} × {editName} / {editTimeframe}
+                    </div>
+                  )}
+
+                  <div className="field">
+                    <label className="field-label">{t('goals_effective_from')}</label>
+                    <input className="field-input" type="date" value={editEffective} onChange={e => setEditEffective(e.target.value)} />
+                    <div style={{ fontSize: 11, color: 'var(--text3)', marginTop: 4 }}>{t('goals_effective_sub')}</div>
+                  </div>
+                </>
               )}
 
-              <div className="field">
-                <label className="field-label">Goal name</label>
-                <input className="field-input" value={editName} onChange={e => setEditName(e.target.value)} placeholder="e.g. Gym sessions" />
+              <div style={{ display: 'flex', gap: 8 }}>
+                <button className="btn-secondary" onClick={() => setEditing(null)}>{t('goals_cancel')}</button>
+                <button className="btn-primary" onClick={handleSave} disabled={mode === 'goal' ? (!editName || !editValue) : !newCategoryName.trim()} style={{ flex: 1 }}>
+                  {isNew ? (lang === 'de' ? 'Hinzufügen' : 'Add') : t('goals_save')}
+                </button>
               </div>
 
-              <div className="field">
-                <label className="field-label">Target number</label>
-                <input className="field-input" style={{ fontFamily: 'var(--font-mono)', fontWeight: 700 }} type="number" value={editValue} onChange={e => setEditValue(e.target.value)} placeholder="3" inputMode="decimal" />
-              </div>
-
-              <div className="field">
-                <label className="field-label">Per</label>
-                <div className="timeframe-grid">
-                  {TIMEFRAMES.map(t => (
-                    <button key={t.key} className={`tf-btn ${editTimeframe === t.key ? 'active' : ''}`} onClick={() => setEditTimeframe(t.key)}>
-                      <span>{t.label}</span>
-                      <span className="tf-example">{t.example}</span>
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              {editValue && (
-                <div className="summary-pill">
-                  <span className="sp-label">Reads as</span>
-                  <span className="sp-val">{summaryText}</span>
-                </div>
-              )}
-
-              <div className="effective-date-box">
-                <div className="edb-icon">
-                  <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><rect x="1" y="2" width="12" height="10" rx="1.5" stroke="var(--blue)" strokeWidth="1.1"/><path d="M4 1v2M10 1v2M1 6h12" stroke="var(--blue)" strokeWidth="1.1"/></svg>
-                </div>
-                <div className="edb-info">
-                  <div className="edb-label">Effective from</div>
-                  <div className="edb-sub">Historical data uses previous target</div>
-                </div>
-                <input type="date" value={editEffective} onChange={e => setEditEffective(e.target.value)} style={{ fontFamily: 'var(--font-mono)', fontWeight: 700, fontSize: 12, color: 'var(--blue)', background: 'none', border: 'none', outline: 'none', cursor: 'pointer' }} />
-              </div>
-
-              <div className="btn-row" style={{ padding: 0 }}>
-                <button className="btn-secondary" onClick={() => setEditing(null)}>Cancel</button>
-                <button className="btn-primary" onClick={handleSave} style={{ flex: 1 }}>Save changes</button>
-              </div>
-
-              {!isNew && (
-                <button className="btn-danger" onClick={() => setShowDeleteConfirm(true)}>
-                  <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M2 4h10M5 4V2.5h4V4M5.5 6.5v4M8.5 6.5v4M3 4l.7 7.5A1 1 0 004.7 12.5h4.6a1 1 0 001-.9L11 4" stroke="var(--red)" strokeWidth="1.1" strokeLinecap="round" strokeLinejoin="round"/></svg>
-                  Delete this goal
+              {!isNew && !showDeleteConfirm && (
+                <button onClick={() => setShowDeleteConfirm(true)} style={{ padding: '9px', borderRadius: 8, background: 'none', border: '0.5px solid rgba(194,48,48,0.25)', color: 'var(--red)', fontSize: 12, cursor: 'pointer', fontFamily: 'inherit' }}>
+                  {t('goals_delete')}
                 </button>
               )}
 
+              {showDeleteConfirm && (
+                <div style={{ background: 'var(--red-light)', borderRadius: 10, padding: '12px 14px', display: 'flex', flexDirection: 'column', gap: 10 }}>
+                  <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--red)' }}>{t('goals_delete_confirm')}</div>
+                  <div style={{ fontSize: 12, color: 'var(--text2)' }}><strong>{editName}</strong> {t('goals_delete_body')}</div>
+                  <div style={{ display: 'flex', gap: 8 }}>
+                    <button onClick={() => setShowDeleteConfirm(false)} className="btn-secondary" style={{ flex: 1 }}>{t('goals_keep')}</button>
+                    <button onClick={handleDelete} style={{ flex: 1, padding: '10px', borderRadius: 8, background: 'var(--red)', border: 'none', color: 'white', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>{t('goals_delete_yes')}</button>
+                  </div>
+                </div>
+              )}
               <div style={{ height: 4 }} />
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Delete confirm */}
-      {showDeleteConfirm && (
-        <div className="sheet-overlay" onClick={() => setShowDeleteConfirm(false)}>
-          <div style={{ background: 'var(--surface)', borderRadius: 16, width: 'calc(100% - 48px)', maxWidth: 340, padding: 24, margin: '0 auto' }} onClick={e => e.stopPropagation()}>
-            <div style={{ width: 44, height: 44, borderRadius: '50%', background: 'var(--red-light)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 12px' }}>
-              <svg width="20" height="20" viewBox="0 0 20 20" fill="none"><path d="M3 6h14M8 6V4h4v2M8.5 9.5v5M11.5 9.5v5M4 6l1 10a1.5 1.5 0 001.5 1.5h7A1.5 1.5 0 0015 16l1-10" stroke="var(--red)" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round"/></svg>
-            </div>
-            <div style={{ fontSize: 16, fontWeight: 700, textAlign: 'center', marginBottom: 8 }}>Delete this goal?</div>
-            <div style={{ fontSize: 13, color: 'var(--text2)', textAlign: 'center', lineHeight: 1.55, marginBottom: 20 }}>
-              <strong style={{ color: 'var(--text)' }}>{editing?.name}</strong> will be removed. Your past logged data won't be affected.
-            </div>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-              <button className="btn-danger" onClick={handleDelete} style={{ background: 'var(--red)', color: 'white' }}>Yes, delete goal</button>
-              <button className="btn-secondary" style={{ width: '100%', textAlign: 'center' }} onClick={() => setShowDeleteConfirm(false)}>Keep it</button>
             </div>
           </div>
         </div>
