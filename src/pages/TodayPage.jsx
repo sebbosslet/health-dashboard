@@ -130,7 +130,7 @@ export default function TodayPage({ session }) {
         </div>
 
         {/* Sleep */}
-        {log?.sleep_duration && (
+        {!!log?.sleep_duration && (
           <div className="card">
             <div className="card-header">
               <span className="card-title">{t('today_sleep')}</span>
@@ -165,7 +165,7 @@ export default function TodayPage({ session }) {
                 </div>
                 <div style={{ fontSize: 11, color: 'var(--text2)', marginTop: 3 }}>{t('today_steps_goal')} {stepsTarget.toLocaleString()}</div>
               </div>
-              {log?.steps && (
+              {!!log?.steps && (
                 <div style={{ textAlign: 'right' }}>
                   <div style={{ fontSize: 13, fontWeight: 600, color: stepsPct >= 100 ? 'var(--green)' : 'var(--text2)' }}>{stepsPct}%</div>
                   <div style={{ fontSize: 11, color: 'var(--text3)' }}>
@@ -212,7 +212,7 @@ export default function TodayPage({ session }) {
               <label className="field-label">{t('today_water_label')}</label>
               <input className="field-input" type="number" value={water} onChange={e => setWater(e.target.value)} placeholder={waterTarget} inputMode="numeric" />
             </div>
-            {water && (
+            {!!water && (
               <div style={{ marginTop: 8 }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, color: 'var(--text2)', marginBottom: 5 }}>
                   <span>{t('metric_water')}</span>
