@@ -35,9 +35,22 @@ export default function PhotosPage({ session }) {
   async function handleUpload(file) {
     if (!file) return
     setUploading(true)
-    const path = `${session.user.id}/${uploadType}/${Date.now()}.jpg`
-    const { error: uploadError } = await supabase.storage.from('progress-photos').upload(path, file, { contentType: 'image/jpeg', upsert: false })
-    if (uploadError) { showToast('Upload failed'); setUploading(false); return }
+
+    // Use actual mime type and correct extension
+    const mimeType = file.type || 'image/jpeg'
+    const ext = mimeType.includes('png') ? 'png' : mimeType.includes('heic') ? 'heic' : 'jpg'
+    const path = `${session.user.id}/${uploadType}/${Date.now()}.${ext}`
+
+    const { error: uploadError } = await supabase.storage
+      .from('progress-photos')
+      .upload(path, file, { contentType: mimeType, upsert: false })
+
+    if (uploadError) {
+      console.error('Upload error:', uploadError)
+      showToast(t('photos_upload_failed'))
+      setUploading(false)
+      return
+    }
 
     await supabase.from('progress_photos').insert({
       user_id: session.user.id,
@@ -46,7 +59,7 @@ export default function PhotosPage({ session }) {
       storage_path: path,
     })
 
-    showToast('Photo saved')
+    showToast(t('photos_saved'))
     setUploading(false)
     setShowUpload(false)
     fetchPhotos()
@@ -268,10 +281,10 @@ export default function PhotosPage({ session }) {
 
               <div>
                 <div style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', color: 'var(--text2)', marginBottom: 8 }}>Source</div>
-                <input ref={fileRef} type="file" accept="image/*" capture="user" style={{ display: 'none' }} onChange={e => handleUpload(e.target.files[0])} />
+                <input ref={fileRef} type="file" accept="image/*,image/heic,image/heif" style={{ display: 'none' }} onChange={e => { handleUpload(e.target.files[0]); e.target.value = '' }} />
                 <div style={{ display: 'flex', gap: 8 }}>
                   <button onClick={() => fileRef.current?.click()} style={{ flex: 1, padding: 10, borderRadius: 8, border: '0.5px solid var(--border)', background: 'var(--surface2)', cursor: 'pointer', fontSize: 12, fontFamily: 'inherit', color: 'var(--text2)' }}>
-                    Camera / Library
+                    {t('photos_camera')}
                   </button>
                 </div>
               </div>
