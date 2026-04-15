@@ -18,14 +18,14 @@ const NAV_ICONS = {
 
 const NAV_KEYS = ['today', 'calendar', 'trends', 'photos', 'goals', 'profile']
 
-export default function MainApp({ session, whoopCode }) {
+export default function MainApp({ session, whoopCode, whoopError }) {
   const [tab, setTab] = useState('today')
   const { t } = useLang()
 
   // Auto-navigate to Profile tab when WHOOP callback arrives
   useEffect(() => {
-    if (whoopCode) setTab('profile')
-  }, [whoopCode])
+    if (whoopCode || whoopError) setTab('profile')
+  }, [whoopCode, whoopError])
 
   return (
     <div className="app">
@@ -35,7 +35,7 @@ export default function MainApp({ session, whoopCode }) {
         {tab === 'trends' && <TrendsPage session={session} />}
         {tab === 'photos' && <PhotosPage session={session} />}
         {tab === 'goals' && <GoalsPage session={session} />}
-        {tab === 'profile' && <ProfilePage session={session} whoopCode={whoopCode} />}
+        {tab === 'profile' && <ProfilePage session={session} whoopCode={whoopCode} whoopError={whoopError} />}
       </div>
       <nav className="bottom-nav">
         {NAV_KEYS.map(id => (

@@ -15,7 +15,7 @@ function generateShortcutToken() {
     .map(b => b.toString(16).padStart(2, '0')).join('')
 }
 
-export default function ProfilePage({ session, whoopCode }) {
+export default function ProfilePage({ session, whoopCode, whoopError }) {
   const { t } = useLang()
   const { settings, saveSettings } = useSettings(session.user.id)
   const [whoopStatus, setWhoopStatus] = useState(null)
@@ -171,6 +171,11 @@ export default function ProfilePage({ session, whoopCode }) {
               {whoopStatus ? t('profile_connected') : t('profile_not_connected')}
             </span>
           </div>
+          {whoopError && (
+            <div style={{ margin: '0 14px 12px', padding: '10px 12px', background: 'var(--red-light)', borderRadius: 8, fontSize: 12, color: 'var(--red)' }}>
+              <strong>WHOOP error:</strong> {whoopError}
+            </div>
+          )}
           {whoopStatus ? (
             <div style={{ padding: '12px 14px', display: 'flex', flexDirection: 'column', gap: 12 }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>

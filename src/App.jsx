@@ -8,18 +8,24 @@ export default function App() {
   const [session, setSession] = useState(null)
   const [loading, setLoading] = useState(true)
   const [whoopCode, setWhoopCode] = useState(null)
+  const [whoopError, setWhoopError] = useState(null)
 
   useEffect(() => {
-    // Check for WHOOP OAuth callback immediately on load
     const url = new URL(window.location.href)
     const code = url.searchParams.get('code')
     const state = url.searchParams.get('state')
     const error = url.searchParams.get('error')
+    const errorDesc = url.searchParams.get('error_description')
+
+    console.log('App load URL params:', { code: code?.slice(0,10), state, error, errorDesc })
+
     if (code && state === 'whoop') {
+      console.log('WHOOP code received, length:', code.length)
       setWhoopCode(code)
       window.history.replaceState({}, '', '/')
     } else if (error) {
-      console.error('WHOOP OAuth error on load:', error, url.searchParams.get('error_description'))
+      console.error('WHOOP OAuth error:', error, errorDesc)
+      setWhoopError(`${error}: ${errorDesc || 'no description'}`)
       window.history.replaceState({}, '', '/')
     }
 
@@ -50,7 +56,7 @@ export default function App() {
 
   return (
     <LangProvider>
-      {!session ? <AuthPage /> : <MainApp session={session} whoopCode={whoopCode} />}
+      {!session ? <AuthPage /> : <MainApp session={session} whoopCode={whoopCode} whoopError={whoopError} />}
     </LangProvider>
   )
 }
