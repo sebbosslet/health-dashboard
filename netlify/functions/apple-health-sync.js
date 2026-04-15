@@ -21,9 +21,23 @@ exports.handler = async (event) => {
   try {
     const body = JSON.parse(event.body || '{}')
     console.log('Received body:', JSON.stringify(body))
-    const { shortcut_token, weight, steps, date } = body
-    console.log('weight type:', typeof weight, 'value:', weight)
-    console.log('steps type:', typeof steps, 'value:', steps)
+    const { shortcut_token, date } = body
+
+    // Parse weight - handle float precision from Apple Health
+    let weight = null
+    if (body.weight !== null && body.weight !== undefined && body.weight !== '') {
+      const w = parseFloat(body.weight)
+      if (!isNaN(w)) weight = Math.round(w * 10) / 10
+    }
+
+    // Parse steps - handle various formats
+    let steps = null
+    if (body.steps !== null && body.steps !== undefined && body.steps !== '') {
+      const s = parseFloat(String(body.steps).replace(/[^0-9.]/g, ''))
+      if (!isNaN(s) && s > 0) steps = Math.round(s)
+    }
+
+    console.log('Parsed weight:', weight, 'steps:', steps)
 
     if (!shortcut_token) {
       return { statusCode: 401, headers, body: JSON.stringify({ error: 'Missing shortcut token' }) }
