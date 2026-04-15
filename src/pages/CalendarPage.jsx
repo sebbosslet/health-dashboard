@@ -6,7 +6,7 @@ import { useMonthLogs } from '../hooks/useData'
 const DAYS = ['Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa', 'Su']
 
 function fmtHours(h) {
-  if (!h) return '—'
+  if (!h || h <= 0) return '—'
   const hrs = Math.floor(h)
   const mins = Math.round((h - hrs) * 60)
   if (hrs === 0) return `${mins}m`
