@@ -92,10 +92,10 @@ exports.handler = async (event) => {
       }
     }
 
-    // Fetch last 30 days with pagination (up to 5 pages of 10 = 50 records)
-    const thirtyDaysAgo = new Date()
-    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30)
-    const startISO = thirtyDaysAgo.toISOString()
+    // Fetch last 90 days with pagination (up to 10 pages of 10 = 100 records)
+    const ninetyDaysAgo = new Date()
+    ninetyDaysAgo.setDate(ninetyDaysAgo.getDate() - 90)
+    const startISO = ninetyDaysAgo.toISOString()
 
     console.log('Fetching WHOOP data from', startISO)
 
@@ -103,12 +103,12 @@ exports.handler = async (event) => {
       whoopFetchAll(
         `https://api.prod.whoop.com/developer/v2/activity/sleep?start=${startISO}&limit=10`,
         activeToken,
-        5
+        10
       ),
       whoopFetchAll(
         `https://api.prod.whoop.com/developer/v2/recovery?start=${startISO}&limit=10`,
         activeToken,
-        5
+        10
       ),
     ])
 
