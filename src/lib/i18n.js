@@ -7,6 +7,7 @@ export const translations = {
     nav_photos: 'Photos',
     nav_goals: 'Goals',
     nav_profile: 'Profile',
+    nav_food: 'Food',
 
     // Auth
     auth_title: 'sebs.health',
@@ -290,6 +291,7 @@ export const translations = {
     nav_photos: 'Fotos',
     nav_goals: 'Ziele',
     nav_profile: 'Profil',
+    nav_food: 'Essen',
 
     // Auth
     auth_title: 'sebs.health',
