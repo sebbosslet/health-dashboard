@@ -152,7 +152,14 @@ export default function TodayPage({ session }) {
         </div>
 
         {/* Daily Intelligence */}
-        <DailyIntelligence session={session} log={log} onSave={save} />
+        <DailyIntelligence
+          session={session}
+          log={log}
+          onSave={save}
+          habitGoals={habitGoals}
+          activeHabits={activeHabits}
+          onToggleHabit={(key) => toggle(activeHabits, setActiveHabits, key)}
+        />
 
         {/* Sleep */}
         {!!log?.sleep_duration && (
@@ -272,23 +279,6 @@ export default function TodayPage({ session }) {
                 return (
                   <button key={key} className={`toggle-btn ${activeActivity.has(key) ? 'active' : ''}`} onClick={() => toggle(activeActivity, setActiveActivity, key)}>
                     {getEmoji(a.name)} {a.name}
-                  </button>
-                )
-              })}
-            </div>
-          </div>
-        </div>
-
-        {/* Evening habits */}
-        <div className="card">
-          <div className="card-header"><span className="card-title">{t('today_evening')}</span></div>
-          <div style={{ padding: '10px 14px 14px' }}>
-            <div className="toggle-grid">
-              {habitGoals.map(h => {
-                const key = h.name.toLowerCase().replace(/\s+/g, '_')
-                return (
-                  <button key={key} className={`toggle-btn ${activeHabits.has(key) ? 'active' : ''}`} onClick={() => toggle(activeHabits, setActiveHabits, key)}>
-                    {getEmoji(h.name)} {h.name}
                   </button>
                 )
               })}
