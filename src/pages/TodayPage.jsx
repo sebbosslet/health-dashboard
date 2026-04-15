@@ -6,6 +6,7 @@ import { showToast } from '../components/Toast'
 import { Toast } from '../components/Toast'
 import { useLang } from '../lib/LangContext'
 import MealLogger from '../components/MealLogger'
+import DailyIntelligence from '../components/DailyIntelligence'
 
 function fmtHours(h) {
   if (!h || h <= 0) return '—'
@@ -162,6 +163,9 @@ export default function TodayPage({ session }) {
             </div>
           )}
         </div>
+
+        {/* Daily Intelligence */}
+        <DailyIntelligence session={session} log={log} onSave={save} />
 
         {/* Sleep */}
         {!!log?.sleep_duration && (
