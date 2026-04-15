@@ -8,10 +8,11 @@ const DAYS = ['Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa', 'Su']
 function logScore(log) {
   if (!log) return 0
   let score = 0
-  if (log.sleep_duration) score++
-  if (log.calories) score++
-  if (log.supplements?.length) score++
-  if (log.activity?.length || log.habits?.length) score++
+  if (log.sleep_duration || log.recovery_score) score++ // WHOOP sleep/recovery
+  if (log.calories) score++                              // nutrition
+  if (log.supplements?.length) score++                  // supplements
+  if (log.activity?.length || log.habits?.length) score++ // habits
+  if (log.steps) score++                                 // steps from Apple Health
   return score
 }
 
@@ -81,7 +82,7 @@ export default function CalendarPage({ session }) {
     if (!log) return null
     return (
       <div className="dot-row">
-        {log.sleep_duration && <div className="dot dot-sleep" />}
+        {(log.sleep_duration || log.recovery_score) && <div className="dot dot-sleep" />}
         {(log.activity?.length > 0) && <div className="dot dot-activity" />}
         {log.calories && <div className="dot dot-calories" />}
         {log.supplements?.length > 0 && <div className="dot dot-supps" />}
@@ -219,7 +220,7 @@ export default function CalendarPage({ session }) {
             </div>
 
             {/* Sleep */}
-            {selectedLog.sleep_duration && (
+            {(selectedLog.sleep_duration || selectedLog.recovery_score) && (
               <div style={{ padding: '0 16px 12px' }}>
                 <div style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', color: 'var(--text2)', marginBottom: 8, display: 'flex', alignItems: 'center', gap: 6 }}>
                   Sleep <span className="source-pill source-whoop">WHOOP</span>
@@ -244,7 +245,7 @@ export default function CalendarPage({ session }) {
               <div style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', color: 'var(--text2)', marginBottom: 8, display: 'flex', alignItems: 'center', gap: 6 }}>
                 Activity <span className="source-pill source-apple">Apple Health</span>
               </div>
-              {selectedLog.steps && (
+              {!!selectedLog.steps && (
                 <div style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 0', borderBottom: '0.5px solid var(--border)' }}>
                   <span style={{ fontSize: 12, color: 'var(--text2)' }}>Steps</span>
                   <span style={{ fontSize: 13, fontWeight: 600, fontFamily: 'var(--font-mono)', color: 'var(--green)' }}>{selectedLog.steps.toLocaleString()}</span>
