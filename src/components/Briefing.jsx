@@ -74,8 +74,18 @@ function computePatterns(history) {
 
 // ─── Generate morning briefing text ───────────────────────────────────────────
 
-async function generateBriefing(todayLog, yesterdayLog, history, settings, lang) {
+async function generateBriefing(todayLog, yesterdayLog, history, settings, lang, sleepHR = []) {
   const patterns = computePatterns(history)
+
+  // Sleep HR context from recent analyses
+  const lastHR = sleepHR[0]
+  const hrContext = lastHR ? `
+SLEEP HR ANALYSIS (last uploaded — ${lastHR.date}):
+- Stability score: ${lastHR.stability_score}/10
+- Spikes: ${lastHR.spike_count} spikes avg +${lastHR.spike_avg_magnitude}bpm
+- Y-axis range: ${lastHR.axis_min}–${lastHR.axis_max}bpm (absolute scale)
+- Eye bags that morning: ${lastHR.eye_bag_flag ? 'yes' : 'no'}
+- Assessment: ${lastHR.micro_arousal_assessment || 'not assessed'}` : ''
   const today = format(new Date(), 'EEEE d MMM')
 
   function fmtH(h) {
@@ -130,7 +140,7 @@ PERSONAL PATTERNS (${patterns.daysTracked} days):
 - Recent soreness trend (5 days): avg ${patterns.avgSoreness || '—'}/5
 - Sleep trend (last 7 vs prior 7): ${sleepTrend !== null ? (sleepTrend > 0 ? `+${sleepTrend}h improving` : `${sleepTrend}h declining`) : 'insufficient data'}
 - This week: ${patterns.gymThisWeek} gym, ${patterns.runThisWeek} runs
-- Weight change (14 days): ${weightChange !== null ? `${weightChange > 0 ? '+' : ''}${weightChange}kg` : 'insufficient data'}`
+- Weight change (14 days): ${weightChange !== null ? `${weightChange > 0 ? '+' : ''}${weightChange}kg` : 'insufficient data'}${hrContext}`
 
   const prompt = lang === 'de'
     ? `Du bist Sebastians persönlicher Gesundheitscoach. Schreibe eine KURZE Morgen-Zusammenfassung (max 4 Sätze). Format: "Gestern Abend... → heute Morgen...". Sei direkt und konkret. Nenne ein konkretes Muster wenn relevant. Gib maximal eine Empfehlung für heute.
@@ -276,12 +286,13 @@ export function MorningBriefing({ session, todayLog, settings }) {
       const thirtyDaysAgo = format(subDays(new Date(), 30), 'yyyy-MM-dd')
       const today = format(new Date(), 'yyyy-MM-dd')
 
-      const [{ data: yesterdayLog }, { data: history }] = await Promise.all([
+      const [{ data: yesterdayLog }, { data: history }, { data: sleepHR }] = await Promise.all([
         supabase.from('daily_logs').select('*').eq('user_id', session.user.id).eq('date', yesterday).maybeSingle(),
         supabase.from('daily_logs').select('*').eq('user_id', session.user.id).gte('date', thirtyDaysAgo).lt('date', today).order('date'),
+        supabase.from('sleep_hr_analysis').select('*').eq('user_id', session.user.id).order('date', { ascending: false }).limit(7),
       ])
 
-      const text = await generateBriefing(todayLog, yesterdayLog, history || [], settings, lang)
+      const text = await generateBriefing(todayLog, yesterdayLog, history || [], settings, lang, sleepHR || [])
       setBriefing(text)
 
       // Save to today's log
