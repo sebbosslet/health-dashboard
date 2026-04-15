@@ -296,3 +296,4 @@ export default function TodayPage({ session }) {
       <Toast />
     </>
   )
+}
