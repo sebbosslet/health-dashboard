@@ -26,9 +26,25 @@ export default function TrendsPage({ session }) {
   const [logs, setLogs] = useState([])
   const [period, setPeriod] = useState('7d')
   const [showReport, setShowReport] = useState(false)
+  const [showSleepHR, setShowSleepHR] = useState(false)
 
   if (showReport) {
     return <MonthlyReport session={session} onClose={() => setShowReport(false)} />
+  }
+
+  if (showSleepHR) {
+    return (
+      <div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '16px 16px 0' }}>
+          <button onClick={() => setShowSleepHR(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text2)', display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, fontFamily: 'inherit', padding: 0 }}>
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M10 3L5 8l5 5" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round"/></svg>
+            Back
+          </button>
+          <span style={{ fontSize: 16, fontWeight: 700 }}>💓 Sleep HR Analysis</span>
+        </div>
+        <SleepHRAnalysis session={session} />
+      </div>
+    )
   }
   const { settings } = useSettings(session.user.id)
 
@@ -111,6 +127,20 @@ export default function TrendsPage({ session }) {
             <div style={{ flex: 1 }}>
               <div style={{ fontSize: 14, fontWeight: 600 }}>{t('trends_monthly_report')}</div>
               <div style={{ fontSize: 11, color: 'var(--text2)', marginTop: 2 }}>{t('trends_report_sub')}</div>
+            </div>
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M5 3l6 5-6 5" stroke="var(--text2)" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round"/></svg>
+          </div>
+        </div>
+
+        {/* Sleep HR analysis card */}
+        <div className="card" onClick={() => setShowSleepHR(true)} style={{ cursor: 'pointer' }}>
+          <div style={{ padding: '12px 14px', display: 'flex', alignItems: 'center', gap: 12 }}>
+            <div style={{ width: 40, height: 40, borderRadius: 10, background: 'rgba(107,63,160,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+              <span style={{ fontSize: 20 }}>💓</span>
+            </div>
+            <div style={{ flex: 1 }}>
+              <div style={{ fontSize: 14, fontWeight: 600 }}>Sleep HR Analysis</div>
+              <div style={{ fontSize: 11, color: 'var(--text2)', marginTop: 2 }}>Upload WHOOP screenshots · detect causes · weekly patterns</div>
             </div>
             <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M5 3l6 5-6 5" stroke="var(--text2)" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round"/></svg>
           </div>
@@ -233,11 +263,6 @@ export default function TrendsPage({ session }) {
             ))}
           </div>
         </div>
-
-        <div style={{ height: 8 }} />
-
-        {/* Sleep HR Analysis */}
-        <SleepHRAnalysis session={session} />
 
         <div style={{ height: 8 }} />
       </div>

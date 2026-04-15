@@ -30,3 +30,14 @@ create policy "Users own their sleep HR analysis" on sleep_hr_analysis for all u
 
 -- Add eye bag flag to daily_logs morning checkin
 alter table daily_logs add column if not exists eye_bags boolean default false;
+
+-- Add dinner time and AC temp to daily_logs
+alter table daily_logs add column if not exists dinner_time time;
+alter table daily_logs add column if not exists ac_temp numeric;
+
+-- Add weekly sleep report storage
+alter table daily_logs add column if not exists ai_weekly_sleep_report text;
+
+-- Add dinner/AC columns to sleep_hr_analysis for correlation
+alter table sleep_hr_analysis add column if not exists dinner_time time;
+alter table sleep_hr_analysis add column if not exists ac_temp numeric;

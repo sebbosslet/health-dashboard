@@ -75,6 +75,8 @@ EVENING OF ${yesterdayDate} (what happened before this sleep):
       })()
     : 'not calculable'}
 - Wind-down quality: ${yesterdayLog.wind_down || 'not logged'}
+- Dinner time: ${yesterdayLog.dinner_time?.slice(0,5) || 'not logged'}
+- AC temperature: ${yesterdayLog.ac_temp ? yesterdayLog.ac_temp + '°C' : 'not logged'}
 - Calories: ${yesterdayLog.calories ? yesterdayLog.calories + ' kcal' : 'not logged'}
 - Evening note: ${yesterdayLog.evening_note || 'none'}${eventsContext}${travelContext}
 ` : 'No evening log for yesterday'
@@ -204,6 +206,8 @@ function EveningLog({ log, onSave, lang, habitGoals, activeHabits, onToggleHabit
   const [bedTime, setBedTime] = useState(log?.bed_time?.slice(0,5) || '')
   const [windDown, setWindDown] = useState(log?.wind_down || '')
   const [note, setNote] = useState(log?.evening_note || '')
+  const [dinnerTime, setDinnerTime] = useState(log?.dinner_time?.slice(0,5) || '')
+  const [acTemp, setAcTemp] = useState(log?.ac_temp || '')
   const [saving, setSaving] = useState(false)
 
   const phoneMin = phoneAway ? parseInt(phoneAway.split(':')[0])*60 + parseInt(phoneAway.split(':')[1]) : null
@@ -211,8 +215,8 @@ function EveningLog({ log, onSave, lang, habitGoals, activeHabits, onToggleHabit
   const gap = phoneMin !== null && bedMin !== null ? bedMin - phoneMin : null
 
   const labels = lang === 'de'
-    ? { habits: 'Abendgewohnheiten', phone: 'Handy weggelegt um', bed: 'Im Bett um', wind: 'Abend-Qualität', note: 'Etwas Besonderes?', save: 'Abend speichern', saving: 'Speichern...', good: 'Gut', ok: 'OK', poor: 'Schlecht' }
-    : { habits: 'Evening habits', phone: 'Phone away at', bed: 'In bed at', wind: 'Wind-down quality', note: 'Anything affect your evening?', save: 'Save evening', saving: 'Saving...', good: 'Good', ok: 'OK', poor: 'Poor' }
+    ? { habits: 'Abendgewohnheiten', phone: 'Handy weggelegt um', bed: 'Im Bett um', wind: 'Abend-Qualität', note: 'Etwas Besonderes?', save: 'Abend speichern', saving: 'Speichern...', good: 'Gut', ok: 'OK', poor: 'Schlecht', dinner: 'Abendessen um', ac: 'AC-Temperatur (°C)' }
+    : { habits: 'Evening habits', phone: 'Phone away at', bed: 'In bed at', wind: 'Wind-down quality', note: 'Anything affect your evening?', save: 'Save evening', saving: 'Saving...', good: 'Good', ok: 'OK', poor: 'Poor', dinner: 'Dinner at', ac: 'AC temperature (°C)' }
 
   async function handleSave() {
     setSaving(true)
@@ -221,6 +225,8 @@ function EveningLog({ log, onSave, lang, habitGoals, activeHabits, onToggleHabit
       bed_time: bedTime || null,
       wind_down: windDown || null,
       evening_note: note || null,
+      dinner_time: dinnerTime || null,
+      ac_temp: acTemp ? parseFloat(acTemp) : null,
     })
     setSaving(false)
     showToast(lang === 'de' ? 'Abend gespeichert' : 'Evening saved')
@@ -255,6 +261,14 @@ function EveningLog({ log, onSave, lang, habitGoals, activeHabits, onToggleHabit
         <div className="field">
           <label className="field-label">🛏 {labels.bed}</label>
           <input className="field-input" type="time" value={bedTime} onChange={e => setBedTime(e.target.value)} />
+        </div>
+        <div className="field">
+          <label className="field-label">🍽 {labels.dinner}</label>
+          <input className="field-input" type="time" value={dinnerTime} onChange={e => setDinnerTime(e.target.value)} />
+        </div>
+        <div className="field">
+          <label className="field-label">❄️ {labels.ac}</label>
+          <input className="field-input" type="number" step="0.5" value={acTemp} onChange={e => setAcTemp(e.target.value)} placeholder="19" inputMode="decimal" />
         </div>
       </div>
 
