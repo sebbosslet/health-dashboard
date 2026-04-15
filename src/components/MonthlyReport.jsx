@@ -44,7 +44,7 @@ Days with data: ${data.daysLogged} of ${data.daysInMonth}
 
 Write 3 short paragraphs: 1. Month highlights 2. Areas to improve 3. Recommendations for next month. Be direct and specific, not overly formal.`
 
-  const res = await fetch('https://api.anthropic.com/v1/messages', {
+  const res = await fetch('/.netlify/functions/claude-proxy', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({

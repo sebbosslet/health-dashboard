@@ -6,7 +6,7 @@ import { format } from 'date-fns'
 const MEAL_TYPES = ['breakfast', 'lunch', 'dinner', 'snack']
 
 async function estimateCaloriesFromPhoto(base64Image, mimeType) {
-  const response = await fetch('https://api.anthropic.com/v1/messages', {
+  const response = await fetch('/.netlify/functions/claude-proxy', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({

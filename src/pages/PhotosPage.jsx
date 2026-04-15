@@ -78,7 +78,7 @@ export default function PhotosPage({ session }) {
     try {
       const [urlA, urlB] = await Promise.all([getPhotoUrl(compareA.storage_path), getPhotoUrl(compareB.storage_path)])
 
-      const response = await fetch('https://api.anthropic.com/v1/messages', {
+      const response = await fetch('/.netlify/functions/claude-proxy', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

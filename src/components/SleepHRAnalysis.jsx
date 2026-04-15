@@ -66,7 +66,7 @@ Respond ONLY with valid JSON (no markdown):
   "recommendation": "one concrete actionable recommendation for tonight"
 }`
 
-  const res = await fetch('https://api.anthropic.com/v1/messages', {
+  const res = await fetch('/.netlify/functions/claude-proxy', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
@@ -141,7 +141,7 @@ ${analyses.map(a => `${a.date}: stability ${a.stability_score}/10, ${a.spike_cou
     ? `Schreibe 4-5 direkte Sätze. Was ist das dominante Muster? Was ist die wahrscheinlichste Ursache — Schilddrüse, Stress, Essen oder Temperatur? Nenne konkrete Datenpunkte. Was sollte diese Woche anders gemacht werden?`
     : `Write 4-5 direct sentences. What is the dominant pattern? What is the most likely cause — thyroid, stress, food timing, or temperature? Reference specific data points. What should change this week? Be direct and evidence-based.`
 
-  const res = await fetch('https://api.anthropic.com/v1/messages', {
+  const res = await fetch('/.netlify/functions/claude-proxy', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({

@@ -16,7 +16,7 @@ async function generateRecipeFromPrompt(prompt, lang) {
     ? `Erstelle ein Rezept für: ${prompt}\n\nJSON-Format:\n{"name":"Rezeptname","description":"Kurze Beschreibung","servings":1,"prep_time":15,"calories":500,"protein":30,"carbs":50,"fat":15,"ingredients":["200g Hähnchenbrust","100g Reis"],"instructions":"Schritt für Schritt Anleitung als einzelner Text"}`
     : `Create a recipe for: ${prompt}\n\nJSON format:\n{"name":"Recipe name","description":"Short description","servings":1,"prep_time":15,"calories":500,"protein":30,"carbs":50,"fat":15,"ingredients":["200g chicken breast","100g rice"],"instructions":"Step by step instructions as single text"}`
 
-  const res = await fetch('https://api.anthropic.com/v1/messages', {
+  const res = await fetch('/.netlify/functions/claude-proxy', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
@@ -38,7 +38,7 @@ async function analyseMealPrepIngredients(description, lang) {
     ? `Analysiere diese Zutaten für eine Mahlzeitvorbereitung und schätze die Gesamtkalorien und Makros. Antworte NUR mit JSON:\n{"total_calories":2000,"total_protein":120,"total_carbs":200,"total_fat":60,"notes":"Kurze Anmerkung"}\n\nZutaten/Beschreibung: ${description}`
     : `Analyse these meal prep ingredients and estimate total calories and macros. Respond ONLY with JSON:\n{"total_calories":2000,"total_protein":120,"total_carbs":200,"total_fat":60,"notes":"Brief note"}\n\nIngredients/description: ${description}`
 
-  const res = await fetch('https://api.anthropic.com/v1/messages', {
+  const res = await fetch('/.netlify/functions/claude-proxy', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
@@ -58,7 +58,7 @@ async function analysePortionPhoto(base64Image, mimeType, totalCalories, portion
     ? `Dies ist Portion ${portionNumber} von insgesamt ${totalPortions} Portionen einer Mahlzeitvorbereitung mit ${totalCalories} Gesamtkalorien. Schätze den prozentualen Anteil dieser Portion am Gesamtgericht anhand der Portionsgröße. Antworte NUR mit JSON:\n{"portion_pct":25,"portion_calories":500,"notes":"Kurze Anmerkung"}`
     : `This is portion ${portionNumber} of ${totalPortions} total portions from a meal prep with ${totalCalories} total calories. Estimate what percentage of the total this portion represents based on its size. Respond ONLY with JSON:\n{"portion_pct":25,"portion_calories":500,"notes":"Brief note"}`
 
-  const res = await fetch('https://api.anthropic.com/v1/messages', {
+  const res = await fetch('/.netlify/functions/claude-proxy', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
@@ -416,7 +416,7 @@ function MealPrepTab({ session, lang }) {
     // Analyse immediately
     setAnalysing(true)
     try {
-      const res = await fetch('https://api.anthropic.com/v1/messages', {
+      const res = await fetch('/.netlify/functions/claude-proxy', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

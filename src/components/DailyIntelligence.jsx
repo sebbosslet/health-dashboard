@@ -109,7 +109,7 @@ ${todayContext}
 
 Write 3-5 direct sentences. Concretely connect what happened yesterday evening with today's WHOOP outcome. Reference his personal patterns when relevant. Ask one smart follow-up question at the end. Be like an experienced coach — direct, honest, not excessively positive. If key data is missing, say specifically what would sharpen the analysis.`
 
-  const res = await fetch('https://api.anthropic.com/v1/messages', {
+  const res = await fetch('/.netlify/functions/claude-proxy', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
