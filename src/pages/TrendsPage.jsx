@@ -4,6 +4,7 @@ import { format, subDays } from 'date-fns'
 import { supabase } from '../lib/supabase'
 import { useSettings } from '../hooks/useData'
 import MonthlyReport from '../components/MonthlyReport'
+import SleepHRAnalysis from '../components/SleepHRAnalysis'
 
 function MiniBarChart({ data, color, height = 52 }) {
   if (!data || data.length === 0) return <div style={{ height, background: 'var(--surface2)', borderRadius: 4 }} />
@@ -232,6 +233,11 @@ export default function TrendsPage({ session }) {
             ))}
           </div>
         </div>
+
+        <div style={{ height: 8 }} />
+
+        {/* Sleep HR Analysis */}
+        <SleepHRAnalysis session={session} />
 
         <div style={{ height: 8 }} />
       </div>
