@@ -69,7 +69,7 @@ export default function ProfilePage({ session, whoopCode, whoopError }) {
       redirect_uri: REDIRECT_URI,
       response_type: 'code',
       scope: 'read:recovery read:sleep read:profile read:cycles read:workout read:body_measurement',
-      state: 'whoop',
+      state: 'whoop_connect',
     })
     const url = `https://api.prod.whoop.com/oauth/oauth2/auth?${params}`
     console.log('WHOOP connect URL:', url)

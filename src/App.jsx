@@ -19,7 +19,7 @@ export default function App() {
 
     console.log('App load URL params:', { code: code?.slice(0,10), state, error, errorDesc })
 
-    if (code && state === 'whoop') {
+    if (code && state === 'whoop_connect') {
       console.log('WHOOP code received, length:', code.length)
       setWhoopCode(code)
       window.history.replaceState({}, '', '/')
