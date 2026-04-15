@@ -20,7 +20,10 @@ exports.handler = async (event) => {
 
   try {
     const body = JSON.parse(event.body || '{}')
+    console.log('Received body:', JSON.stringify(body))
     const { shortcut_token, weight, steps, date } = body
+    console.log('weight type:', typeof weight, 'value:', weight)
+    console.log('steps type:', typeof steps, 'value:', steps)
 
     if (!shortcut_token) {
       return { statusCode: 401, headers, body: JSON.stringify({ error: 'Missing shortcut token' }) }
