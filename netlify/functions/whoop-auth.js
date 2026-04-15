@@ -38,8 +38,8 @@ exports.handler = async (event) => {
 
     if (!tokenRes.ok) {
       const err = await tokenRes.text()
-      console.error('WHOOP token error:', err)
-      return { statusCode: 400, headers, body: JSON.stringify({ error: 'Token exchange failed', detail: err }) }
+      console.error('WHOOP token error:', tokenRes.status, err)
+      return { statusCode: 400, headers, body: JSON.stringify({ error: 'Token exchange failed', status: tokenRes.status, detail: err }) }
     }
 
     const tokens = await tokenRes.json()

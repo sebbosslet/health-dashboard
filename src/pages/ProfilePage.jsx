@@ -85,8 +85,15 @@ export default function ProfilePage({ session, whoopCode, whoopError }) {
         body: JSON.stringify({ code, user_id: session.user.id, redirect_uri: REDIRECT_URI }),
       })
       const data = await res.json()
-      if (data.success) { showToast(t('profile_whoop_connected')); checkWhoopStatus(); syncWhoop() }
-      else showToast(t('profile_whoop_failed'))
+      console.log('WHOOP auth response:', data)
+      if (data.success) {
+        showToast(t('profile_whoop_connected'))
+        checkWhoopStatus()
+        syncWhoop()
+      } else {
+        showToast(t('profile_whoop_failed'))
+        console.error('WHOOP auth failed:', data)
+      }
     } catch { showToast(t('profile_connection_error')) }
     setSyncing(false)
   }
