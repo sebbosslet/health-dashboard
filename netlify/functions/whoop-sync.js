@@ -47,6 +47,36 @@ exports.handler = async (event) => {
 
     const accessToken = tokenRow.access_token
 
+    // Try to refresh the token if it's expired or close to expiry
+    let activeToken = accessToken
+    if (tokenRow.refresh_token && tokenRow.refresh_token !== tokenRow.access_token) {
+      try {
+        const refreshRes = await fetch('https://api.prod.whoop.com/oauth/oauth2/token', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+          body: new URLSearchParams({
+            grant_type: 'refresh_token',
+            refresh_token: tokenRow.refresh_token,
+            client_id: WHOOP_CLIENT_ID,
+            client_secret: WHOOP_CLIENT_SECRET,
+          }),
+        })
+        if (refreshRes.ok) {
+          const newTokens = await refreshRes.json()
+          activeToken = newTokens.access_token
+          await supabase.from('whoop_tokens').update({
+            access_token: newTokens.access_token,
+            refresh_token: newTokens.refresh_token || tokenRow.refresh_token,
+            expires_at: new Date(Date.now() + (newTokens.expires_in || 3600) * 1000).toISOString(),
+            updated_at: new Date().toISOString(),
+          }).eq('user_id', user_id)
+          console.log('Token refreshed successfully')
+        }
+      } catch (e) {
+        console.log('Token refresh failed, using existing token:', e.message)
+      }
+    }
+
     // Fetch last 3 days
     const today = new Date()
     const threeDaysAgo = new Date(today)
@@ -57,8 +87,8 @@ exports.handler = async (event) => {
 
     // WHOOP v2 API endpoints
     const [sleepData, recoveryData] = await Promise.all([
-      whoopFetch(`https://api.prod.whoop.com/developer/v2/activity/sleep?start=${startISO}&limit=5`, accessToken),
-      whoopFetch(`https://api.prod.whoop.com/developer/v2/recovery?start=${startISO}&limit=5`, accessToken),
+      whoopFetch(`https://api.prod.whoop.com/developer/v2/activity/sleep?start=${startISO}&limit=5`, activeToken),
+      whoopFetch(`https://api.prod.whoop.com/developer/v2/recovery?start=${startISO}&limit=5`, activeToken),
     ])
 
     console.log('Sleep records:', sleepData.records?.length || 0)

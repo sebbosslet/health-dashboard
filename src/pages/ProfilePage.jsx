@@ -197,7 +197,18 @@ export default function ProfilePage({ session, whoopCode, whoopError }) {
                 </button>
               </div>
               <div style={{ fontSize: 11, color: 'var(--text2)', background: 'var(--surface2)', borderRadius: 8, padding: '8px 10px' }}>{t('profile_whoop_pulls')}</div>
-              <button onClick={disconnectWhoop} style={{ padding: '9px', borderRadius: 8, background: 'none', border: '0.5px solid var(--border)', color: 'var(--text3)', fontSize: 12, cursor: 'pointer', fontFamily: 'inherit' }}>{t('profile_disconnect_whoop')}</button>
+              <div style={{ fontSize: 11, color: 'var(--amber)', background: 'var(--amber-light)', borderRadius: 8, padding: '8px 10px', display: 'flex', gap: 6, alignItems: 'flex-start' }}>
+                <svg width="14" height="14" viewBox="0 0 14 14" fill="none" style={{ flexShrink: 0, marginTop: 1 }}><circle cx="7" cy="7" r="5.5" stroke="var(--amber)" strokeWidth="1.1"/><path d="M7 4v3M7 9.5v.5" stroke="var(--amber)" strokeWidth="1.2" strokeLinecap="round"/></svg>
+                <span>WHOOP tokens expire after 1 hour. Tap <strong>Reconnect</strong> each day to keep your data syncing, or reconnect just before syncing.</span>
+              </div>
+              <div style={{ display: 'flex', gap: 8 }}>
+                <button onClick={connectWhoop} style={{ flex: 1, padding: '9px', borderRadius: 8, background: 'var(--green)', border: 'none', color: 'white', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>
+                  Reconnect WHOOP
+                </button>
+                <button onClick={disconnectWhoop} style={{ padding: '9px 14px', borderRadius: 8, background: 'none', border: '0.5px solid var(--border)', color: 'var(--text3)', fontSize: 12, cursor: 'pointer', fontFamily: 'inherit' }}>
+                  {t('profile_disconnect_whoop')}
+                </button>
+              </div>
             </div>
           ) : (
             <div style={{ padding: '12px 14px', display: 'flex', flexDirection: 'column', gap: 12 }}>
