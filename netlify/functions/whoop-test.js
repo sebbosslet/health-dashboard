@@ -27,24 +27,29 @@ exports.handler = async (event) => {
     const thirtyDaysAgo = new Date()
     thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30)
     const startISO = thirtyDaysAgo.toISOString()
+    const startDate = thirtyDaysAgo.toISOString().split('T')[0]
 
+    // Test different parameter formats
     const endpoints = [
-      `https://api.prod.whoop.com/developer/v2/activity/sleep?start=${startISO}&limit=30`,
-      `https://api.prod.whoop.com/developer/v2/recovery?start=${startISO}&limit=30`,
+      `https://api.prod.whoop.com/developer/v2/activity/sleep?start=${startISO}&limit=10`,
+      `https://api.prod.whoop.com/developer/v2/activity/sleep?start_time=${startISO}&limit=10`,
+      `https://api.prod.whoop.com/developer/v2/activity/sleep?limit=10`,
+      `https://api.prod.whoop.com/developer/v2/recovery?limit=10`,
+      `https://api.prod.whoop.com/developer/v2/recovery?start_time=${startISO}&limit=10`,
     ]
 
     for (const url of endpoints) {
       const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` } })
       const text = await res.text()
       let body
-      try { body = JSON.parse(text) } catch { body = text.slice(0, 200) }
-      const dates = body?.records?.map(r => r.end?.slice(0,10) || r.created_at?.slice(0,10))
+      try { body = JSON.parse(text) } catch { body = text.slice(0, 300) }
+      const dates = body?.records?.map(r => (r.end || r.created_at || '').slice(0,10))
       results[url] = {
         status: res.status,
         count: body?.records?.length,
         next_token: body?.next_token,
         dates,
-        first_record: body?.records?.[0],
+        error: res.status !== 200 ? body : undefined,
       }
     }
 
