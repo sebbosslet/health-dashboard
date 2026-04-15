@@ -24,9 +24,13 @@ exports.handler = async (event) => {
     const results = {}
 
     // Test all possible endpoint versions
+    const thirtyDaysAgo = new Date()
+    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30)
+    const startISO = thirtyDaysAgo.toISOString()
+
     const endpoints = [
-      'https://api.prod.whoop.com/developer/v2/activity/sleep?limit=3',
-      'https://api.prod.whoop.com/developer/v2/recovery?limit=3',
+      `https://api.prod.whoop.com/developer/v2/activity/sleep?start=${startISO}&limit=30`,
+      `https://api.prod.whoop.com/developer/v2/recovery?start=${startISO}&limit=30`,
     ]
 
     for (const url of endpoints) {
@@ -34,8 +38,14 @@ exports.handler = async (event) => {
       const text = await res.text()
       let body
       try { body = JSON.parse(text) } catch { body = text.slice(0, 200) }
-      // Return full first record so we can see exact field names
-      results[url] = { status: res.status, count: body?.records?.length, first_record: body?.records?.[0] }
+      const dates = body?.records?.map(r => r.end?.slice(0,10) || r.created_at?.slice(0,10))
+      results[url] = {
+        status: res.status,
+        count: body?.records?.length,
+        next_token: body?.next_token,
+        dates,
+        first_record: body?.records?.[0],
+      }
     }
 
     return { statusCode: 200, headers, body: JSON.stringify({ tokenInfo, results }, null, 2) }
