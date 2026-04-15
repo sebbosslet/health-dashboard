@@ -11,3 +11,6 @@ alter table daily_logs add column if not exists evening_note text;
 
 alter table daily_logs add column if not exists ai_insight text; -- stored AI analysis
 alter table daily_logs add column if not exists ai_insight_date date; -- when insight was generated
+
+-- Add briefing column (run this if not already done)
+alter table daily_logs add column if not exists ai_briefing text;

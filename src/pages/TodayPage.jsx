@@ -8,6 +8,7 @@ import { useLang } from '../lib/LangContext'
 import MealLogger from '../components/MealLogger'
 import DailyIntelligence from '../components/DailyIntelligence'
 import MedSupTracker from '../components/MedSupTracker'
+import { MorningBriefing, ProactiveNudges } from '../components/Briefing'
 
 function fmtHours(h) {
   if (!h || h <= 0) return '—'
@@ -115,6 +116,12 @@ export default function TodayPage({ session }) {
       </div>
 
       <div className="page-section">
+
+        {/* Morning briefing - auto-generated, shows before 1pm */}
+        <MorningBriefing session={session} todayLog={log} settings={settings} />
+
+        {/* Proactive nudges - contextual, time-aware */}
+        <ProactiveNudges session={session} todayLog={log} settings={settings} />
 
         {/* WHOOP Recovery */}
         <div className="card">
