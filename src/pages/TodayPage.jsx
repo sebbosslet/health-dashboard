@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { format } from 'date-fns'
+import { supabase } from '../lib/supabase'
 import { useDailyLog, useSettings } from '../hooks/useData'
 import { showToast } from '../components/Toast'
 import { Toast } from '../components/Toast'
@@ -26,24 +27,48 @@ const SUPPLEMENTS = [
   { key: 'vitd', tKey: 'supp_vitd' },
   { key: 'calnat', tKey: 'supp_calnat' },
 ]
-const ACTIVITIES = [
-  { key: 'gym', tKey: 'act_gym', emoji: '🏋️' },
-  { key: 'run', tKey: 'act_run', emoji: '🏃' },
-  { key: 'home', tKey: 'act_home', emoji: '🤸' },
-  { key: 'sauna', tKey: 'act_sauna', emoji: '🧖' },
-]
-const HABITS = [
-  { key: 'reading', tKey: 'hab_reading', emoji: '📚' },
-  { key: 'meditation', tKey: 'hab_meditation', emoji: '🧘' },
-  { key: 'nophone', tKey: 'hab_nophone', emoji: '📵' },
-  { key: 'journal', tKey: 'hab_journal', emoji: '✍️' },
-]
+
+// Emoji map for known activity/habit names
+const EMOJI_MAP = {
+  gym: '🏋️', run: '🏃', home: '🤸', sauna: '🧖', swim: '🏊', bike: '🚴', walk: '🚶', yoga: '🧘',
+  reading: '📚', meditation: '🧘', nophone: '📵', journal: '✍️', sleep: '😴', stretch: '🙆',
+  cold: '🧊', gratitude: '🙏', vitamins: '💊', water: '💧',
+}
+
+function getEmoji(name) {
+  const lower = name.toLowerCase().replace(/\s/g, '')
+  for (const [key, emoji] of Object.entries(EMOJI_MAP)) {
+    if (lower.includes(key)) return emoji
+  }
+  return '•'
+}
 
 export default function TodayPage({ session }) {
   const { t } = useLang()
   const today = new Date()
   const { log, save } = useDailyLog(session.user.id, today)
   const { settings } = useSettings(session.user.id)
+  const [activityGoals, setActivityGoals] = useState([])
+  const [habitGoals, setHabitGoals] = useState([])
+
+  useEffect(() => {
+    supabase
+      .from('goals')
+      .select('name, category')
+      .eq('user_id', session.user.id)
+      .in('category', ['Activity', 'Evening habits'])
+      .then(({ data }) => {
+        const activities = (data || []).filter(g => g.category === 'Activity')
+        const habits = (data || []).filter(g => g.category === 'Evening habits')
+        // Fall back to defaults if none defined
+        setActivityGoals(activities.length ? activities : [
+          { name: 'Gym' }, { name: 'Run' }, { name: 'Home workout' }, { name: 'Sauna' }
+        ])
+        setHabitGoals(habits.length ? habits : [
+          { name: 'Reading' }, { name: 'Meditation' }, { name: 'No phone' }, { name: 'Journaling' }
+        ])
+      })
+  }, [session.user.id])
 
   const [activeActivity, setActiveActivity] = useState(new Set())
   const [activeHabits, setActiveHabits] = useState(new Set())
@@ -251,11 +276,14 @@ export default function TodayPage({ session }) {
           <div className="card-header"><span className="card-title">{t('today_activity')}</span></div>
           <div style={{ padding: '10px 14px 14px' }}>
             <div className="toggle-grid">
-              {ACTIVITIES.map(a => (
-                <button key={a.key} className={`toggle-btn ${activeActivity.has(a.key) ? 'active' : ''}`} onClick={() => toggle(activeActivity, setActiveActivity, a.key)}>
-                  {a.emoji} {t(a.tKey)}
-                </button>
-              ))}
+              {activityGoals.map(a => {
+                const key = a.name.toLowerCase().replace(/\s+/g, '_')
+                return (
+                  <button key={key} className={`toggle-btn ${activeActivity.has(key) ? 'active' : ''}`} onClick={() => toggle(activeActivity, setActiveActivity, key)}>
+                    {getEmoji(a.name)} {a.name}
+                  </button>
+                )
+              })}
             </div>
           </div>
         </div>
@@ -265,11 +293,14 @@ export default function TodayPage({ session }) {
           <div className="card-header"><span className="card-title">{t('today_evening')}</span></div>
           <div style={{ padding: '10px 14px 14px' }}>
             <div className="toggle-grid">
-              {HABITS.map(h => (
-                <button key={h.key} className={`toggle-btn ${activeHabits.has(h.key) ? 'active' : ''}`} onClick={() => toggle(activeHabits, setActiveHabits, h.key)}>
-                  {h.emoji} {t(h.tKey)}
-                </button>
-              ))}
+              {habitGoals.map(h => {
+                const key = h.name.toLowerCase().replace(/\s+/g, '_')
+                return (
+                  <button key={key} className={`toggle-btn ${activeHabits.has(key) ? 'active' : ''}`} onClick={() => toggle(activeHabits, setActiveHabits, key)}>
+                    {getEmoji(h.name)} {h.name}
+                  </button>
+                )
+              })}
             </div>
           </div>
         </div>
