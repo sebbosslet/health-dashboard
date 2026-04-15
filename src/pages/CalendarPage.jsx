@@ -1,7 +1,8 @@
 import { useLang } from '../lib/LangContext'
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect } from 'react'
 import { format, startOfMonth, endOfMonth, eachDayOfInterval, getDay, isSameDay, isFuture, startOfDay, subMonths, addMonths } from 'date-fns'
 import { useMonthLogs } from '../hooks/useData'
+import { supabase } from '../lib/supabase'
 
 const DAYS = ['Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa', 'Su']
 
@@ -26,9 +27,19 @@ function logScore(log) {
 }
 
 export default function CalendarPage({ session }) {
-  const { t } = useLang()
+  const { t, lang } = useLang()
   const [currentMonth, setCurrentMonth] = useState(new Date())
   const [selectedLog, setSelectedLog] = useState(null)
+  const [selectedEvents, setSelectedEvents] = useState([])
+
+  function selectDay(log) {
+    setSelectedLog(log)
+    setSelectedEvents([])
+    if (log) {
+      supabase.from('daily_events').select('*').eq('user_id', session.user.id).eq('date', log.date)
+        .then(({ data }) => setSelectedEvents(data || []))
+    }
+  }
 
   const year = currentMonth.getFullYear()
   const month = currentMonth.getMonth() + 1
@@ -138,7 +149,7 @@ export default function CalendarPage({ session }) {
             const isToday = isSameDay(day, today)
             const future = isFuture(startOfDay(day)) && !isToday
             return (
-              <div key={dateStr} className={getCellClass(day)} onClick={() => !future && log && setSelectedLog(log)}>
+              <div key={dateStr} className={getCellClass(day)} onClick={() => !future && log && selectDay(log)}>
                 {format(day, 'd')}
                 {!future && getDots(day)}
               </div>
@@ -213,88 +224,210 @@ export default function CalendarPage({ session }) {
 
       {/* Day detail sheet */}
       {selectedLog && (
-        <div className="sheet-overlay" onClick={() => setSelectedLog(null)}>
+        <div className="sheet-overlay" onClick={() => selectDay(null)}>
           <div className="sheet" onClick={e => e.stopPropagation()}>
             <div className="sheet-handle" />
-            <div style={{ padding: '0 16px 12px', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', borderBottom: '0.5px solid var(--border)', marginBottom: 14 }}>
+
+            {/* Header */}
+            <div style={{ padding: '0 16px 12px', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', borderBottom: '0.5px solid var(--border)', marginBottom: 12 }}>
               <div>
-                <div style={{ fontSize: 16, fontWeight: 700 }}>{format(new Date(selectedLog.date), 'EEEE d MMM')}</div>
-                {selectedLog.weight && <div style={{ fontSize: 12, color: 'var(--text2)', marginTop: 2 }}>{selectedLog.weight} kg · Renpho</div>}
+                <div style={{ fontSize: 16, fontWeight: 700 }}>{format(new Date(selectedLog.date + 'T12:00'), 'EEEE d MMM')}</div>
+                {selectedLog.weight && <div style={{ fontSize: 12, color: 'var(--text2)', marginTop: 2 }}>⚖️ {selectedLog.weight} kg</div>}
               </div>
-              {selectedLog.recovery_score && (
-                <div style={{ textAlign: 'right' }}>
-                  <div style={{ fontSize: 24, fontWeight: 700, fontFamily: 'var(--font-mono)', color: 'var(--green)' }}>{Math.round(selectedLog.recovery_score)}</div>
-                  <div style={{ fontSize: 10, color: 'var(--text2)' }}>Recovery score</div>
-                </div>
-              )}
+              <div style={{ display: 'flex', gap: 8, alignItems: 'flex-start' }}>
+                {selectedLog.recovery_score && (
+                  <div style={{ textAlign: 'center' }}>
+                    <div style={{ fontSize: 22, fontWeight: 700, fontFamily: 'var(--font-mono)', color: selectedLog.recovery_score >= 67 ? 'var(--green)' : selectedLog.recovery_score >= 34 ? 'var(--amber)' : 'var(--red)' }}>
+                      {Math.round(selectedLog.recovery_score)}
+                    </div>
+                    <div style={{ fontSize: 9, color: 'var(--text2)', textTransform: 'uppercase' }}>{t('metric_recovery')}</div>
+                  </div>
+                )}
+                {/* Morning feel summary */}
+                {(selectedLog.morning_energy || selectedLog.morning_mood) && (
+                  <div style={{ textAlign: 'center' }}>
+                    <div style={{ fontSize: 16 }}>
+                      {selectedLog.morning_energy >= 4 ? '⚡' : selectedLog.morning_energy >= 3 ? '🙂' : '😴'}
+                    </div>
+                    <div style={{ fontSize: 9, color: 'var(--text2)', textTransform: 'uppercase' }}>{selectedLog.morning_energy}/5</div>
+                  </div>
+                )}
+              </div>
             </div>
 
-            {/* Sleep */}
+            {/* Sleep & Recovery */}
             {(selectedLog.sleep_duration || selectedLog.recovery_score) && (
               <div style={{ padding: '0 16px 12px' }}>
-                <div style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', color: 'var(--text2)', marginBottom: 8, display: 'flex', alignItems: 'center', gap: 6 }}>
-                  Sleep <span className="source-pill source-whoop">WHOOP</span>
+                <div style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', color: 'var(--text2)', marginBottom: 8, display: 'flex', alignItems: 'center', gap: 6 }}>
+                  💤 {t('cal_sleep')} <span className="source-pill source-whoop">WHOOP</span>
                 </div>
-                {[
-                  ['Duration', fmtHours(selectedLog.sleep_duration), 'var(--blue)'],
-                  ['Efficiency', `${Math.round(selectedLog.sleep_efficiency || 0)}%`, 'var(--green)'],
-                  ['Restorative', fmtHours(selectedLog.sleep_restorative), 'var(--purple)'],
-                  ['HRV', `${Math.round(selectedLog.hrv || 0)}ms`, 'var(--purple)'],
-                  ['RHR', `${Math.round(selectedLog.rhr || 0)}bpm`, 'var(--text)'],
-                ].map(([label, val, color]) => (
-                  <div key={label} style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 0', borderBottom: '0.5px solid var(--border)' }}>
-                    <span style={{ fontSize: 12, color: 'var(--text2)' }}>{label}</span>
-                    <span style={{ fontSize: 13, fontWeight: 600, fontFamily: 'var(--font-mono)', color }}>{val}</span>
-                  </div>
-                ))}
-              </div>
-            )}
-
-            {/* Activity / Steps */}
-            <div style={{ padding: '0 16px 12px' }}>
-              <div style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', color: 'var(--text2)', marginBottom: 8, display: 'flex', alignItems: 'center', gap: 6 }}>
-                Activity <span className="source-pill source-apple">Apple Health</span>
-              </div>
-              {!!selectedLog.steps && (
-                <div style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 0', borderBottom: '0.5px solid var(--border)' }}>
-                  <span style={{ fontSize: 12, color: 'var(--text2)' }}>Steps</span>
-                  <span style={{ fontSize: 13, fontWeight: 600, fontFamily: 'var(--font-mono)', color: 'var(--green)' }}>{selectedLog.steps.toLocaleString()}</span>
-                </div>
-              )}
-            </div>
-
-            {/* Nutrition */}
-            <div style={{ padding: '0 16px 12px' }}>
-              <div style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', color: 'var(--text2)', marginBottom: 8 }}>Nutrition</div>
-              {[
-                ['Calories', selectedLog.calories ? `${selectedLog.calories.toLocaleString()} kcal` : '—', 'var(--amber)'],
-                ['Water', selectedLog.water ? `${selectedLog.water.toLocaleString()} ml` : '—', 'var(--blue)'],
-              ].map(([label, val, color]) => (
-                <div key={label} style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 0', borderBottom: '0.5px solid var(--border)' }}>
-                  <span style={{ fontSize: 12, color: 'var(--text2)' }}>{label}</span>
-                  <span style={{ fontSize: 13, fontWeight: 600, fontFamily: 'var(--font-mono)', color }}>{val}</span>
-                </div>
-              ))}
-            </div>
-
-            {/* Habits */}
-            {(selectedLog.activity?.length > 0 || selectedLog.habits?.length > 0) && (
-              <div style={{ padding: '0 16px 12px' }}>
-                <div style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', color: 'var(--text2)', marginBottom: 8 }}>Habits &amp; activity</div>
-                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5 }}>
-                  {[...(selectedLog.activity || []), ...(selectedLog.habits || [])].map(h => (
-                    <span key={h} className="habit-chip habit-chip-done" style={{ textTransform: 'capitalize' }}>{h}</span>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 5 }}>
+                  {[
+                    { label: t('metric_duration'), value: fmtHours(selectedLog.sleep_duration), color: 'var(--blue)' },
+                    { label: t('metric_efficiency'), value: `${Math.round(selectedLog.sleep_efficiency || 0)}%`, color: 'var(--green)' },
+                    { label: t('metric_restorative'), value: fmtHours(selectedLog.sleep_restorative), color: 'var(--purple)' },
+                    { label: 'HRV', value: selectedLog.hrv ? `${Math.round(selectedLog.hrv)}ms` : '—', color: 'var(--purple)' },
+                    { label: 'RHR', value: selectedLog.rhr ? `${Math.round(selectedLog.rhr)}bpm` : '—', color: 'var(--text)' },
+                  ].map(m => (
+                    <div key={m.label} style={{ background: 'var(--surface2)', borderRadius: 8, padding: '6px', textAlign: 'center' }}>
+                      <div style={{ fontSize: 9, color: 'var(--text3)', textTransform: 'uppercase', marginBottom: 2 }}>{m.label}</div>
+                      <div style={{ fontSize: 13, fontWeight: 700, fontFamily: 'var(--font-mono)', color: m.color }}>{m.value}</div>
+                    </div>
                   ))}
                 </div>
               </div>
             )}
 
-            <div style={{ padding: '0 16px' }}>
-              <button className="btn-secondary" style={{ width: '100%', textAlign: 'center', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }} onClick={() => setSelectedLog(null)}>
-                <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M9.5 2.5l2 2L5 11H3v-2l6.5-6.5z" stroke="var(--green)" strokeWidth="1.1" strokeLinecap="round" strokeLinejoin="round"/></svg>
-                <span style={{ color: 'var(--green)', fontWeight: 600 }}>Edit this day's log</span>
+            {/* Morning feel detail */}
+            {(selectedLog.morning_energy || selectedLog.morning_mood || selectedLog.morning_soreness) && (
+              <div style={{ padding: '0 16px 12px' }}>
+                <div style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', color: 'var(--text2)', marginBottom: 8 }}>
+                  🌅 {lang === 'de' ? 'Morgen-Check-in' : 'Morning check-in'}
+                </div>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 5 }}>
+                  {[
+                    { label: lang === 'de' ? 'Energie' : 'Energy', value: selectedLog.morning_energy, emojis: ['','😴','😑','😐','🙂','⚡'] },
+                    { label: lang === 'de' ? 'Stimmung' : 'Mood', value: selectedLog.morning_mood, emojis: ['','😞','😕','😐','😊','😄'] },
+                    { label: lang === 'de' ? 'Kater' : 'Soreness', value: selectedLog.morning_soreness, emojis: ['','🔴','🟠','🟡','🟢','✅'] },
+                  ].map(m => m.value > 0 && (
+                    <div key={m.label} style={{ background: 'var(--surface2)', borderRadius: 8, padding: '6px', textAlign: 'center' }}>
+                      <div style={{ fontSize: 9, color: 'var(--text3)', textTransform: 'uppercase', marginBottom: 2 }}>{m.label}</div>
+                      <div style={{ fontSize: 18 }}>{m.emojis[m.value]}</div>
+                      <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text2)' }}>{m.value}/5</div>
+                    </div>
+                  ))}
+                </div>
+                {selectedLog.morning_note && (
+                  <div style={{ fontSize: 12, color: 'var(--text2)', marginTop: 6, fontStyle: 'italic' }}>"{selectedLog.morning_note}"</div>
+                )}
+              </div>
+            )}
+
+            {/* Evening log */}
+            {(selectedLog.phone_away_time || selectedLog.bed_time || selectedLog.wind_down) && (
+              <div style={{ padding: '0 16px 12px' }}>
+                <div style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', color: 'var(--text2)', marginBottom: 8 }}>
+                  🌙 {lang === 'de' ? 'Abend' : 'Evening'}
+                </div>
+                <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                  {selectedLog.phone_away_time && (
+                    <span style={{ fontSize: 12, padding: '4px 10px', background: 'var(--surface2)', borderRadius: 20 }}>
+                      📵 {selectedLog.phone_away_time.slice(0,5)}
+                    </span>
+                  )}
+                  {selectedLog.bed_time && (
+                    <span style={{ fontSize: 12, padding: '4px 10px', background: 'var(--surface2)', borderRadius: 20 }}>
+                      🛏 {selectedLog.bed_time.slice(0,5)}
+                    </span>
+                  )}
+                  {selectedLog.phone_away_time && selectedLog.bed_time && (() => {
+                    const pm = parseInt(selectedLog.phone_away_time.split(':')[0])*60 + parseInt(selectedLog.phone_away_time.split(':')[1])
+                    const bm = parseInt(selectedLog.bed_time.split(':')[0])*60 + parseInt(selectedLog.bed_time.split(':')[1])
+                    const gap = bm - pm
+                    return gap > 0 ? (
+                      <span style={{ fontSize: 12, padding: '4px 10px', background: gap >= 45 ? 'var(--green-light)' : 'rgba(186,117,23,0.1)', borderRadius: 20, color: gap >= 45 ? 'var(--green)' : 'var(--amber)', fontWeight: 600 }}>
+                        {gap}min {lang === 'de' ? 'Gap' : 'gap'}
+                      </span>
+                    ) : null
+                  })()}
+                  {selectedLog.wind_down && (
+                    <span style={{ fontSize: 12, padding: '4px 10px', background: 'var(--surface2)', borderRadius: 20 }}>
+                      {selectedLog.wind_down === 'good' ? '😌' : selectedLog.wind_down === 'ok' ? '😐' : '😣'} {selectedLog.wind_down}
+                    </span>
+                  )}
+                </div>
+                {selectedLog.evening_note && (
+                  <div style={{ fontSize: 12, color: 'var(--text2)', marginTop: 6, fontStyle: 'italic' }}>"{selectedLog.evening_note}"</div>
+                )}
+              </div>
+            )}
+
+            {/* Activity + steps */}
+            {(selectedLog.activity?.length > 0 || selectedLog.steps) && (
+              <div style={{ padding: '0 16px 12px' }}>
+                <div style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', color: 'var(--text2)', marginBottom: 8 }}>
+                  🏃 {t('cal_activity')}
+                </div>
+                <div style={{ display: 'flex', gap: 5, flexWrap: 'wrap' }}>
+                  {(selectedLog.activity || []).map(a => (
+                    <span key={a} style={{ fontSize: 12, padding: '4px 10px', background: 'var(--green-light)', borderRadius: 20, color: 'var(--green)', fontWeight: 500, textTransform: 'capitalize' }}>{a}</span>
+                  ))}
+                  {selectedLog.steps > 0 && (
+                    <span style={{ fontSize: 12, padding: '4px 10px', background: 'var(--surface2)', borderRadius: 20 }}>
+                      👟 {selectedLog.steps.toLocaleString()}
+                    </span>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* Habits */}
+            {selectedLog.habits?.length > 0 && (
+              <div style={{ padding: '0 16px 12px' }}>
+                <div style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', color: 'var(--text2)', marginBottom: 8 }}>
+                  ✅ {lang === 'de' ? 'Gewohnheiten' : 'Habits'}
+                </div>
+                <div style={{ display: 'flex', gap: 5, flexWrap: 'wrap' }}>
+                  {selectedLog.habits.map(h => (
+                    <span key={h} style={{ fontSize: 12, padding: '4px 10px', background: 'var(--surface2)', borderRadius: 20, textTransform: 'capitalize' }}>{h.replace(/_/g, ' ')}</span>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Nutrition */}
+            {(selectedLog.calories || selectedLog.water) && (
+              <div style={{ padding: '0 16px 12px' }}>
+                <div style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', color: 'var(--text2)', marginBottom: 8 }}>
+                  🥗 {t('cal_nutrition')}
+                </div>
+                <div style={{ display: 'flex', gap: 8 }}>
+                  {selectedLog.calories && (
+                    <span style={{ fontSize: 12, padding: '4px 10px', background: 'var(--surface2)', borderRadius: 20 }}>
+                      {selectedLog.calories.toLocaleString()} kcal
+                    </span>
+                  )}
+                  {selectedLog.water && (
+                    <span style={{ fontSize: 12, padding: '4px 10px', background: 'var(--surface2)', borderRadius: 20 }}>
+                      💧 {selectedLog.water} ml
+                    </span>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* Daily context events */}
+            {selectedEvents.length > 0 && (
+              <div style={{ padding: '0 16px 12px' }}>
+                <div style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', color: 'var(--text2)', marginBottom: 8 }}>
+                  📌 {lang === 'de' ? 'Tages-Kontext' : 'Day context'}
+                </div>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5 }}>
+                  {selectedEvents.map(e => (
+                    <span key={e.id} style={{ fontSize: 12, padding: '4px 10px', background: 'var(--surface2)', borderRadius: 20 }}>{e.label}</span>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* AI insight */}
+            {selectedLog.ai_insight && (
+              <div style={{ padding: '0 16px 12px' }}>
+                <div style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', color: 'var(--text2)', marginBottom: 6 }}>
+                  ✨ {lang === 'de' ? 'KI-Analyse' : 'AI Insight'}
+                </div>
+                <div style={{ fontSize: 12, color: 'var(--text)', lineHeight: 1.6, background: 'var(--surface2)', borderRadius: 10, padding: '10px 12px' }}>
+                  {selectedLog.ai_insight}
+                </div>
+              </div>
+            )}
+
+            <div style={{ padding: '0 16px 4px' }}>
+              <button className="btn-secondary" style={{ width: '100%', textAlign: 'center', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }} onClick={() => selectDay(null)}>
+                {lang === 'de' ? 'Schließen' : 'Close'}
               </button>
             </div>
+            <div style={{ height: 8 }} />
           </div>
         </div>
       )}
