@@ -439,18 +439,19 @@ export function EveningLog({ log, onSave, lang, habitGoals, activeHabits, onTogg
 
 function WhoopTab({ log, yesterdayLog, session, lang, onRefresh }) {
   const date = format(new Date(), 'yyyy-MM-dd')
-  const uploaded = !!log?.bed_time  // driven by DB, survives tab switches
 
-  // Evening fields can be on today's log OR yesterday's — evening saves to current date
-  // e.g. if you log evening on night of Apr 15, it saves to Apr 15 (yesterdayLog)
-  // but if you log it on the morning of Apr 16, it saves to Apr 16 (log)
+  // bed_time can be on today's log (uploaded today) or yesterday's log (uploaded via old Trends flow)
+  const bedTime = log?.bed_time || yesterdayLog?.bed_time
+  const uploaded = !!bedTime
+
+  // Evening fields can be on today's log OR yesterday's
   const eveningSource = log?.phone_away_time ? log : yesterdayLog
 
   // Compute wind-down duration: phone away → asleep
   let windDownMins = null
-  if (eveningSource?.phone_away_time && log?.bed_time) {
+  if (eveningSource?.phone_away_time && bedTime) {
     const pm = parseInt(eveningSource.phone_away_time.split(':')[0])*60 + parseInt(eveningSource.phone_away_time.split(':')[1])
-    let bm = parseInt(log.bed_time.split(':')[0])*60 + parseInt(log.bed_time.split(':')[1])
+    let bm = parseInt(bedTime.split(':')[0])*60 + parseInt(bedTime.split(':')[1])
     if (bm < 360) bm += 1440
     windDownMins = bm - pm
   }
@@ -460,7 +461,7 @@ function WhoopTab({ log, yesterdayLog, session, lang, onRefresh }) {
   if (eveningSource?.dinner_time) summary.push({ icon: '🍽', label: lang === 'de' ? 'Abendessen' : 'Dinner', value: eveningSource.dinner_time.slice(0,5) })
   if (eveningSource?.phone_away_time) summary.push({ icon: '📵', label: lang === 'de' ? 'Handy weg' : 'Phone away', value: eveningSource.phone_away_time.slice(0,5) })
   const hasEveningData = !!(eveningSource?.phone_away_time || eveningSource?.wind_down)
-  summary.push({ icon: '🛏', label: lang === 'de' ? 'Eingeschlafen' : 'Asleep', value: log?.bed_time ? log.bed_time.slice(0,5) : '—', pending: !log?.bed_time && hasEveningData })
+  summary.push({ icon: '🛏', label: lang === 'de' ? 'Eingeschlafen' : 'Asleep', value: bedTime ? bedTime.slice(0,5) : '—', pending: !bedTime && hasEveningData })
   summary.push({ icon: '⏱', label: lang === 'de' ? 'Wind-down' : 'Wind-down', value: windDownMins !== null ? `${windDownMins}min` : '—', pending: windDownMins === null && hasEveningData })
   if (log?.sleep_efficiency) summary.push({ icon: '📊', label: lang === 'de' ? 'Effizienz' : 'Efficiency', value: `${Math.round(log.sleep_efficiency)}%` })
   if (eveningSource?.wind_down) summary.push({ icon: eveningSource.wind_down === 'good' ? '😌' : eveningSource.wind_down === 'ok' ? '😐' : '😣', label: lang === 'de' ? 'Qualität' : 'Quality', value: eveningSource.wind_down })
@@ -483,7 +484,7 @@ function WhoopTab({ log, yesterdayLog, session, lang, onRefresh }) {
               )}
             </div>
             <div style={{ fontSize: 10, color: 'var(--green)', opacity: 0.75, marginTop: 1 }}>
-              🛏 {log.bed_time.slice(0,5)} · <button onClick={() => onRefresh && onRefresh({})} style={{ fontSize: 10, color: 'var(--green)', background: 'none', border: 'none', cursor: 'pointer', padding: 0, fontFamily: 'inherit', opacity: 0.7, textDecoration: 'underline' }}>
+              🛏 {bedTime.slice(0,5)} · <button onClick={() => onRefresh && onRefresh({})} style={{ fontSize: 10, color: 'var(--green)', background: 'none', border: 'none', cursor: 'pointer', padding: 0, fontFamily: 'inherit', opacity: 0.7, textDecoration: 'underline' }}>
                 {lang === 'de' ? 'neu hochladen' : 're-upload'}
               </button>
             </div>
@@ -628,7 +629,7 @@ export default function DailyIntelligence({ session, log, onSave, habitGoals, ac
 
   // Smart default section based on time of day
   const hasMorning = log?.morning_energy > 0
-  const hasWhoop = !!log?.bed_time
+  const hasWhoop = !!(log?.bed_time || yesterdayLog?.bed_time)
   const hasInsight = !!log?.ai_insight
 
   const sections = [
