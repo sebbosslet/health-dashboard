@@ -439,30 +439,55 @@ export function EveningLog({ log, onSave, lang, habitGoals, activeHabits, onTogg
 
 function WhoopTab({ log, yesterdayLog, session, lang, onRefresh }) {
   const date = format(new Date(), 'yyyy-MM-dd')
+  const uploaded = !!log?.bed_time  // driven by DB, survives tab switches
 
-  // Last night's summary from yesterday's evening log + today's WHOOP data
-  const summary = []
-  if (yesterdayLog?.dinner_time) summary.push({ icon: '🍽', label: lang === 'de' ? 'Abendessen' : 'Dinner', value: yesterdayLog.dinner_time.slice(0,5) })
-  if (yesterdayLog?.phone_away_time) summary.push({ icon: '📵', label: lang === 'de' ? 'Handy weg' : 'Phone away', value: yesterdayLog.phone_away_time.slice(0,5) })
-  if (log?.bed_time) summary.push({ icon: '🛏', label: lang === 'de' ? 'Eingeschlafen' : 'Asleep', value: log.bed_time.slice(0,5) })
+  // Compute wind-down duration: phone away → asleep
+  let windDownMins = null
   if (yesterdayLog?.phone_away_time && log?.bed_time) {
     const pm = parseInt(yesterdayLog.phone_away_time.split(':')[0])*60 + parseInt(yesterdayLog.phone_away_time.split(':')[1])
     let bm = parseInt(log.bed_time.split(':')[0])*60 + parseInt(log.bed_time.split(':')[1])
     if (bm < 360) bm += 1440
-    const gap = bm - pm
-    summary.push({ icon: '⏱', label: lang === 'de' ? 'Bildschirmfrei' : 'Screen-free', value: `${gap}min` })
+    windDownMins = bm - pm
   }
-  if (log?.sleep_duration) summary.push({ icon: '💤', label: lang === 'de' ? 'Schlaf' : 'Sleep', value: `${log.sleep_duration.toFixed(1)}h` })
+
+  // Last night summary grid — only shown after upload
+  const summary = []
+  if (yesterdayLog?.dinner_time) summary.push({ icon: '🍽', label: lang === 'de' ? 'Abendessen' : 'Dinner', value: yesterdayLog.dinner_time.slice(0,5) })
+  if (yesterdayLog?.phone_away_time) summary.push({ icon: '📵', label: lang === 'de' ? 'Handy weg' : 'Phone away', value: yesterdayLog.phone_away_time.slice(0,5) })
+  if (log?.bed_time) summary.push({ icon: '🛏', label: lang === 'de' ? 'Eingeschlafen' : 'Asleep', value: log.bed_time.slice(0,5) })
+  if (windDownMins !== null) summary.push({ icon: '⏱', label: lang === 'de' ? 'Wind-down' : 'Wind-down', value: `${windDownMins}min` })
   if (log?.sleep_efficiency) summary.push({ icon: '📊', label: lang === 'de' ? 'Effizienz' : 'Efficiency', value: `${Math.round(log.sleep_efficiency)}%` })
-  if (yesterdayLog?.wind_down) summary.push({ icon: yesterdayLog.wind_down === 'good' ? '😌' : yesterdayLog.wind_down === 'ok' ? '😐' : '😣', label: lang === 'de' ? 'Wind-down' : 'Wind-down', value: yesterdayLog.wind_down })
+  if (yesterdayLog?.wind_down) summary.push({ icon: yesterdayLog.wind_down === 'good' ? '😌' : yesterdayLog.wind_down === 'ok' ? '😐' : '😣', label: lang === 'de' ? 'Qualität' : 'Quality', value: yesterdayLog.wind_down })
   if (yesterdayLog?.ac_temp) summary.push({ icon: '❄', label: 'AC', value: `${yesterdayLog.ac_temp}°F` })
 
   return (
     <div style={{ padding: '12px 14px', display: 'flex', flexDirection: 'column', gap: 12 }}>
-      {/* Upload widget */}
-      <WhoopUpload session={session} date={date} lang={lang} bedTime={log?.bed_time?.slice(0,5) || ''} onDone={onRefresh} />
 
-      {/* Last night summary */}
+      {/* Success state — shown when screenshot has been processed (bed_time exists) */}
+      {uploaded ? (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 12px', background: 'var(--green-light)', borderRadius: 10, border: '0.5px solid var(--green-border)' }}>
+          <span style={{ fontSize: 18 }}>✅</span>
+          <div style={{ flex: 1 }}>
+            <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--green)' }}>
+              {lang === 'de' ? 'WHOOP Screenshot analysiert' : 'Screenshot analysed'}
+              {windDownMins !== null && (
+                <span style={{ fontWeight: 400, marginLeft: 6 }}>
+                  · {lang === 'de' ? `${windDownMins}min Wind-down` : `${windDownMins}min wind-down`}
+                </span>
+              )}
+            </div>
+            <div style={{ fontSize: 10, color: 'var(--green)', opacity: 0.75, marginTop: 1 }}>
+              🛏 {log.bed_time.slice(0,5)} · <button onClick={() => onRefresh && onRefresh({})} style={{ fontSize: 10, color: 'var(--green)', background: 'none', border: 'none', cursor: 'pointer', padding: 0, fontFamily: 'inherit', opacity: 0.7, textDecoration: 'underline' }}>
+                {lang === 'de' ? 'neu hochladen' : 're-upload'}
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : (
+        <WhoopUpload session={session} date={date} lang={lang} bedTime='' onDone={onRefresh} />
+      )}
+
+      {/* Last night summary — always shown if there's data */}
       {summary.length > 0 && (
         <div>
           <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 8 }}>
@@ -480,9 +505,9 @@ function WhoopTab({ log, yesterdayLog, session, lang, onRefresh }) {
         </div>
       )}
 
-      {summary.length === 0 && (
-        <div style={{ fontSize: 12, color: 'var(--text3)', textAlign: 'center', padding: '8px 0' }}>
-          {lang === 'de' ? 'Noch keine Daten für die letzte Nacht' : 'No data yet for last night — log your evening and sync WHOOP'}
+      {!uploaded && summary.length === 0 && (
+        <div style={{ fontSize: 12, color: 'var(--text3)', textAlign: 'center', padding: '4px 0' }}>
+          {lang === 'de' ? 'Logge deinen Abend und lade den WHOOP Screenshot hoch' : 'Log your evening and upload your WHOOP screenshot above'}
         </div>
       )}
     </div>
