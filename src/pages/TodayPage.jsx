@@ -89,7 +89,7 @@ export default function TodayPage({ session }) {
   useEffect(() => {
     supabase
       .from('goals')
-      .select('name, category')
+      .select('name, category, emoji')
       .eq('user_id', session.user.id)
       .in('category', ['Activity', 'Evening habits'])
       .then(({ data }) => {
