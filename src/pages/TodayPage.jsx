@@ -42,10 +42,15 @@ export default function TodayPage({ session }) {
   const { log, save, refetch } = useDailyLog(session.user.id, today)
 
   // Refetch when tab becomes visible (e.g. after Apple Health Shortcut runs)
+  // Also poll every 60s in case tab was already open when Shortcut fired
   useEffect(() => {
     const onVisible = () => { if (document.visibilityState === 'visible') refetch() }
     document.addEventListener('visibilitychange', onVisible)
-    return () => document.removeEventListener('visibilitychange', onVisible)
+    const interval = setInterval(refetch, 60000)
+    return () => {
+      document.removeEventListener('visibilitychange', onVisible)
+      clearInterval(interval)
+    }
   }, [refetch])
   const { settings } = useSettings(session.user.id)
   const [activityGoals, setActivityGoals] = useState([])
@@ -202,7 +207,10 @@ export default function TodayPage({ session }) {
         <div className="card">
           <div className="card-header">
             <span className="card-title">{t('today_steps')}</span>
-            <span className="source-pill source-apple">Apple Health</span>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <span className="source-pill source-apple">Apple Health</span>
+              <button onClick={refetch} title="Refresh" style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text3)', padding: 0, lineHeight: 1, fontSize: 15 }}>↻</button>
+            </div>
           </div>
           <div style={{ padding: '12px 14px' }}>
             <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', marginBottom: 8 }}>
