@@ -462,6 +462,7 @@ function WhoopTab({ log, yesterdayLog, session, lang, onRefresh }) {
       supabase.from('sleep_hr_analysis').select('*').eq('user_id', session.user.id).eq('date', date).maybeSingle(),
       supabase.from('sleep_hr_analysis').select('*').eq('user_id', session.user.id).eq('date', yesterday).maybeSingle(),
     ]).then(([{ data: today }, { data: yest }]) => {
+      console.log('[HR] today:', today, 'yest:', yest)
       setHrAnalysis(today || yest || null)
     })
   }, [session.user.id, date])
