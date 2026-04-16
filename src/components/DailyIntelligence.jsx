@@ -133,7 +133,17 @@ function MorningCheckin({ log, onSave, lang, yesterdayLog }) {
   const [mood, setMood] = useState(log?.morning_mood || 0)
   const [soreness, setSoreness] = useState(log?.morning_soreness || 0)
   const [note, setNote] = useState(log?.morning_note || '')
+  const [bedTime, setBedTime] = useState(log?.bed_time?.slice(0,5) || '')
   const [saving, setSaving] = useState(false)
+
+  // Re-sync when log updates after save
+  useEffect(() => {
+    setEnergy(log?.morning_energy || 0)
+    setMood(log?.morning_mood || 0)
+    setSoreness(log?.morning_soreness || 0)
+    setNote(log?.morning_note || '')
+    setBedTime(log?.bed_time?.slice(0,5) || '')
+  }, [log?.morning_energy, log?.morning_mood, log?.morning_soreness, log?.morning_note, log?.bed_time])
 
   const emojis = {
     energy: ['', '😴', '😑', '😐', '🙂', '⚡'],
@@ -147,7 +157,7 @@ function MorningCheckin({ log, onSave, lang, yesterdayLog }) {
 
   async function handleSave() {
     setSaving(true)
-    await onSave({ morning_energy: energy, morning_mood: mood, morning_soreness: soreness, morning_note: note || null })
+    await onSave({ morning_energy: energy, morning_mood: mood, morning_soreness: soreness, morning_note: note || null, bed_time: bedTime || null })
     setSaving(false)
     showToast(lang === 'de' ? 'Check-in gespeichert' : 'Check-in saved')
   }
@@ -197,6 +207,17 @@ function MorningCheckin({ log, onSave, lang, yesterdayLog }) {
 
       <input className="field-input" value={note} onChange={e => setNote(e.target.value)} placeholder={labels.placeholder} style={{ fontSize: 13 }} />
 
+      {/* Bed time — logged in morning from WHOOP sleep diary */}
+      <div className="field">
+        <label className="field-label">
+          🛏 {lang === 'de' ? 'Einschlafzeit (aus WHOOP)' : 'Sleep onset (from WHOOP)'}
+        </label>
+        <input className="field-input" type="time" value={bedTime} onChange={e => setBedTime(e.target.value)} />
+        <div style={{ fontSize: 10, color: 'var(--text3)', marginTop: 3 }}>
+          {lang === 'de' ? 'Aus dem WHOOP Schlafdiary — wann bist du eingeschlafen?' : 'From your WHOOP sleep diary — when did you fall asleep?'}
+        </div>
+      </div>
+
       <button className="btn-primary" onClick={handleSave} disabled={saving || !energy || !mood || !soreness}>
         {saving ? labels.saving : labels.save}
       </button>
@@ -208,26 +229,29 @@ function MorningCheckin({ log, onSave, lang, yesterdayLog }) {
 
 function EveningLog({ log, onSave, lang, habitGoals, activeHabits, onToggleHabit }) {
   const [phoneAway, setPhoneAway] = useState(log?.phone_away_time?.slice(0,5) || '')
-  const [bedTime, setBedTime] = useState(log?.bed_time?.slice(0,5) || '')
   const [windDown, setWindDown] = useState(log?.wind_down || '')
   const [note, setNote] = useState(log?.evening_note || '')
   const [dinnerTime, setDinnerTime] = useState(log?.dinner_time?.slice(0,5) || '')
   const [acTemp, setAcTemp] = useState(log?.ac_temp || '')
   const [saving, setSaving] = useState(false)
 
-  const phoneMin = phoneAway ? parseInt(phoneAway.split(':')[0])*60 + parseInt(phoneAway.split(':')[1]) : null
-  const bedMin = bedTime ? parseInt(bedTime.split(':')[0])*60 + parseInt(bedTime.split(':')[1]) : null
-  const gap = phoneMin !== null && bedMin !== null ? bedMin - phoneMin : null
+  // Re-sync when log updates after save
+  useEffect(() => {
+    setPhoneAway(log?.phone_away_time?.slice(0,5) || '')
+    setWindDown(log?.wind_down || '')
+    setNote(log?.evening_note || '')
+    setDinnerTime(log?.dinner_time?.slice(0,5) || '')
+    setAcTemp(log?.ac_temp || '')
+  }, [log?.phone_away_time, log?.wind_down, log?.evening_note, log?.dinner_time, log?.ac_temp])
 
   const labels = lang === 'de'
-    ? { habits: 'Abendgewohnheiten', phone: 'Handy weggelegt um', bed: 'Im Bett um', wind: 'Abend-Qualität', note: 'Etwas Besonderes?', save: 'Abend speichern', saving: 'Speichern...', good: 'Gut', ok: 'OK', poor: 'Schlecht', dinner: 'Abendessen um', ac: 'AC-Temperatur (°F)' }
-    : { habits: 'Evening habits', phone: 'Phone away at', bed: 'In bed at', wind: 'Wind-down quality', note: 'Anything affect your evening?', save: 'Save evening', saving: 'Saving...', good: 'Good', ok: 'OK', poor: 'Poor', dinner: 'Dinner at', ac: 'AC temp (°F)' }
+    ? { habits: 'Abendgewohnheiten', phone: 'Handy weggelegt um', wind: 'Abend-Qualität', note: 'Etwas Besonderes?', save: 'Abend speichern', saving: 'Speichern...', good: 'Gut', ok: 'OK', poor: 'Schlecht', dinner: 'Abendessen um', ac: 'AC-Temp (°F)' }
+    : { habits: 'Evening habits', phone: 'Phone away at', wind: 'Wind-down quality', note: 'Anything affect your evening?', save: 'Save evening', saving: 'Saving...', good: 'Good', ok: 'OK', poor: 'Poor', dinner: 'Dinner at', ac: 'AC temp (°F)' }
 
   async function handleSave() {
     setSaving(true)
     await onSave({
       phone_away_time: phoneAway || null,
-      bed_time: bedTime || null,
       wind_down: windDown || null,
       evening_note: note || null,
       dinner_time: dinnerTime || null,
@@ -257,15 +281,11 @@ function EveningLog({ log, onSave, lang, habitGoals, activeHabits, onToggleHabit
         </div>
       )}
 
-      {/* Evening time fields - 2x2 grid */}
+      {/* Evening time fields */}
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
         <div className="field">
           <label className="field-label">📵 {labels.phone}</label>
           <input className="field-input" type="time" value={phoneAway} onChange={e => setPhoneAway(e.target.value)} />
-        </div>
-        <div className="field">
-          <label className="field-label">🛏 {labels.bed}</label>
-          <input className="field-input" type="time" value={bedTime} onChange={e => setBedTime(e.target.value)} />
         </div>
         <div className="field">
           <label className="field-label">🍽 {labels.dinner}</label>
@@ -276,20 +296,6 @@ function EveningLog({ log, onSave, lang, habitGoals, activeHabits, onToggleHabit
           <input className="field-input" type="number" step="1" value={acTemp} onChange={e => setAcTemp(e.target.value)} placeholder="68" inputMode="numeric" />
         </div>
       </div>
-
-      {/* Gap indicator */}
-      {gap !== null && gap > 0 && (
-        <div style={{
-          background: gap >= 45 ? 'var(--green-light)' : 'var(--amber-light)',
-          borderRadius: 8, padding: '8px 12px', fontSize: 12,
-          color: gap >= 45 ? 'var(--green)' : 'var(--amber)', fontWeight: 600,
-          display: 'flex', alignItems: 'center', gap: 6
-        }}>
-          {gap >= 45 ? '✓' : '⚠'}
-          <span>{gap} min {lang === 'de' ? 'zwischen Handy und Bett' : 'gap between phone and bed'}</span>
-          {gap < 45 && <span style={{ fontWeight: 400 }}>{lang === 'de' ? '— Ziel: 45min' : '— target: 45min'}</span>}
-        </div>
-      )}
 
       {/* Wind-down quality */}
       <div>
