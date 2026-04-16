@@ -175,7 +175,8 @@ Sleep onset is typically 22:xx-23:xx or 00:xx-02:xx. Wake time is typically 06:x
       const result = JSON.parse(data.content?.[0]?.text?.replace(/```json|```/g, '').trim() || '{}')
 
       // Save analysis
-      await supabase.from('sleep_hr_analysis').upsert({ user_id: session.user.id, date, ...result, screenshot_path: null }, { onConflict: 'user_id,date' })
+      const { error: hrError } = await supabase.from('sleep_hr_analysis').upsert({ user_id: session.user.id, date, ...result, screenshot_path: null }, { onConflict: 'user_id,date' })
+      console.log('[WHOOP upsert] date:', date, 'error:', hrError, 'analysis:', result.analysis?.slice(0,50))
 
       // Save bed_time to daily_logs
       if (result.sleep_onset) {
@@ -458,13 +459,13 @@ function WhoopTab({ log, yesterdayLog, session, lang, onRefresh }) {
 
   useEffect(() => {
     // Load HR analysis for today or yesterday (whichever has data)
-    Promise.all([
-      supabase.from('sleep_hr_analysis').select('*').eq('user_id', session.user.id).eq('date', date).maybeSingle(),
-      supabase.from('sleep_hr_analysis').select('*').eq('user_id', session.user.id).eq('date', yesterday).maybeSingle(),
-    ]).then(([{ data: today }, { data: yest }]) => {
-      console.log('[HR] today:', today, 'yest:', yest)
-      setHrAnalysis(today || yest || null)
-    })
+    supabase.from('sleep_hr_analysis')
+      .select('*').eq('user_id', session.user.id)
+      .gte('date', yesterday).order('date', { ascending: false }).limit(3)
+      .then(({ data, error }) => {
+        console.log('[HR] rows:', data, 'error:', error)
+        setHrAnalysis(data?.[0] || null)
+      })
   }, [session.user.id, date])
 
   // bed_time can be on today's log (uploaded today) or yesterday's log (uploaded via old Trends flow)
