@@ -151,10 +151,6 @@ function WhoopUpload({ session, date, lang, bedTime, onDone }) {
     try {
       const { base64 } = await compressImage(file)
 
-      // Fetch recent analyses for context
-      const { data: recent } = await supabase.from('sleep_hr_analysis').select('*').eq('user_id', session.user.id).order('date', { ascending: false }).limit(7)
-      const { data: contextLog } = await supabase.from('daily_logs').select('*').eq('user_id', session.user.id).eq('date', date).maybeSingle()
-
       // Call proxy
       const prompt = `You are a sleep medicine expert. Analyse this WHOOP sleep screenshot for ${date}. Extract all visible data. Respond ONLY with valid JSON.
 
