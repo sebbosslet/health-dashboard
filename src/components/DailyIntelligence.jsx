@@ -236,6 +236,66 @@ function MorningCheckin({ log, onSave, lang, yesterdayLog }) {
   )
 }
 
+
+// ─── 12h time input ───────────────────────────────────────────────────────────
+
+function TimeInput12h({ value, onChange, inputRef, className }) {
+  // Parse stored 24h value to 12h display
+  function to12h(v) {
+    if (!v) return { h: '', m: '', ampm: 'PM' }
+    const [hh, mm] = v.split(':').map(Number)
+    const ampm = hh >= 12 ? 'PM' : 'AM'
+    const h = hh % 12 || 12
+    return { h: String(h), m: String(mm).padStart(2, '0'), ampm }
+  }
+
+  function to24h(h, m, ampm) {
+    let hh = parseInt(h) || 0
+    if (ampm === 'PM' && hh !== 12) hh += 12
+    if (ampm === 'AM' && hh === 12) hh = 0
+    return `${String(hh).padStart(2,'0')}:${String(m).padStart(2,'0')}`
+  }
+
+  const parsed = to12h(value)
+  const [h, setH] = useState(parsed.h)
+  const [m, setM] = useState(parsed.m)
+  const [ampm, setAmpm] = useState(parsed.ampm)
+
+  useEffect(() => {
+    const p = to12h(value)
+    setH(p.h); setM(p.m); setAmpm(p.ampm)
+  }, [value])
+
+  function emit(newH, newM, newAmpm) {
+    if (!newH || !newM) return
+    const v24 = to24h(newH, newM, newAmpm)
+    if (inputRef) inputRef.current = { value: v24 }
+    onChange(v24)
+  }
+
+  const sel = { background: 'none', border: 'none', fontFamily: 'inherit', fontSize: 15, color: 'var(--text)', cursor: 'pointer', padding: '2px 0', WebkitAppearance: 'none', appearance: 'none' }
+
+  return (
+    <div ref={el => { if (inputRef && el) inputRef.current = { value: to24h(h, m, ampm) } }}
+      className={className}
+      style={{ display: 'flex', alignItems: 'center', gap: 2, justifyContent: 'center' }}>
+      <select value={h} onChange={e => { setH(e.target.value); emit(e.target.value, m, ampm) }} style={sel}>
+        <option value="">--</option>
+        {[1,2,3,4,5,6,7,8,9,10,11,12].map(n => <option key={n} value={n}>{n}</option>)}
+      </select>
+      <span style={{ color: 'var(--text2)' }}>:</span>
+      <select value={m} onChange={e => { setM(e.target.value); emit(h, e.target.value, ampm) }} style={sel}>
+        <option value="">--</option>
+        {['00','05','10','15','20','25','30','35','40','45','50','55'].map(v => <option key={v} value={v}>{v}</option>)}
+      </select>
+      <select value={ampm} onChange={e => { setAmpm(e.target.value); emit(h, m, e.target.value) }} style={{ ...sel, marginLeft: 4, fontWeight: 600, color: 'var(--green)' }}>
+        <option value="AM">AM</option>
+        <option value="PM">PM</option>
+      </select>
+    </div>
+  )
+}
+
 // ─── Evening Log (merged with habits) ────────────────────────────────────────
 
 function EveningLog({ log, onSave, lang, habitGoals, activeHabits, onToggleHabit }) {
@@ -306,24 +366,20 @@ function EveningLog({ log, onSave, lang, habitGoals, activeHabits, onToggleHabit
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
         <div className="field">
           <label className="field-label">📵 {labels.phone}</label>
-          <input
-            ref={phoneRef}
+          <TimeInput12h
+            inputRef={phoneRef}
             className="field-input"
-            type="time"
-            defaultValue={phoneAway}
-            onChange={e => setPhoneAway(e.target.value)}
-            onBlur={e => setPhoneAway(e.target.value)}
+            value={phoneAway}
+            onChange={v => setPhoneAway(v)}
           />
         </div>
         <div className="field">
           <label className="field-label">🍽 {labels.dinner}</label>
-          <input
-            ref={dinnerRef}
+          <TimeInput12h
+            inputRef={dinnerRef}
             className="field-input"
-            type="time"
-            defaultValue={dinnerTime}
-            onChange={e => setDinnerTime(e.target.value)}
-            onBlur={e => setDinnerTime(e.target.value)}
+            value={dinnerTime}
+            onChange={v => setDinnerTime(v)}
           />
         </div>
         <div className="field">
