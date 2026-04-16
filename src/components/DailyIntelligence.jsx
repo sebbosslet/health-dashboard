@@ -8,7 +8,7 @@ import { showToast } from './Toast'
 
 // ─── AI Analysis Engine ───────────────────────────────────────────────────────
 
-async function generateDailyInsight(todayLog, yesterdayLog, historicalLogs, lang, yesterdayEvents, todayEvents, travelState, caffeineMeals = []) {
+async function generateDailyInsight(todayLog, yesterdayLog, historicalLogs, lang, yesterdayEvents, todayEvents, travelState, caffeineMeals = [], hrContext = '') {
   // Pattern analysis from historical data
   const phoneDelays = historicalLogs
     .filter(l => l.phone_away_time && l.sleep_efficiency)
@@ -117,8 +117,9 @@ Schreibe 3-5 direkte Sätze. Verbinde konkret was gestern Abend passierte mit de
 ${patternContext}
 ${yesterdayContext}
 ${todayContext}
+${hrContext}
 
-Write 3-4 direct sentences connecting last evening to this morning's WHOOP data. Do NOT output a stats table — the numbers are already visible in the dashboard. Focus purely on the insight: what caused last night's result, what it means for today, and one smart follow-up question. IMPORTANT: only reference morning check-in scores if they were actually logged (not "NOT logged yet"). Reference personal patterns when relevant. Be direct and honest.`
+Write a holistic 4-5 sentence narrative synthesising everything. Weave together: last evening context, sleep HR analysis (if available — include the likely cause and what it means), WHOOP metrics, and morning check-in (only if actually logged). Connect causes to effects. Reference personal patterns. End with one smart specific question. No tables, no bullets — pure narrative. Be direct and honest like a coach who knows him well.`
 
   const res = await fetch('/.netlify/functions/claude-proxy', {
     method: 'POST',
@@ -577,70 +578,6 @@ function WhoopTab({ log, yesterdayLog, session, lang, onRefresh }) {
         </div>
       )}
 
-      {/* HR Analysis — shown if data extracted from screenshot */}
-      {hrAnalysis && (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-          <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
-            {hrAnalysis.hr_baseline ? (lang === 'de' ? 'Herzfrequenz-Analyse' : 'Heart rate analysis') : (lang === 'de' ? 'Schlafanalyse' : 'Sleep analysis')}
-          </div>
-
-          {/* Sleep stages if available (from summary screenshot) */}
-          {hrAnalysis && hrAnalysis.deep_pct != null && (
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 6 }}>
-              {[
-                { label: 'Awake', value: `${hrAnalysis.awake_pct}%`, color: 'var(--text3)' },
-                { label: 'Light', value: `${hrAnalysis.light_pct}%`, color: 'var(--blue)' },
-                { label: 'Deep', value: `${hrAnalysis.deep_pct}%`, color: 'var(--purple)' },
-                { label: 'REM', value: `${hrAnalysis.rem_pct}%`, color: 'var(--green)' },
-              ].map(m => (
-                <div key={m.label} style={{ background: 'var(--surface2)', borderRadius: 8, padding: '6px 4px', textAlign: 'center' }}>
-                  <div style={{ fontSize: 9, color: 'var(--text3)', textTransform: 'uppercase', marginBottom: 2 }}>{m.label}</div>
-                  <div style={{ fontSize: 13, fontWeight: 700, fontFamily: 'var(--font-mono)', color: m.color }}>{m.value}</div>
-                </div>
-              ))}
-            </div>
-          )}
-
-          {/* HR metrics row */}
-          {hrAnalysis.hr_baseline && (
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 6 }}>
-              {[
-                { label: lang === 'de' ? 'Baseline' : 'Baseline', value: `${hrAnalysis.hr_baseline}`, unit: 'bpm', color: 'var(--blue)' },
-                { label: lang === 'de' ? 'Spikes' : 'Spikes', value: hrAnalysis.spike_count != null ? String(hrAnalysis.spike_count) : '—', unit: hrAnalysis.spike_max_magnitude ? `max ${hrAnalysis.spike_max_magnitude}bpm` : '', color: hrAnalysis.spike_count > 6 ? 'var(--red)' : 'var(--amber)' },
-                { label: lang === 'de' ? 'Stabilität' : 'Stability', value: hrAnalysis.stability_score != null ? `${hrAnalysis.stability_score}/10` : '—', unit: '', color: hrAnalysis.stability_score >= 7 ? 'var(--green)' : hrAnalysis.stability_score >= 4 ? 'var(--amber)' : 'var(--red)' },
-              ].map(m => (
-                <div key={m.label} style={{ background: 'var(--surface2)', borderRadius: 8, padding: '7px 6px', textAlign: 'center' }}>
-                  <div style={{ fontSize: 9, color: 'var(--text3)', textTransform: 'uppercase', marginBottom: 2 }}>{m.label}</div>
-                  <div style={{ fontSize: 14, fontWeight: 700, fontFamily: 'var(--font-mono)', color: m.color }}>{m.value}</div>
-                  {m.unit && <div style={{ fontSize: 9, color: 'var(--text3)' }}>{m.unit}</div>}
-                </div>
-              ))}
-            </div>
-          )}
-
-          {/* Cause badge */}
-          {hrAnalysis.likely_cause && hrAnalysis.likely_cause !== 'unclear' && (
-            <div style={{ fontSize: 11, color: 'var(--text2)', background: 'var(--surface2)', borderRadius: 8, padding: '7px 10px' }}>
-              <strong>{lang === 'de' ? 'Wahrscheinliche Ursache:' : 'Likely cause:'}</strong>{' '}
-              <span style={{ textTransform: 'capitalize' }}>{hrAnalysis.likely_cause}</span>
-              {hrAnalysis.cause_confidence && <span style={{ color: 'var(--text3)' }}> ({hrAnalysis.cause_confidence})</span>}
-              {hrAnalysis.cause_reasoning && <span> — {hrAnalysis.cause_reasoning}</span>}
-            </div>
-          )}
-
-          {/* Analysis text */}
-          {hrAnalysis.analysis && (
-            <div style={{ fontSize: 12, color: 'var(--text)', lineHeight: 1.6 }}>{hrAnalysis.analysis}</div>
-          )}
-
-          {/* Recommendation */}
-          {hrAnalysis.recommendation && (
-            <div style={{ fontSize: 11, color: 'var(--green)', background: 'var(--green-light)', borderRadius: 8, padding: '7px 10px' }}>
-              💡 {hrAnalysis.recommendation}
-            </div>
-          )}
-        </div>
-      )}
 
     </div>
   )
@@ -651,17 +588,21 @@ function WhoopTab({ log, yesterdayLog, session, lang, onRefresh }) {
 function InsightCard({ log, userId, lang }) {
   const [insight, setInsight] = useState(log?.ai_insight || '')
   const [loading, setLoading] = useState(false)
+  const [hrAnalysis, setHrAnalysis] = useState(null)
   const today = format(new Date(), 'yyyy-MM-dd')
+  const yesterday = format(subDays(new Date(), 1), 'yyyy-MM-dd')
 
-  // Re-sync insight when log updates
+  useEffect(() => { setInsight(log?.ai_insight || '') }, [log?.ai_insight])
+
   useEffect(() => {
-    setInsight(log?.ai_insight || '')
-  }, [log?.ai_insight])
+    supabase.from('sleep_hr_analysis').select('*').eq('user_id', userId)
+      .gte('date', yesterday).order('date', { ascending: false }).limit(2)
+      .then(({ data }) => setHrAnalysis(data?.[0] || null))
+  }, [userId, today])
 
   async function generateInsight() {
     setLoading(true)
     try {
-      const yesterday = format(subDays(new Date(), 1), 'yyyy-MM-dd')
       const thirtyDaysAgo = format(subDays(new Date(), 30), 'yyyy-MM-dd')
 
       const [{ data: yesterdayLog }, { data: history }, { data: yesterdayEvents }, { data: travelState }, { data: caffeineMeals }] = await Promise.all([
@@ -672,7 +613,21 @@ function InsightCard({ log, userId, lang }) {
         supabase.from('meal_logs').select('meal_name,consumed_at').eq('user_id', userId).eq('date', yesterday).eq('is_caffeinated', true),
       ])
 
-      const text = await generateDailyInsight(log, yesterdayLog, history || [], lang, yesterdayEvents || [], [], travelState, caffeineMeals || [])
+      // Fetch latest HR analysis
+      const { data: hrData } = await supabase.from('sleep_hr_analysis').select('*').eq('user_id', userId)
+        .gte('date', yesterday).order('date', { ascending: false }).limit(1).maybeSingle()
+      if (hrData) setHrAnalysis(hrData)
+
+      const hrContext = hrData ? `
+SLEEP HR ANALYSIS (from WHOOP screenshot):
+- Sleep stages: Awake ${hrData.awake_pct || '—'}%, Light ${hrData.light_pct || '—'}%, Deep ${hrData.deep_pct || '—'}%, REM ${hrData.rem_pct || '—'}%
+- HR baseline: ${hrData.hr_baseline || '—'} bpm, Spikes: ${hrData.spike_count ?? '—'} (max ${hrData.spike_max_magnitude || '—'} bpm)
+- Stability score: ${hrData.stability_score || '—'}/10
+- Likely cause of disruption: ${hrData.likely_cause || 'unclear'} (${hrData.cause_confidence || '—'} confidence)
+- Cause reasoning: ${hrData.cause_reasoning || 'n/a'}
+- Recommendation: ${hrData.recommendation || 'n/a'}` : ''
+
+      const text = await generateDailyInsight(log, yesterdayLog, history || [], lang, yesterdayEvents || [], [], travelState, caffeineMeals || [], hrContext)
       setInsight(text)
 
       await supabase.from('daily_logs').upsert({
