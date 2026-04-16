@@ -10,13 +10,15 @@ function BarChart({ data, color, height = 52, target }) {
   if (!data?.length) return <div style={{ height, background: 'var(--surface2)', borderRadius: 4 }} />
   const values = data.map(d => d.value).filter(v => v !== null && v > 0)
   const max = Math.max(...values, target || 1, 1)
+  const avg = values.length ? values.reduce((a, b) => a + b, 0) / values.length : null
+  const lineValue = target || avg  // show target if provided, else average
   return (
     <div style={{ position: 'relative' }}>
-      {target && (
+      {lineValue && (
         <div style={{
           position: 'absolute', left: 0, right: 0,
-          bottom: 18 + ((target / max) * (height - 18)),
-          borderTop: '1px dashed rgba(0,0,0,0.15)', zIndex: 1,
+          bottom: 18 + ((lineValue / max) * (height - 18)),
+          borderTop: '1px dashed rgba(0,0,0,0.2)', zIndex: 1,
         }} />
       )}
       <div style={{ display: 'flex', gap: 2, alignItems: 'flex-end', height }}>

@@ -406,7 +406,7 @@ export function EveningLog({ log, onSave, lang, habitGoals, activeHabits, onTogg
           <div className="toggle-grid">
             {habitGoals.map(h => {
               const key = h.name.toLowerCase().replace(/\s+/g, '_')
-              const emoji = h.emoji || getEmoji(h.name)
+              const emoji = h.emoji || ''
               return (
                 <button key={key} className={`toggle-btn ${activeHabits.has(key) ? 'active' : ''}`} onClick={() => onToggleHabit(key)}>
                   {emoji} {h.name}
@@ -744,21 +744,6 @@ ADDITIONAL CONTEXT FROM SEBASTIAN about why sleep was fragmented: ${extraContext
       )}
     </div>
   )
-}
-
-// ─── Emoji helper ─────────────────────────────────────────────────────────────
-
-const EMOJI_MAP = {
-  reading: '📚', meditation: '🧘', nophone: '📵', journal: '✍️', no_phone: '📵',
-  stretch: '🙆', gratitude: '🙏', cold: '🧊', walk: '🚶', yoga: '🧘',
-}
-
-function getEmoji(name) {
-  const lower = name.toLowerCase().replace(/\s+/g, '_')
-  for (const [key, emoji] of Object.entries(EMOJI_MAP)) {
-    if (lower.includes(key)) return emoji
-  }
-  return '•'
 }
 
 // ─── Main Component ───────────────────────────────────────────────────────────

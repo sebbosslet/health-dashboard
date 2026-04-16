@@ -120,9 +120,9 @@ export default function CalendarPage({ session }) {
       {showReport && <MonthlyReport session={session} onClose={() => setShowReport(false)} />}
       <div className="page-header">
         <div className="page-header-title">{`${t('cal_title')}`}</div>
-        <div style={{ fontSize: 11, padding: '4px 10px', borderRadius: 20, background: 'var(--green-light)', color: 'var(--green)', fontWeight: 600 }}>
-          Year view
-        </div>
+        <button onClick={() => setShowReport(true)} style={{ padding: '6px 12px', borderRadius: 16, background: 'var(--green-light)', border: '0.5px solid var(--green-border)', color: 'var(--green)', fontSize: 11, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>
+          📄 Report
+        </button>
       </div>
 
       {/* Month navigation */}

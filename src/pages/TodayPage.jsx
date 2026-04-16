@@ -22,20 +22,6 @@ function fmtHours(h) {
 
 
 // Emoji map for known activity/habit names
-const EMOJI_MAP = {
-  gym: '🏋️', run: '🏃', home: '🤸', sauna: '🧖', swim: '🏊', bike: '🚴', walk: '🚶', yoga: '🧘',
-  reading: '📚', meditation: '🧘', nophone: '📵', journal: '✍️', sleep: '😴', stretch: '🙆',
-  cold: '🧊', gratitude: '🙏', vitamins: '💊', water: '💧',
-}
-
-function getEmoji(name) {
-  const lower = name.toLowerCase().replace(/\s/g, '')
-  for (const [key, emoji] of Object.entries(EMOJI_MAP)) {
-    if (lower.includes(key)) return emoji
-  }
-  return '•'
-}
-
 // ─── End of Day card: evening log + day context ───────────────────────────────
 
 function EndOfDay({ session, log, onSave, habitGoals, activeHabits, onToggleHabit, today, lang }) {
@@ -326,7 +312,7 @@ export default function TodayPage({ session }) {
             <div className="toggle-grid">
               {activityGoals.map(a => {
                 const key = a.name.toLowerCase().replace(/\s+/g, '_')
-                const emoji = a.emoji || getEmoji(a.name)
+                const emoji = a.emoji || ''
                 return (
                   <button key={key} className={`toggle-btn ${activeActivity.has(key) ? 'active' : ''}`} onClick={() => toggle(activeActivity, setActiveActivity, key)}>
                     {emoji} {a.name}
