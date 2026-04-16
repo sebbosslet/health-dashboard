@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { format } from 'date-fns'
 import { supabase } from '../lib/supabase'
 import { useDailyLog, useSettings } from '../hooks/useData'
@@ -119,26 +119,43 @@ export default function TodayPage({ session }) {
     }
   }, [log])
 
-  // When meal calories update from MealLogger, auto-save to daily log
+  // Autosave calories when updated from MealLogger
   useEffect(() => {
-    if (mealCalories > 0) {
-      save({ calories: mealCalories })
-    }
+    if (mealCalories > 0) save({ calories: mealCalories })
   }, [mealCalories])
 
-  function toggle(set, setFn, key) {
-    setFn(prev => { const n = new Set(prev); n.has(key) ? n.delete(key) : n.add(key); return n })
+  // Autosave water with 800ms debounce
+  const waterRef = useRef(null)
+  function updateWater(val) {
+    setWater(val)
+    clearTimeout(waterRef.current)
+    waterRef.current = setTimeout(() => {
+      save({ water: parseInt(val) || 0 })
+    }, 800)
   }
 
-  async function handleSave() {
+  function toggle(set, setFn, key, type = 'activity') {
+    setFn(prev => {
+      const n = new Set(prev)
+      n.has(key) ? n.delete(key) : n.add(key)
+      // Autosave immediately
+      const arr = Array.from(n)
+      if (type === 'activity') save({ activity: arr })
+      if (type === 'habit') save({ habits: arr })
+      return n
+    })
+  }
+
+  async function handleCloseDay() {
     setSaving(true)
-    const { error } = await save({
+    // Final sync of all state before closing
+    await save({
       activity: Array.from(activeActivity),
       habits: Array.from(activeHabits),
       water: water ? parseInt(water) : null,
     })
     setSaving(false)
-    showToast(error ? t('today_error') : t('today_saved'))
+    showToast(lang === 'de' ? '✅ Tag abgeschlossen' : '✅ Day closed out')
   }
 
   const calorieTarget = settings.calorie_target || 1900
@@ -227,7 +244,7 @@ export default function TodayPage({ session }) {
           onSave={save}
           habitGoals={habitGoals}
           activeHabits={activeHabits}
-          onToggleHabit={(key) => toggle(activeHabits, setActiveHabits, key)}
+          onToggleHabit={(key) => toggle(activeHabits, setActiveHabits, key, 'habit')}
         />
 
         {/* 4. Medications */}
@@ -263,12 +280,12 @@ export default function TodayPage({ session }) {
             </div>
             <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
               {[{ label: '1L 🫙', ml: 1000 }, { label: '750ml 🫙', ml: 750 }, { label: '500ml 🫙', ml: 500 }, { label: '250ml 🥛', ml: 250 }].map(btn => (
-                <button key={btn.ml} onClick={() => setWater(w => String((parseInt(w) || 0) + btn.ml))} style={{ flex: 1, minWidth: 60, padding: '8px 4px', borderRadius: 8, border: '0.5px solid var(--border)', background: 'var(--surface2)', color: 'var(--text)', fontSize: 12, fontWeight: 500, cursor: 'pointer', fontFamily: 'inherit' }}>
+                <button key={btn.ml} onClick={() => updateWater(String((parseInt(water) || 0) + btn.ml))} style={{ flex: 1, minWidth: 60, padding: '8px 4px', borderRadius: 8, border: '0.5px solid var(--border)', background: 'var(--surface2)', color: 'var(--text)', fontSize: 12, fontWeight: 500, cursor: 'pointer', fontFamily: 'inherit' }}>
                   + {btn.label}
                 </button>
               ))}
               {parseInt(water) > 0 && (
-                <button onClick={() => setWater('0')} style={{ padding: '8px 10px', borderRadius: 8, border: '0.5px solid var(--border)', background: 'none', color: 'var(--text3)', fontSize: 11, cursor: 'pointer', fontFamily: 'inherit' }}>↺</button>
+                <button onClick={() => updateWater('0')} style={{ padding: '8px 10px', borderRadius: 8, border: '0.5px solid var(--border)', background: 'none', color: 'var(--text3)', fontSize: 11, cursor: 'pointer', fontFamily: 'inherit' }}>↺</button>
               )}
             </div>
           </div>
@@ -333,13 +350,13 @@ export default function TodayPage({ session }) {
           onSave={save}
           habitGoals={habitGoals}
           activeHabits={activeHabits}
-          onToggleHabit={(key) => toggle(activeHabits, setActiveHabits, key)}
+          onToggleHabit={(key) => toggle(activeHabits, setActiveHabits, key, 'habit')}
           today={today}
           lang={lang}
         />
 
-        <button className="btn-primary" onClick={handleSave} disabled={saving}>
-          {saving ? t('today_saving') : t('today_save')}
+        <button className="btn-primary" onClick={handleCloseDay} disabled={saving} style={{ background: 'var(--text)', borderColor: 'var(--text)' }}>
+          {saving ? (lang === 'de' ? 'Speichern...' : 'Saving...') : (lang === 'de' ? '🌙 Tag abschließen' : '🌙 Close out today')}
         </button>
         <div style={{ height: 8 }} />
       </div>
