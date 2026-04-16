@@ -58,7 +58,7 @@ function fileToBase64(file) {
     const url = URL.createObjectURL(file)
     img.onload = () => {
       // Resize to max 1024px and compress to jpeg 0.85
-      const MAX = 1024
+      const MAX = 800
       let w = img.width, h = img.height
       if (w > MAX || h > MAX) {
         if (w > h) { h = Math.round(h * MAX / w); w = MAX }
@@ -68,7 +68,7 @@ function fileToBase64(file) {
       canvas.width = w; canvas.height = h
       canvas.getContext('2d').drawImage(img, 0, 0, w, h)
       URL.revokeObjectURL(url)
-      const dataUrl = canvas.toDataURL('image/jpeg', 0.85)
+      const dataUrl = canvas.toDataURL('image/jpeg', 0.75)
       resolve(dataUrl.split(',')[1])
     }
     img.onerror = reject

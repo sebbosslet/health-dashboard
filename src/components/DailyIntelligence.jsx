@@ -152,17 +152,18 @@ function MorningCheckin({ log, onSave, lang, yesterdayLog }) {
     <div style={{ padding: '12px 14px', display: 'flex', flexDirection: 'column', gap: 14 }}>
 
       {/* Yesterday evening context */}
-      {yesterdayLog && (yesterdayLog.phone_away_time || yesterdayLog.wind_down || yesterdayLog.habits?.length) && (
+      {!!yesterdayLog && !!(yesterdayLog.phone_away_time || yesterdayLog.wind_down || (yesterdayLog.habits?.length > 0)) && (
         <div style={{ background: 'var(--surface2)', borderRadius: 8, padding: '8px 12px', fontSize: 11, color: 'var(--text2)', lineHeight: 1.6 }}>
           <span style={{ fontWeight: 600, color: 'var(--text)' }}>
-            {lang === 'de' ? 'Gestern Abend' : 'Last evening'} ·
-          </span>{' '}
-          {[
-            yesterdayLog.phone_away_time && `📵 ${yesterdayLog.phone_away_time.slice(0,5)}`,
-            yesterdayLog.bed_time && `🛏 ${yesterdayLog.bed_time.slice(0,5)}`,
-            yesterdayLog.wind_down && `${yesterdayLog.wind_down === 'good' ? '😌' : yesterdayLog.wind_down === 'ok' ? '😐' : '😣'} ${yesterdayLog.wind_down}`,
-            yesterdayLog.habits?.length > 0 && `${yesterdayLog.habits.length} ${lang === 'de' ? 'Gewohnheiten' : 'habits'}`,
-          ].filter(Boolean).join(' · ')}
+            {lang === 'de' ? 'Gestern Abend' : 'Last evening'}
+          </span>
+          {' · '}
+          <span>{[
+            yesterdayLog.phone_away_time ? `📵 ${yesterdayLog.phone_away_time.slice(0,5)}` : null,
+            yesterdayLog.bed_time ? `🛏 ${yesterdayLog.bed_time.slice(0,5)}` : null,
+            yesterdayLog.wind_down ? `${yesterdayLog.wind_down === 'good' ? '😌' : yesterdayLog.wind_down === 'ok' ? '😐' : '😣'} ${yesterdayLog.wind_down}` : null,
+            yesterdayLog.habits?.length > 0 ? `${yesterdayLog.habits.length} ${lang === 'de' ? 'Gewohnheiten' : 'habits'}` : null,
+          ].filter(Boolean).join(' · ')}</span>
         </div>
       )}
 

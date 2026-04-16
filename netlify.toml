@@ -10,3 +10,9 @@
 
 [build.environment]
   NODE_VERSION = "22"
+
+[functions]
+  node_bundler = "esbuild"
+
+[functions."claude-proxy"]
+  node_bundler = "esbuild"
