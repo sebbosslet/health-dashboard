@@ -20,7 +20,7 @@ async function generateRecipeFromPrompt(prompt, lang) {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
-      model: 'claude-sonnet-4-5-20251001',
+      model: 'claude-sonnet-4-5-20250929',
       max_tokens: 1500,
       messages: [
         { role: 'user', content: `${systemPrompt}\n\n${userPrompt}` }
@@ -42,7 +42,7 @@ async function analyseMealPrepIngredients(description, lang) {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
-      model: 'claude-sonnet-4-5-20251001',
+      model: 'claude-sonnet-4-5-20250929',
       max_tokens: 500,
       messages: [{ role: 'user', content: prompt }]
     })
@@ -62,7 +62,7 @@ async function analysePortionPhoto(base64Image, mimeType, totalCalories, portion
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
-      model: 'claude-sonnet-4-5-20251001',
+      model: 'claude-sonnet-4-5-20250929',
       max_tokens: 300,
       messages: [{
         role: 'user',
@@ -433,7 +433,7 @@ function MealPrepTab({ session, lang }) {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          model: 'claude-sonnet-4-5-20251001',
+          model: 'claude-sonnet-4-5-20250929',
           max_tokens: 300,
           messages: [{
             role: 'user',

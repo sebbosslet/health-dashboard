@@ -113,7 +113,7 @@ Write 3-5 direct sentences. Concretely connect what happened yesterday evening w
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
-      model: 'claude-sonnet-4-5-20251001',
+      model: 'claude-sonnet-4-5-20250929',
       max_tokens: 400,
       messages: [{ role: 'user', content: prompt }]
     })
