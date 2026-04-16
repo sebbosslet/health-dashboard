@@ -99,8 +99,8 @@ function LogRow({ item, log, onToggle, onSaveTime, type, lang }) {
 
 function AddFromMaster({ type, userId, date, allItems, loggedIds, onAdded, onCancel, lang }) {
   const isMed = type === 'medication'
-  // Show: non-daily items not yet logged today (active daily items are already in main list)
-  const available = allItems.filter(i => !i.active && !loggedIds.has(i.id))
+  // Picker shows all items not yet logged today (both active and inactive)
+  const available = allItems.filter(i => !loggedIds.has(i.id))
   const [selectedId, setSelectedId] = useState(null)
   const [takenTime, setTakenTime] = useState(format(new Date(), 'HH:mm'))
   const [saving, setSaving] = useState(false)
@@ -111,11 +111,18 @@ function AddFromMaster({ type, userId, date, allItems, loggedIds, onAdded, onCan
   async function handleAdd() {
     if (!selectedId) return
     setSaving(true)
-    const { error } = await supabase.from(logTable).insert({
+    // Use upsert in case a row already exists for this item+date
+    const { error } = await supabase.from(logTable).upsert({
       user_id: userId, date, [idField]: selectedId,
       taken: true, taken_time: takenTime || null,
-    })
-    if (error) console.error('Log error:', error)
+    }, { onConflict: `${idField},date` })
+    if (error) {
+      console.error('Log error:', error)
+      // Fallback: try update if insert fails
+      await supabase.from(logTable)
+        .update({ taken: true, taken_time: takenTime || null })
+        .eq('user_id', userId).eq('date', date).eq(idField, selectedId)
+    }
     setSaving(false)
     onAdded()
     showToast(lang === 'de' ? 'Geloggt' : 'Logged')
@@ -222,6 +229,7 @@ function Container({ type, userId, date, lang }) {
   }
 
   // Items to show: daily items + any non-daily items that were manually logged today
+  // Items to show: active (daily) items + any non-active items logged today
   const manuallyLogged = allItems.filter(i => !i.active && logs[i.id])
   const displayItems = [...dailyItems, ...manuallyLogged]
   const takenCount = displayItems.filter(i => logs[i.id]?.taken).length
