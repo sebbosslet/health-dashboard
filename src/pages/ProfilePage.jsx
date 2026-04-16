@@ -6,6 +6,7 @@ import { Toast } from '../components/Toast'
 import { useLang } from '../lib/LangContext'
 import LangToggle from '../components/LangToggle'
 import { format } from 'date-fns'
+import MedSupManager from '../components/MedSupManager'
 
 const WHOOP_CLIENT_ID = import.meta.env.VITE_WHOOP_CLIENT_ID || '21c05d0f-32b9-4aeb-94c9-3baf5349cb59'
 const REDIRECT_URI = 'https://sebs.health/whoop-callback'
@@ -30,7 +31,8 @@ export default function ProfilePage({ session, whoopCode, whoopError }) {
   const [savingSettings, setSavingSettings] = useState(false)
   const [medications, setMedications] = useState([])
   const [supplements, setSupplements] = useState([])
-  const [editingItem, setEditingItem] = useState(null) // { type, item }
+  const [editingItem, setEditingItem] = useState(null)
+  const [profileTab, setProfileTab] = useState('settings') // { type, item }
 
   useEffect(() => { checkWhoopStatus(); loadShortcutToken(); loadMedSup() }, [session.user.id])
 
@@ -75,18 +77,6 @@ export default function ProfilePage({ session, whoopCode, whoopError }) {
     setSupplements(supps || [])
   }
 
-  async function toggleActive(type, id, current) {
-    const table = type === 'medication' ? 'medications' : 'supplements'
-    await supabase.from(table).update({ active: !current }).eq('id', id)
-    loadMedSup()
-  }
-
-  async function deleteItem(type, id) {
-    const table = type === 'medication' ? 'medications' : 'supplements'
-    await supabase.from(table).delete().eq('id', id)
-    loadMedSup()
-    showToast(lang === 'de' ? 'Gelöscht' : 'Deleted')
-  }
 
   function connectWhoop() {
     const params = new URLSearchParams({
@@ -185,7 +175,25 @@ export default function ProfilePage({ session, whoopCode, whoopError }) {
         </div>
       </div>
 
+      {/* Profile sub-tabs */}
+      <div style={{ display: 'flex', borderBottom: '0.5px solid var(--border)', background: 'var(--surface)' }}>
+        {[
+          { key: 'settings', label: lang === 'de' ? '⚙️ Einstellungen' : '⚙️ Settings' },
+          { key: 'meds', label: lang === 'de' ? '💊 Medikamente' : '💊 Meds & Supps' },
+        ].map(tab => (
+          <button key={tab.key} onClick={() => setProfileTab(tab.key)} style={{
+            flex: 1, padding: '10px 4px', background: 'none', border: 'none',
+            borderBottom: `2px solid ${profileTab === tab.key ? 'var(--green)' : 'transparent'}`,
+            color: profileTab === tab.key ? 'var(--green)' : 'var(--text2)',
+            fontSize: 12, fontWeight: profileTab === tab.key ? 700 : 400,
+            cursor: 'pointer', fontFamily: 'inherit',
+          }}>{tab.label}</button>
+        ))}
+      </div>
+
       <div className="page-section">
+
+        {profileTab === 'settings' && (<>
 
         {/* Language toggle */}
         <div className="card">
@@ -294,59 +302,22 @@ export default function ProfilePage({ session, whoopCode, whoopError }) {
           </div>
         </div>
 
-        {/* Medications management */}
-        {[{ type: 'medication', label: lang === 'de' ? '💊 Medikamente' : '💊 Medications', items: medications },
-          { type: 'supplement', label: lang === 'de' ? '🧴 Supplemente' : '🧴 Supplements', items: supplements }
-        ].map(({ type, label, items }) => (
-          <div className="card" key={type}>
-            <div className="card-header">
-              <span className="card-title">{label}</span>
-              <span style={{ fontSize: 11, color: 'var(--text3)' }}>{items.filter(i => i.active).length} {lang === 'de' ? 'aktiv' : 'active'}</span>
-            </div>
-            {items.length === 0 ? (
-              <div style={{ padding: '12px 14px', fontSize: 12, color: 'var(--text3)' }}>
-                {lang === 'de' ? 'Noch keine hinzugefügt — füge sie im Heute-Tab hinzu.' : 'None added yet — add them from the Today tab.'}
-              </div>
-            ) : (
-              items.map(item => (
-                <div key={item.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px', borderBottom: '0.5px solid var(--border)' }}>
-                  {/* Active toggle */}
-                  <button onClick={() => toggleActive(type, item.id, item.active)} style={{
-                    width: 24, height: 24, borderRadius: 6, flexShrink: 0,
-                    border: `1.5px solid ${item.active ? 'var(--green)' : 'var(--border)'}`,
-                    background: item.active ? 'var(--green)' : 'var(--surface2)',
-                    display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', padding: 0,
-                  }}>
-                    {item.active && <svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M2 6l3 3 5-5" stroke="white" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"/></svg>}
-                  </button>
-                  {/* Details */}
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                      <span style={{ fontSize: 13, fontWeight: 600, color: item.active ? 'var(--text)' : 'var(--text3)' }}>{item.name}</span>
-                      {item.dose && <span style={{ fontSize: 11, color: 'var(--text3)', background: 'var(--surface2)', padding: '1px 6px', borderRadius: 10 }}>{item.dose}</span>}
-                      {!item.active && <span style={{ fontSize: 10, color: 'var(--text3)' }}>{lang === 'de' ? 'inaktiv' : 'inactive'}</span>}
-                    </div>
-                    {(item.scheduled_time || item.instructions || item.with_food) && (
-                      <div style={{ fontSize: 11, color: 'var(--text3)', marginTop: 1 }}>
-                        {[
-                          item.scheduled_time && `⏰ ${item.scheduled_time.slice(0,5)}`,
-                          item.instructions,
-                          item.with_food && (lang === 'de' ? '🍽 mit Essen' : '🍽 with food'),
-                        ].filter(Boolean).join(' · ')}
-                      </div>
-                    )}
-                  </div>
-                  {/* Delete */}
-                  <button onClick={() => deleteItem(type, item.id)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text3)', fontSize: 16, padding: '0 2px', lineHeight: 1 }}>×</button>
-                </div>
-              ))
-            )}
-          </div>
-        ))}
-
         <button onClick={() => supabase.auth.signOut()} style={{ padding: '12px', borderRadius: 10, background: 'none', border: '0.5px solid var(--border)', color: 'var(--text2)', fontSize: 14, cursor: 'pointer', fontFamily: 'inherit', width: '100%' }}>
           {t('profile_sign_out')}
         </button>
+
+        </>)}
+
+        {profileTab === 'meds' && (
+          <MedSupManager
+            userId={session.user.id}
+            medications={medications}
+            supplements={supplements}
+            onReload={loadMedSup}
+            lang={lang}
+          />
+        )}
+
         <div style={{ height: 8 }} />
       </div>
 

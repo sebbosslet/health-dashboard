@@ -62,3 +62,6 @@ create table if not exists supplement_logs (
 
 alter table supplement_logs enable row level security;
 create policy "Users own their supplement logs" on supplement_logs for all using (auth.uid() = user_id);
+
+-- Add fasted_flag to medications (separate from per-log fasted tracking)
+alter table medications add column if not exists fasted_flag boolean default false;

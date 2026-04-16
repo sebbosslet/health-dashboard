@@ -334,27 +334,11 @@ function TrackingContainer({ type, userId, date, lang }) {
         ))
       )}
 
-      {showAdd ? (
-        <AddForm
-          type={type}
-          userId={userId}
-          lang={lang}
-          onSaved={() => { setShowAdd(false); fetchAll() }}
-          onCancel={() => setShowAdd(false)}
-        />
-      ) : (
-        <button onClick={() => setShowAdd(true)} style={{
-          width: '100%', padding: '10px 14px', background: 'none', border: 'none',
-          borderTop: items.length > 0 ? '0.5px solid var(--border)' : 'none',
-          color: 'var(--green)', fontSize: 12, fontWeight: 600, cursor: 'pointer',
-          fontFamily: 'inherit', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6
-        }}>
-          <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M7 2v10M2 7h10" stroke="var(--green)" strokeWidth="1.5" strokeLinecap="round"/></svg>
-          {isMed
-            ? (lang === 'de' ? 'Medikament hinzufügen' : 'Add medication')
-            : (lang === 'de' ? 'Supplement hinzufügen' : 'Add supplement')}
-        </button>
-      )}
+      <div style={{ padding: '8px 14px', borderTop: items.length > 0 ? '0.5px solid var(--border)' : 'none' }}>
+        <div style={{ fontSize: 11, color: 'var(--text3)', textAlign: 'center' }}>
+          {lang === 'de' ? '→ Medikamente in Profil verwalten' : '→ Manage in Profile tab'}
+        </div>
+      </div>
     </div>
   )
 }
