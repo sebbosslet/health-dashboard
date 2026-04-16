@@ -5,7 +5,11 @@ import { format } from 'date-fns'
 
 const MEAL_TYPES = ['breakfast', 'lunch', 'dinner', 'snack']
 
-async function estimateCaloriesFromPhoto(base64Image, mimeType) {
+async function estimateCaloriesFromPhoto(base64Image, mimeType, description = null) {
+  const extraContext = description
+    ? `\n\nThe user has provided additional context: "${description}". Use this to improve your estimate — it may correct portion sizes, cooking methods, or ingredients you couldn't see clearly.`
+    : ''
+
   const response = await fetch('/.netlify/functions/claude-proxy', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -99,6 +103,9 @@ export default function MealLogger({ session, date, onCaloriesUpdated }) {
   const [error, setError] = useState(null)
   const [consumedAt, setConsumedAt] = useState(format(new Date(), 'HH:mm'))
   const [isCaffeinated, setIsCaffeinated] = useState(false)
+  const [showReassess, setShowReassess] = useState(false)
+  const [reassessText, setReassessText] = useState('')
+  const [reassessing, setReassessing] = useState(false)
 
   const dateStr = format(date || new Date(), 'yyyy-MM-dd')
 
@@ -178,6 +185,25 @@ export default function MealLogger({ session, date, onCaloriesUpdated }) {
     setIsCaffeinated(false)
     URL.revokeObjectURL(preview.objectUrl)
     fetchMeals()
+  }
+
+  async function handleReassess() {
+    if (!preview || !reassessText.trim()) return
+    setReassessing(true)
+    try {
+      const result = await estimateCaloriesFromPhoto(preview.base64, preview.mimeType, reassessText.trim())
+      if (!result.error) {
+        setPreview(p => ({ ...p, result }))
+        setEditingCalories(null)
+        setShowReassess(false)
+        setReassessText('')
+        const hasCaffeine = /coffee|espresso|cappuccino|latte|americano|flat white|cold brew|matcha|green tea|black tea|oolong|chai|earl grey|tea|coca.?cola|coke|pepsi|diet coke|red bull|monster|rockstar|energy drink|pre.?workout|preworkout|bang|celsius|ghost energy|prime energy|yerba mate|guarana|mountain dew|dr pepper/i.test(result.meal_name)
+        setIsCaffeinated(hasCaffeine)
+      }
+    } catch (e) {
+      console.error(e)
+    }
+    setReassessing(false)
   }
 
   async function saveManual() {
@@ -271,12 +297,41 @@ export default function MealLogger({ session, date, onCaloriesUpdated }) {
             <div style={{ flex: 1 }}>
               <div style={{ fontSize: 14, fontWeight: 700 }}>{preview.result.meal_name}</div>
               <div style={{ fontSize: 11, color: 'var(--text2)', marginTop: 3, lineHeight: 1.4 }}>{preview.result.notes}</div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 5, marginTop: 5 }}>
-                <div style={{ width: 6, height: 6, borderRadius: '50%', background: CONFIDENCE_COLORS[preview.result.confidence] }} />
-                <span style={{ fontSize: 10, color: CONFIDENCE_COLORS[preview.result.confidence] }}>{confidenceLabel(preview.result.confidence)}</span>
-              </div>
+              {/* Reassess button */}
+              {!showReassess && (
+                <button onClick={() => setShowReassess(true)} style={{ marginTop: 6, fontSize: 11, color: 'var(--amber)', background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'inherit', padding: 0, textAlign: 'left' }}>
+                  ✏️ {lang === 'de' ? 'Beschreibung hinzufügen für bessere Schätzung' : 'Describe this meal for a better estimate'}
+                </button>
+              )}
             </div>
           </div>
+
+          {/* Reassess form */}
+          {showReassess && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8, padding: '10px 12px', background: 'rgba(186,117,23,0.07)', borderRadius: 10, border: '0.5px solid rgba(186,117,23,0.3)' }}>
+              <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--amber)' }}>
+                ✏️ {lang === 'de' ? 'Beschreibe die Mahlzeit genauer' : 'Describe the meal for a better estimate'}
+              </div>
+              <div style={{ fontSize: 11, color: 'var(--text2)' }}>
+                {lang === 'de' ? 'z.B. "2 große Portionen Pasta, ca. 150g Lachs, viel Öl beim Kochen"' : 'e.g. "2 large portions pasta, ~150g salmon, lots of oil used cooking"'}
+              </div>
+              <input
+                className="field-input"
+                value={reassessText}
+                onChange={e => setReassessText(e.target.value)}
+                placeholder={lang === 'de' ? 'Zutaten, Portionsgrößen, Zubereitungsart...' : 'Ingredients, portion sizes, cooking method...'}
+                autoFocus
+              />
+              <div style={{ display: 'flex', gap: 8 }}>
+                <button onClick={() => { setShowReassess(false); setReassessText('') }} className="btn-secondary" style={{ flex: 1 }}>
+                  {lang === 'de' ? 'Abbrechen' : 'Cancel'}
+                </button>
+                <button onClick={handleReassess} disabled={!reassessText.trim() || reassessing} className="btn-primary" style={{ flex: 2 }}>
+                  {reassessing ? (lang === 'de' ? 'Analysiere...' : 'Re-analysing...') : (lang === 'de' ? '↺ Neu schätzen' : '↺ Re-estimate')}
+                </button>
+              </div>
+            </div>
+          )}
 
           {/* Macro grid */}
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 6 }}>
