@@ -6,12 +6,16 @@ import { showToast } from './Toast'
 
 // ─── Claude vision analysis ───────────────────────────────────────────────────
 
-async function analyseSleepHRScreenshot(base64, mimeType, dateStr, contextLog, recentAnalyses, lang) {
+async function analyseSleepHRScreenshot(base64, mimeType, dateStr, contextLog, recentAnalyses, lang, caffeineMeals = []) {
   const historyContext = recentAnalyses.length >= 3
     ? `PREVIOUS NIGHTS FOR COMPARISON:\n` + recentAnalyses.slice(0, 7).map(a =>
         `- ${a.date}: baseline ${a.hr_baseline}bpm, ${a.spike_count} spikes, stability ${a.stability_score}/10, Y-axis ${a.axis_min}-${a.axis_max}bpm, dinner: ${a.dinner_time || 'unknown'}, AC: ${a.ac_temp || 'unknown'}`
       ).join('\n')
     : 'No previous nights to compare yet — this is the first upload.'
+
+  const caffeineContext = caffeineMeals.length
+    ? `\n- Caffeine consumed: ${caffeineMeals.map(m => `${m.meal_name}${m.consumed_at ? ` at ${m.consumed_at.slice(0,5)} (half-life ~${String((parseInt(m.consumed_at.split(':')[0])+5)%24).padStart(2,'0')}:${m.consumed_at.slice(3,5)})` : ' (time unknown)'}`).join(', ')}`
+    : '\n- Caffeine: none logged'
 
   const dayContext = contextLog ? `
 DAY CONTEXT FOR ${dateStr}:
@@ -20,10 +24,10 @@ DAY CONTEXT FOR ${dateStr}:
 - Phone away: ${contextLog.phone_away_time?.slice(0,5) || 'unknown'}
 - Bed time: ${contextLog.bed_time?.slice(0,5) || 'unknown'}
 - Dinner time: ${contextLog.dinner_time || 'not logged'}
-- AC temperature: ${contextLog.ac_temp ? contextLog.ac_temp + '°C' : 'not logged'}
+- AC temperature: ${contextLog.ac_temp ? contextLog.ac_temp + '°F' : 'not logged'}
 - Wind-down: ${contextLog.wind_down || 'not logged'}
 - Calories: ${contextLog.calories || 'unknown'}
-- Evening note: ${contextLog.evening_note || 'none'}` : ''
+- Evening note: ${contextLog.evening_note || 'none'}${caffeineContext}` : `No day context logged.${caffeineContext}`
 
   const prompt = `You are a sleep medicine expert analysing a WHOOP heart rate screenshot from sleep on ${dateStr}.
 
@@ -392,13 +396,14 @@ export default function SleepHRAnalysis({ session }) {
       const base64 = await fileToBase64(file)
       const mimeType = file.type || 'image/jpeg'
 
-      // Fetch context for the selected date
-      const [{ data: contextLog }, { data: recent }] = await Promise.all([
+      // Fetch context for the selected date including caffeinated meals
+      const [{ data: contextLog }, { data: recent }, { data: caffeineMeals }] = await Promise.all([
         supabase.from('daily_logs').select('*').eq('user_id', session.user.id).eq('date', selectedDate).maybeSingle(),
         supabase.from('sleep_hr_analysis').select('*').eq('user_id', session.user.id).order('date', { ascending: false }).limit(7),
+        supabase.from('meal_logs').select('meal_name,consumed_at').eq('user_id', session.user.id).eq('date', selectedDate).eq('is_caffeinated', true),
       ])
 
-      const result = await analyseSleepHRScreenshot(base64, mimeType, selectedDate, contextLog, recent || [], lang)
+      const result = await analyseSleepHRScreenshot(base64, mimeType, selectedDate, contextLog, recent || [], lang, caffeineMeals || [])
 
       // Upload screenshot to storage
       const path = `${session.user.id}/sleep-hr/${selectedDate}.jpg`

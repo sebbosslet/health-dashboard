@@ -6,7 +6,7 @@ import { showToast } from './Toast'
 
 // ─── AI Analysis Engine ───────────────────────────────────────────────────────
 
-async function generateDailyInsight(todayLog, yesterdayLog, historicalLogs, lang, yesterdayEvents, todayEvents, travelState) {
+async function generateDailyInsight(todayLog, yesterdayLog, historicalLogs, lang, yesterdayEvents, todayEvents, travelState, caffeineMeals = []) {
   // Pattern analysis from historical data
   const phoneDelays = historicalLogs
     .filter(l => l.phone_away_time && l.sleep_efficiency)
@@ -54,6 +54,10 @@ SEBASTIAN'S PERSONAL PATTERNS (${historicalLogs.length} days of data):
 `
 
   const yesterdayDate = yesterdayLog ? format(new Date(yesterdayLog.date), 'd MMM') : 'yesterday'
+  const caffeineContext = caffeineMeals.length
+    ? `\n- Caffeine: ${caffeineMeals.map(m => `${m.meal_name}${m.consumed_at ? ` at ${m.consumed_at.slice(0,5)} (50% cleared ~${String((parseInt(m.consumed_at.split(':')[0])+5)%24).padStart(2,'0')}:${m.consumed_at.slice(3,5)})` : ''}`).join(', ')}`
+    : '\n- Caffeine: none logged'
+
   const eventsContext = yesterdayEvents?.length
     ? `\n- Special events yesterday: ${yesterdayEvents.map(e => e.label).join(', ')}`
     : ''
@@ -78,7 +82,7 @@ EVENING OF ${yesterdayDate} (what happened before this sleep):
 - Dinner time: ${yesterdayLog.dinner_time?.slice(0,5) || 'not logged'}
 - AC temperature: ${yesterdayLog.ac_temp ? yesterdayLog.ac_temp + '°F' : 'not logged'}
 - Calories: ${yesterdayLog.calories ? yesterdayLog.calories + ' kcal' : 'not logged'}
-- Evening note: ${yesterdayLog.evening_note || 'none'}${eventsContext}${travelContext}
+- Evening note: ${yesterdayLog.evening_note || 'none'}${eventsContext}${caffeineContext}${travelContext}
 ` : 'No evening log for yesterday'
 
   const todayContext = `
@@ -325,14 +329,15 @@ function InsightCard({ log, userId, lang }) {
       const yesterday = format(subDays(new Date(), 1), 'yyyy-MM-dd')
       const thirtyDaysAgo = format(subDays(new Date(), 30), 'yyyy-MM-dd')
 
-      const [{ data: yesterdayLog }, { data: history }, { data: yesterdayEvents }, { data: travelState }] = await Promise.all([
+      const [{ data: yesterdayLog }, { data: history }, { data: yesterdayEvents }, { data: travelState }, { data: caffeineMeals }] = await Promise.all([
         supabase.from('daily_logs').select('*').eq('user_id', userId).eq('date', yesterday).maybeSingle(),
         supabase.from('daily_logs').select('*').eq('user_id', userId).gte('date', thirtyDaysAgo).lt('date', today).order('date', { ascending: true }),
         supabase.from('daily_events').select('*').eq('user_id', userId).eq('date', yesterday),
         supabase.from('travel_state').select('*').eq('user_id', userId).eq('active', true).maybeSingle(),
+        supabase.from('meal_logs').select('meal_name,consumed_at').eq('user_id', userId).eq('date', yesterday).eq('is_caffeinated', true),
       ])
 
-      const text = await generateDailyInsight(log, yesterdayLog, history || [], lang, yesterdayEvents || [], [], travelState)
+      const text = await generateDailyInsight(log, yesterdayLog, history || [], lang, yesterdayEvents || [], [], travelState, caffeineMeals || [])
       setInsight(text)
 
       await supabase.from('daily_logs').upsert({

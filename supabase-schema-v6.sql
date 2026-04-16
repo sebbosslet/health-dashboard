@@ -14,3 +14,7 @@ alter table daily_logs add column if not exists ai_insight_date date; -- when in
 
 -- Add briefing column (run this if not already done)
 alter table daily_logs add column if not exists ai_briefing text;
+
+-- Add caffeine tracking to meal_logs
+alter table meal_logs add column if not exists consumed_at time;
+alter table meal_logs add column if not exists is_caffeinated boolean default false;

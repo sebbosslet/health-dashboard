@@ -97,6 +97,8 @@ export default function MealLogger({ session, date, onCaloriesUpdated }) {
   const [manualCarbs, setManualCarbs] = useState('')
   const [manualFat, setManualFat] = useState('')
   const [error, setError] = useState(null)
+  const [consumedAt, setConsumedAt] = useState(format(new Date(), 'HH:mm'))
+  const [isCaffeinated, setIsCaffeinated] = useState(false)
 
   const dateStr = format(date || new Date(), 'yyyy-MM-dd')
 
@@ -139,6 +141,11 @@ export default function MealLogger({ session, date, onCaloriesUpdated }) {
       }
 
       setPreview({ objectUrl, result, mimeType })
+
+      // Auto-detect caffeine in meal name
+      const hasCaffeine = /coffee|espresso|cappuccino|latte|americano|cold brew|matcha|tea|energy drink/i.test(result.meal_name)
+      setIsCaffeinated(hasCaffeine)
+      setConsumedAt(format(new Date(), 'HH:mm'))
     } catch (err) {
       setError(lang === 'de' ? 'Analyse fehlgeschlagen. Bitte erneut versuchen.' : 'Analysis failed. Please try again.')
       console.error(err)
@@ -162,16 +169,20 @@ export default function MealLogger({ session, date, onCaloriesUpdated }) {
       carbs: result.carbs,
       fat: result.fat,
       source: 'ai_photo',
+      consumed_at: consumedAt || null,
+      is_caffeinated: isCaffeinated,
     })
 
     setPreview(null)
     setEditingCalories(null)
+    setIsCaffeinated(false)
     URL.revokeObjectURL(preview.objectUrl)
     fetchMeals()
   }
 
   async function saveManual() {
     if (!manualName || !manualCals) return
+    const hasCaffeine = /coffee|espresso|cappuccino|latte|americano|cold brew|matcha|tea|energy drink/i.test(manualName)
     await supabase.from('meal_logs').insert({
       user_id: session.user.id,
       date: dateStr,
@@ -182,6 +193,8 @@ export default function MealLogger({ session, date, onCaloriesUpdated }) {
       carbs: manualCarbs ? parseFloat(manualCarbs) : null,
       fat: manualFat ? parseFloat(manualFat) : null,
       source: 'manual',
+      consumed_at: consumedAt || null,
+      is_caffeinated: hasCaffeine,
     })
     setShowManual(false)
     setManualName('')
@@ -303,6 +316,34 @@ export default function MealLogger({ session, date, onCaloriesUpdated }) {
             </div>
           </div>
 
+          {/* Caffeine detection — show time picker if coffee detected */}
+          {isCaffeinated && (
+            <div style={{ background: 'rgba(186,117,23,0.08)', border: '0.5px solid rgba(186,117,23,0.3)', borderRadius: 10, padding: '10px 12px', display: 'flex', flexDirection: 'column', gap: 8 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                <span style={{ fontSize: 15 }}>☕</span>
+                <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--amber)' }}>
+                  {lang === 'de' ? 'Koffein erkannt — wann hast du das getrunken?' : 'Caffeine detected — what time did you have this?'}
+                </span>
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <input className="field-input" type="time" value={consumedAt} onChange={e => setConsumedAt(e.target.value)} style={{ flex: 1 }} />
+                <span style={{ fontSize: 11, color: 'var(--text2)', flex: 2, lineHeight: 1.4 }}>
+                  {consumedAt && (() => {
+                    const [h, m] = consumedAt.split(':').map(Number)
+                    const halfLifeH = h + 5
+                    const displayH = halfLifeH >= 24 ? halfLifeH - 24 : halfLifeH
+                    return lang === 'de'
+                      ? `Halbwertszeit ~${displayH}:${String(m).padStart(2,'0')} Uhr — kann Schlaf beeinflussen`
+                      : `Half-life ~${displayH}:${String(m).padStart(2,'0')} — may affect sleep`
+                  })()}
+                </span>
+              </div>
+              <button onClick={() => setIsCaffeinated(false)} style={{ alignSelf: 'flex-start', fontSize: 10, color: 'var(--text3)', background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'inherit', padding: 0 }}>
+                {lang === 'de' ? 'Kein Koffein' : 'Not caffeinated'}
+              </button>
+            </div>
+          )}
+
           <div style={{ display: 'flex', gap: 8 }}>
             <button onClick={() => { setPreview(null); setEditingCalories(null) }} style={{ flex: 1, padding: '10px', borderRadius: 8, background: 'var(--surface2)', border: '0.5px solid var(--border)', color: 'var(--text2)', fontSize: 13, cursor: 'pointer', fontFamily: 'inherit' }}>
               {lang === 'de' ? 'Abbrechen' : 'Cancel'}
@@ -347,6 +388,26 @@ export default function MealLogger({ session, date, onCaloriesUpdated }) {
               </button>
             ))}
           </div>
+
+          {/* Show caffeine time if name contains coffee keywords */}
+          {/coffee|espresso|cappuccino|latte|americano|cold brew|matcha|tea|energy drink/i.test(manualName) && (
+            <div style={{ background: 'rgba(186,117,23,0.08)', border: '0.5px solid rgba(186,117,23,0.3)', borderRadius: 10, padding: '10px 12px', display: 'flex', gap: 10, alignItems: 'center' }}>
+              <span style={{ fontSize: 15 }}>☕</span>
+              <div className="field" style={{ flex: 1 }}>
+                <label className="field-label">{lang === 'de' ? 'Uhrzeit (Koffein)' : 'Time consumed'}</label>
+                <input className="field-input" type="time" value={consumedAt} onChange={e => setConsumedAt(e.target.value)} />
+              </div>
+              {consumedAt && (
+                <div style={{ fontSize: 10, color: 'var(--amber)', lineHeight: 1.4, flex: 1 }}>
+                  {(() => {
+                    const [h, m] = consumedAt.split(':').map(Number)
+                    const hh = (h + 5) % 24
+                    return `½ life ~${hh}:${String(m).padStart(2,'0')}`
+                  })()}
+                </div>
+              )}
+            </div>
+          )}
           <div style={{ display: 'flex', gap: 8 }}>
             <button onClick={() => setShowManual(false)} style={{ flex: 1, padding: '10px', borderRadius: 8, background: 'var(--surface2)', border: '0.5px solid var(--border)', color: 'var(--text2)', fontSize: 13, cursor: 'pointer', fontFamily: 'inherit' }}>
               {lang === 'de' ? 'Abbrechen' : 'Cancel'}
