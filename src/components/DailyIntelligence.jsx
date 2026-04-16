@@ -203,7 +203,6 @@ Sleep onset is typically 22:xx-23:xx or 00:xx-02:xx. Wake time is typically 06:x
         recommendation: result.recommendation || null,
       }
       const { error: hrError } = await supabase.from('sleep_hr_analysis').upsert(hrPayload, { onConflict: 'user_id,date' })
-      console.log('[WHOOP upsert] date:', date, 'error:', hrError?.message, 'analysis:', result.analysis?.slice(0,50))
 
       // Save bed_time to daily_logs
       if (result.sleep_onset) {
@@ -491,7 +490,6 @@ function WhoopTab({ log, yesterdayLog, session, lang, onRefresh }) {
       .select('*').eq('user_id', session.user.id)
       .gte('date', yesterday).order('date', { ascending: false }).limit(3)
       .then(({ data, error }) => {
-        console.log('[HR] rows:', data, 'error:', error)
         setHrAnalysis(data?.[0] || null)
       })
   }
