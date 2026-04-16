@@ -489,16 +489,28 @@ export default function DailyIntelligence({ session, log, onSave, habitGoals, ac
       )}
 
       {!section && (
-        <div style={{ padding: '10px 14px 12px' }}>
-          <button onClick={() => setSection(defaultSection)} style={{
-            width: '100%', padding: '9px', borderRadius: 8,
-            background: 'var(--green-light)', border: 'none',
-            color: 'var(--green)', fontWeight: 600, fontSize: 12,
-            cursor: 'pointer', fontFamily: 'inherit'
+        <div style={{ padding: '10px 14px 12px', display: 'flex', gap: 8 }}>
+          <button onClick={() => setSection('morning')} style={{
+            flex: 1, padding: '9px', borderRadius: 8,
+            background: hasMorning ? 'var(--surface2)' : 'var(--green-light)',
+            border: `0.5px solid ${hasMorning ? 'var(--border)' : 'var(--green)'}`,
+            color: hasMorning ? 'var(--text2)' : 'var(--green)',
+            fontWeight: 600, fontSize: 12, cursor: 'pointer', fontFamily: 'inherit',
+            display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4,
           }}>
-            {defaultSection === 'morning'
-              ? (lang === 'de' ? '🌅 Morgen-Check-in starten' : '🌅 Start morning check-in')
-              : (lang === 'de' ? '🌙 Abend protokollieren' : '🌙 Log your evening')}
+            🌅 {lang === 'de' ? 'Morgen' : 'Morning'}
+            {hasMorning && <span style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--green)', flexShrink: 0 }} />}
+          </button>
+          <button onClick={() => setSection('evening')} style={{
+            flex: 1, padding: '9px', borderRadius: 8,
+            background: hasEvening ? 'var(--surface2)' : 'var(--green-light)',
+            border: `0.5px solid ${hasEvening ? 'var(--border)' : 'var(--green)'}`,
+            color: hasEvening ? 'var(--text2)' : 'var(--green)',
+            fontWeight: 600, fontSize: 12, cursor: 'pointer', fontFamily: 'inherit',
+            display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4,
+          }}>
+            🌙 {lang === 'de' ? 'Abend' : 'Evening'}
+            {hasEvening && <span style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--green)', flexShrink: 0 }} />}
           </button>
         </div>
       )}
