@@ -142,8 +142,8 @@ export default function MealLogger({ session, date, onCaloriesUpdated }) {
 
       setPreview({ objectUrl, result, mimeType })
 
-      // Auto-detect caffeine in meal name
-      const hasCaffeine = /coffee|espresso|cappuccino|latte|americano|cold brew|matcha|tea|energy drink/i.test(result.meal_name)
+      // Auto-detect caffeine (coffee, tea, soda, energy drinks)
+      const hasCaffeine = /coffee|espresso|cappuccino|latte|americano|flat white|cold brew|matcha|green tea|black tea|oolong|chai|earl grey|tea|coca.?cola|coke|pepsi|diet coke|red bull|monster|rockstar|energy drink|pre.?workout|preworkout|bang|celsius|ghost energy|prime energy|yerba mate|guarana|mountain dew|dr pepper/i.test(result.meal_name)
       setIsCaffeinated(hasCaffeine)
       setConsumedAt(format(new Date(), 'HH:mm'))
     } catch (err) {
@@ -182,7 +182,7 @@ export default function MealLogger({ session, date, onCaloriesUpdated }) {
 
   async function saveManual() {
     if (!manualName || !manualCals) return
-    const hasCaffeine = /coffee|espresso|cappuccino|latte|americano|cold brew|matcha|tea|energy drink/i.test(manualName)
+    const hasCaffeine = /coffee|espresso|cappuccino|latte|americano|flat white|cold brew|matcha|green tea|black tea|oolong|chai|earl grey|tea|coca.?cola|coke|pepsi|diet coke|red bull|monster|rockstar|energy drink|pre.?workout|preworkout|bang|celsius|ghost energy|prime energy|yerba mate|guarana|mountain dew|dr pepper/i.test(manualName)
     await supabase.from('meal_logs').insert({
       user_id: session.user.id,
       date: dateStr,
@@ -389,8 +389,8 @@ export default function MealLogger({ session, date, onCaloriesUpdated }) {
             ))}
           </div>
 
-          {/* Show caffeine time if name contains coffee keywords */}
-          {/coffee|espresso|cappuccino|latte|americano|cold brew|matcha|tea|energy drink/i.test(manualName) && (
+          {/* Show caffeine time if name contains caffeine */}
+          {/coffee|espresso|cappuccino|latte|americano|flat white|cold brew|matcha|green tea|black tea|oolong|chai|earl grey|tea|coca.?cola|coke|pepsi|diet coke|red bull|monster|rockstar|energy drink|pre.?workout|preworkout|bang|celsius|ghost energy|prime energy|yerba mate|guarana|mountain dew|dr pepper/i.test(manualName) && (
             <div style={{ background: 'rgba(186,117,23,0.08)', border: '0.5px solid rgba(186,117,23,0.3)', borderRadius: 10, padding: '10px 12px', display: 'flex', gap: 10, alignItems: 'center' }}>
               <span style={{ fontSize: 15 }}>☕</span>
               <div className="field" style={{ flex: 1 }}>
