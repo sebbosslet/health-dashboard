@@ -296,13 +296,11 @@ function EveningLog({ log, onSave, lang, habitGoals, activeHabits, onToggleHabit
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
         <div className="field">
           <label className="field-label">📵 {labels.phone}</label>
-          <input className="field-input" type="time" defaultValue={phoneAway} onChange={e => setPhoneAway(e.target.value)} />
-          {phoneAway && <div style={{ fontSize: 10, color: 'var(--green)', marginTop: 2 }}>✓ {phoneAway}</div>}
+          <input key={`phone-${phoneAway}`} className="field-input" type="time" defaultValue={phoneAway} onChange={e => setPhoneAway(e.target.value)} />
         </div>
         <div className="field">
           <label className="field-label">🍽 {labels.dinner}</label>
-          <input className="field-input" type="time" defaultValue={dinnerTime} onChange={e => setDinnerTime(e.target.value)} />
-          {dinnerTime && <div style={{ fontSize: 10, color: 'var(--green)', marginTop: 2 }}>✓ {dinnerTime}</div>}
+          <input key={`dinner-${dinnerTime}`} className="field-input" type="time" defaultValue={dinnerTime} onChange={e => setDinnerTime(e.target.value)} />
         </div>
         <div className="field">
           <label className="field-label">❄ {labels.ac}</label>
