@@ -39,7 +39,14 @@ function getEmoji(name) {
 export default function TodayPage({ session }) {
   const { t } = useLang()
   const today = new Date()
-  const { log, save } = useDailyLog(session.user.id, today)
+  const { log, save, refetch } = useDailyLog(session.user.id, today)
+
+  // Refetch when tab becomes visible (e.g. after Apple Health Shortcut runs)
+  useEffect(() => {
+    const onVisible = () => { if (document.visibilityState === 'visible') refetch() }
+    document.addEventListener('visibilitychange', onVisible)
+    return () => document.removeEventListener('visibilitychange', onVisible)
+  }, [refetch])
   const { settings } = useSettings(session.user.id)
   const [activityGoals, setActivityGoals] = useState([])
   const [habitGoals, setHabitGoals] = useState([])
