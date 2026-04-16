@@ -95,6 +95,8 @@ export default function MealLogger({ session, date, onCaloriesUpdated }) {
   const [mealType, setMealType] = useState('lunch')
   const [editingCalories, setEditingCalories] = useState(null)
   const [showManual, setShowManual] = useState(false)
+  const [describeText, setDescribeText] = useState('')
+  const [describeAnalysing, setDescribeAnalysing] = useState(false)
   const [manualName, setManualName] = useState('')
   const [manualCals, setManualCals] = useState('')
   const [manualProtein, setManualProtein] = useState('')
@@ -206,6 +208,49 @@ export default function MealLogger({ session, date, onCaloriesUpdated }) {
     setReassessing(false)
   }
 
+  async function handleDescribeEstimate() {
+    if (!describeText.trim()) return
+    setDescribeAnalysing(true)
+    try {
+      const res = await fetch('/.netlify/functions/claude-proxy', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          model: 'claude-sonnet-4-5-20250929',
+          max_tokens: 600,
+          messages: [{ role: 'user', content: `You are a nutrition estimator. The user has described a meal in text — there is no photo. Estimate the calories and macros based on the description alone.
+
+Meal description: "${describeText.trim()}"
+
+Respond ONLY with valid JSON, no markdown:
+{
+  "meal_name": "short name for this meal",
+  "calories": number,
+  "protein": number (grams),
+  "carbs": number (grams),
+  "fat": number (grams),
+  "confidence": "low" | "medium" | "high",
+  "notes": "one sentence about your estimate"
+}` }]
+        })
+      })
+      const data = await res.json()
+      const result = JSON.parse(data.content?.[0]?.text?.replace(/```json|```/g, '').trim() || '{}')
+      if (!result.error && result.calories) {
+        setPreview({ objectUrl: null, base64: null, mimeType: null, result })
+        setShowManual(false)
+        setDescribeText('')
+        setEditingCalories(null)
+        const hasCaffeine = /coffee|espresso|cappuccino|latte|americano|flat white|cold brew|matcha|green tea|black tea|oolong|chai|earl grey|tea|coca.?cola|coke|pepsi|diet coke|red bull|monster|rockstar|energy drink|pre.?workout|preworkout|bang|celsius|ghost energy|prime energy|yerba mate|guarana|mountain dew|dr pepper/i.test(result.meal_name + ' ' + describeText)
+        setIsCaffeinated(hasCaffeine)
+      }
+    } catch (e) {
+      console.error(e)
+      showToast(lang === 'de' ? 'Schätzung fehlgeschlagen' : 'Estimation failed')
+    }
+    setDescribeAnalysing(false)
+  }
+
   async function saveManual() {
     if (!manualName || !manualCals) return
     const hasCaffeine = /coffee|espresso|cappuccino|latte|americano|flat white|cold brew|matcha|green tea|black tea|oolong|chai|earl grey|tea|coca.?cola|coke|pepsi|diet coke|red bull|monster|rockstar|energy drink|pre.?workout|preworkout|bang|celsius|ghost energy|prime energy|yerba mate|guarana|mountain dew|dr pepper/i.test(manualName)
@@ -293,12 +338,14 @@ export default function MealLogger({ session, date, onCaloriesUpdated }) {
       {preview && (
         <div style={{ padding: '12px 14px', borderBottom: '0.5px solid var(--border)', display: 'flex', flexDirection: 'column', gap: 12 }}>
           <div style={{ display: 'flex', gap: 12, alignItems: 'flex-start' }}>
-            <img src={preview.objectUrl} alt="meal" style={{ width: 72, height: 72, borderRadius: 10, objectFit: 'cover', flexShrink: 0, border: '0.5px solid var(--border)' }} />
+            {preview.objectUrl && (
+              <img src={preview.objectUrl} alt="meal" style={{ width: 72, height: 72, borderRadius: 10, objectFit: 'cover', flexShrink: 0, border: '0.5px solid var(--border)' }} />
+            )}
             <div style={{ flex: 1 }}>
               <div style={{ fontSize: 14, fontWeight: 700 }}>{preview.result.meal_name}</div>
               <div style={{ fontSize: 11, color: 'var(--text2)', marginTop: 3, lineHeight: 1.4 }}>{preview.result.notes}</div>
-              {/* Reassess button */}
-              {!showReassess && (
+              {/* Reassess button — only when photo was used */}
+              {!showReassess && preview.base64 && (
                 <button onClick={() => setShowReassess(true)} style={{ marginTop: 6, fontSize: 11, color: 'var(--amber)', background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'inherit', padding: 0, textAlign: 'left' }}>
                   ✏️ {lang === 'de' ? 'Beschreibung hinzufügen für bessere Schätzung' : 'Describe this meal for a better estimate'}
                 </button>
@@ -413,29 +460,25 @@ export default function MealLogger({ session, date, onCaloriesUpdated }) {
       {/* Manual entry form */}
       {showManual && (
         <div style={{ padding: '12px 14px', borderBottom: '0.5px solid var(--border)', display: 'flex', flexDirection: 'column', gap: 10 }}>
-          <div style={{ fontSize: 13, fontWeight: 600 }}>{lang === 'de' ? 'Mahlzeit manuell eingeben' : 'Manual meal entry'}</div>
-          <div className="field">
-            <label className="field-label">{lang === 'de' ? 'Name' : 'Meal name'}</label>
-            <input className="field-input" value={manualName} onChange={e => setManualName(e.target.value)} placeholder={lang === 'de' ? 'z.B. Haferflocken mit Beeren' : 'e.g. Oats with berries'} />
+          <div style={{ fontSize: 13, fontWeight: 600 }}>
+            {lang === 'de' ? '✍️ Mahlzeit beschreiben' : '✍️ Describe your meal'}
           </div>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
-            <div className="field">
-              <label className="field-label">{lang === 'de' ? 'Kalorien' : 'Calories'}</label>
-              <input className="field-input" type="number" value={manualCals} onChange={e => setManualCals(e.target.value)} placeholder="450" inputMode="numeric" />
-            </div>
-            <div className="field">
-              <label className="field-label">{lang === 'de' ? 'Eiweiß (g)' : 'Protein (g)'}</label>
-              <input className="field-input" type="number" value={manualProtein} onChange={e => setManualProtein(e.target.value)} placeholder="20" inputMode="decimal" />
-            </div>
-            <div className="field">
-              <label className="field-label">{lang === 'de' ? 'Kohlenhydrate (g)' : 'Carbs (g)'}</label>
-              <input className="field-input" type="number" value={manualCarbs} onChange={e => setManualCarbs(e.target.value)} placeholder="50" inputMode="decimal" />
-            </div>
-            <div className="field">
-              <label className="field-label">{lang === 'de' ? 'Fett (g)' : 'Fat (g)'}</label>
-              <input className="field-input" type="number" value={manualFat} onChange={e => setManualFat(e.target.value)} placeholder="12" inputMode="decimal" />
-            </div>
+          <div style={{ fontSize: 11, color: 'var(--text2)', lineHeight: 1.5 }}>
+            {lang === 'de'
+              ? 'Beschreibe was du gegessen hast — Claude schätzt Kalorien und Makros automatisch.'
+              : 'Describe what you had — Claude estimates the calories and macros for you.'}
           </div>
+          <textarea
+            className="field-input"
+            value={describeText}
+            onChange={e => setDescribeText(e.target.value)}
+            placeholder={lang === 'de'
+              ? 'z.B. 2 Spiegeleier, 2 Scheiben Vollkorntoast mit Butter, kleiner Orangensaft'
+              : 'e.g. 2 fried eggs, 2 slices wholegrain toast with butter, small orange juice'}
+            rows={3}
+            style={{ resize: 'none', fontSize: 13 }}
+            autoFocus
+          />
           <div style={{ display: 'flex', gap: 6 }}>
             {MEAL_TYPES.map(type => (
               <button key={type} onClick={() => setMealType(type)} style={{ flex: 1, padding: '6px 4px', borderRadius: 8, border: '0.5px solid var(--border)', background: mealType === type ? 'var(--green-light)' : 'var(--surface2)', color: mealType === type ? 'var(--green)' : 'var(--text2)', fontSize: 11, fontWeight: mealType === type ? 600 : 400, cursor: 'pointer', fontFamily: 'inherit' }}>
@@ -444,31 +487,12 @@ export default function MealLogger({ session, date, onCaloriesUpdated }) {
             ))}
           </div>
 
-          {/* Show caffeine time if name contains caffeine */}
-          {/coffee|espresso|cappuccino|latte|americano|flat white|cold brew|matcha|green tea|black tea|oolong|chai|earl grey|tea|coca.?cola|coke|pepsi|diet coke|red bull|monster|rockstar|energy drink|pre.?workout|preworkout|bang|celsius|ghost energy|prime energy|yerba mate|guarana|mountain dew|dr pepper/i.test(manualName) && (
-            <div style={{ background: 'rgba(186,117,23,0.08)', border: '0.5px solid rgba(186,117,23,0.3)', borderRadius: 10, padding: '10px 12px', display: 'flex', gap: 10, alignItems: 'center' }}>
-              <span style={{ fontSize: 15 }}>☕</span>
-              <div className="field" style={{ flex: 1 }}>
-                <label className="field-label">{lang === 'de' ? 'Uhrzeit (Koffein)' : 'Time consumed'}</label>
-                <input className="field-input" type="time" value={consumedAt} onChange={e => setConsumedAt(e.target.value)} />
-              </div>
-              {consumedAt && (
-                <div style={{ fontSize: 10, color: 'var(--amber)', lineHeight: 1.4, flex: 1 }}>
-                  {(() => {
-                    const [h, m] = consumedAt.split(':').map(Number)
-                    const hh = (h + 5) % 24
-                    return `½ life ~${hh}:${String(m).padStart(2,'0')}`
-                  })()}
-                </div>
-              )}
-            </div>
-          )}
           <div style={{ display: 'flex', gap: 8 }}>
-            <button onClick={() => setShowManual(false)} style={{ flex: 1, padding: '10px', borderRadius: 8, background: 'var(--surface2)', border: '0.5px solid var(--border)', color: 'var(--text2)', fontSize: 13, cursor: 'pointer', fontFamily: 'inherit' }}>
+            <button onClick={() => { setShowManual(false); setDescribeText('') }} style={{ flex: 1, padding: '10px', borderRadius: 8, background: 'var(--surface2)', border: '0.5px solid var(--border)', color: 'var(--text2)', fontSize: 13, cursor: 'pointer', fontFamily: 'inherit' }}>
               {lang === 'de' ? 'Abbrechen' : 'Cancel'}
             </button>
-            <button onClick={saveManual} disabled={!manualName || !manualCals} style={{ flex: 2, padding: '10px', borderRadius: 8, background: 'var(--green)', border: 'none', color: 'white', fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', opacity: (!manualName || !manualCals) ? 0.5 : 1 }}>
-              {lang === 'de' ? 'Speichern' : 'Save'}
+            <button onClick={handleDescribeEstimate} disabled={!describeText.trim() || describeAnalysing} style={{ flex: 2, padding: '10px', borderRadius: 8, background: 'var(--green)', border: 'none', color: 'white', fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', opacity: !describeText.trim() ? 0.5 : 1 }}>
+              {describeAnalysing ? (lang === 'de' ? 'Schätze...' : 'Estimating...') : (lang === 'de' ? '✨ Kalorien schätzen' : '✨ Estimate calories')}
             </button>
           </div>
         </div>
