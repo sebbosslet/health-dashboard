@@ -1,4 +1,4 @@
-import { CLAUDE_MODEL, CAFFEINE_REGEX } from '../lib/constants'
+import { CLAUDE_MODEL, CAFFEINE_REGEX, ALCOHOL_REGEX } from '../lib/constants'
 import { compressImage } from '../lib/imageUtils'
 import { useState, useEffect, useRef } from 'react'
 import { supabase } from '../lib/supabase'
@@ -81,6 +81,7 @@ export default function MealLogger({ session, date, onCaloriesUpdated }) {
   const [error, setError] = useState(null)
   const [consumedAt, setConsumedAt] = useState(format(new Date(), 'HH:mm'))
   const [isCaffeinated, setIsCaffeinated] = useState(false)
+  const [isAlcohol, setIsAlcohol] = useState(false)
   const [showReassess, setShowReassess] = useState(false)
   const [dinnerTime, setDinnerTime] = useState('')
   const dinnerRef = useRef()
@@ -143,7 +144,9 @@ export default function MealLogger({ session, date, onCaloriesUpdated }) {
 
       // Auto-detect caffeine (coffee, tea, soda, energy drinks)
       const hasCaffeine = CAFFEINE_REGEX.test(result.meal_name)
+      const hasAlcohol = ALCOHOL_REGEX.test(result.meal_name)
       setIsCaffeinated(hasCaffeine)
+      setIsAlcohol(hasAlcohol)
       setConsumedAt(format(new Date(), 'HH:mm'))
     } catch (err) {
       setError(lang === 'de' ? 'Analyse fehlgeschlagen. Bitte erneut versuchen.' : 'Analysis failed. Please try again.')
@@ -170,6 +173,7 @@ export default function MealLogger({ session, date, onCaloriesUpdated }) {
       source: 'ai_photo',
       consumed_at: consumedAt || null,
       is_caffeinated: isCaffeinated,
+      is_alcohol: isAlcohol,
     })
 
     setPreview(null)
@@ -190,7 +194,9 @@ export default function MealLogger({ session, date, onCaloriesUpdated }) {
         setShowReassess(false)
         setReassessText('')
         const hasCaffeine = CAFFEINE_REGEX.test(result.meal_name)
+        const hasAlcohol = ALCOHOL_REGEX.test(result.meal_name)
         setIsCaffeinated(hasCaffeine)
+        setIsAlcohol(hasAlcohol)
       }
     } catch (e) {
       console.error(e)
@@ -232,7 +238,9 @@ Respond ONLY with valid JSON, no markdown:
         setDescribeText('')
         setEditingCalories(null)
         const hasCaffeine = CAFFEINE_REGEX.test(result.meal_name + ' ' + describeText)
+        const hasAlcohol = ALCOHOL_REGEX.test(result.meal_name + ' ' + describeText)
         setIsCaffeinated(hasCaffeine)
+        setIsAlcohol(hasAlcohol)
       }
     } catch (e) {
       console.error(e)
@@ -441,6 +449,28 @@ Respond ONLY with valid JSON, no markdown:
               </div>
               <button onClick={() => setIsCaffeinated(false)} style={{ alignSelf: 'flex-start', fontSize: 10, color: 'var(--text3)', background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'inherit', padding: 0 }}>
                 {lang === 'de' ? 'Kein Koffein' : 'Not caffeinated'}
+              </button>
+            </div>
+          )}
+
+          {isAlcohol && (
+            <div style={{ background: 'rgba(107,63,160,0.07)', border: '0.5px solid rgba(107,63,160,0.25)', borderRadius: 10, padding: '10px 12px', display: 'flex', flexDirection: 'column', gap: 8 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                <span style={{ fontSize: 15 }}>🍷</span>
+                <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--purple)' }}>
+                  {lang === 'de' ? 'Alkohol erkannt — wann hast du das getrunken?' : 'Alcohol detected — what time did you have this?'}
+                </span>
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <input className="field-input" type="time" value={consumedAt} onChange={e => setConsumedAt(e.target.value)} style={{ flex: 1 }} />
+                <span style={{ fontSize: 11, color: 'var(--text2)', flex: 2, lineHeight: 1.4 }}>
+                  {lang === 'de'
+                    ? 'Zeitstempel wird für Schlafanalyse verwendet'
+                    : 'Timestamp used for sleep impact analysis'}
+                </span>
+              </div>
+              <button onClick={() => setIsAlcohol(false)} style={{ alignSelf: 'flex-start', fontSize: 10, color: 'var(--text3)', background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'inherit', padding: 0 }}>
+                {lang === 'de' ? 'Kein Alkohol' : 'Not alcohol'}
               </button>
             </div>
           )}

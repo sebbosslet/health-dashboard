@@ -8,7 +8,7 @@ import { showToast } from './Toast'
 
 // ─── AI Analysis Engine ───────────────────────────────────────────────────────
 
-async function generateDailyInsight(todayLog, yesterdayLog, historicalLogs, lang, yesterdayEvents, todayEvents, travelState, caffeineMeals = [], hrContext = '') {
+async function generateDailyInsight(todayLog, yesterdayLog, historicalLogs, lang, yesterdayEvents, todayEvents, travelState, caffeineMeals = [], hrContext = '', alcoholMeals = []) {
   // Pattern analysis from historical data
   const phoneDelays = historicalLogs
     .filter(l => l.phone_away_time && l.sleep_efficiency)
@@ -62,6 +62,10 @@ SEBASTIAN'S PERSONAL PATTERNS (${historicalLogs.length} days of data):
     ? `\n- Caffeine: ${caffeineMeals.map(m => `${m.meal_name}${m.consumed_at ? ` at ${m.consumed_at.slice(0,5)} (50% cleared ~${String((parseInt(m.consumed_at.split(':')[0])+5)%24).padStart(2,'0')}:${m.consumed_at.slice(3,5)})` : ''}`).join(', ')}`
     : '\n- Caffeine: none logged'
 
+  const alcoholContext = alcoholMeals.length
+    ? `\n- Alcohol: ${alcoholMeals.map(m => `${m.meal_name}${m.consumed_at ? ` at ${m.consumed_at.slice(0,5)}` : ''}`).join(', ')} — alcohol significantly fragments sleep, suppresses REM, raises RHR`
+    : '\n- Alcohol: none logged'
+
   const eventsContext = yesterdayEvents?.length
     ? `\n- Special events yesterday: ${yesterdayEvents.map(e => e.label).join(', ')}`
     : ''
@@ -88,7 +92,7 @@ EVENING OF ${yesterdayDate} (what happened before this sleep):
 - Dinner time: ${yesterdayLog.dinner_time?.slice(0,5) || 'not logged'}
 - AC temperature: ${yesterdayLog.ac_temp ? yesterdayLog.ac_temp + '°F' : 'not logged'}
 - Calories: ${yesterdayLog.calories ? yesterdayLog.calories + ' kcal' : 'not logged'}
-- Evening note: ${yesterdayLog.evening_note || 'none'}${eventsContext}${caffeineContext}${travelContext}
+- Evening note: ${yesterdayLog.evening_note || 'none'}${eventsContext}${caffeineContext}${alcoholContext}${travelContext}
 ` : 'No evening log for yesterday'
 
   const todayContext = `
@@ -628,12 +632,13 @@ function InsightCard({ log, userId, lang }) {
     try {
       const thirtyDaysAgo = format(subDays(new Date(), 30), 'yyyy-MM-dd')
 
-      const [{ data: yesterdayLog }, { data: history }, { data: yesterdayEvents }, { data: travelState }, { data: caffeineMeals }] = await Promise.all([
+      const [{ data: yesterdayLog }, { data: history }, { data: yesterdayEvents }, { data: travelState }, { data: caffeineMeals }, { data: alcoholMeals }] = await Promise.all([
         supabase.from('daily_logs').select('*').eq('user_id', userId).eq('date', yesterday).maybeSingle(),
         supabase.from('daily_logs').select('*').eq('user_id', userId).gte('date', thirtyDaysAgo).lt('date', today).order('date', { ascending: true }),
         supabase.from('daily_events').select('*').eq('user_id', userId).eq('date', yesterday),
         supabase.from('travel_state').select('*').eq('user_id', userId).eq('active', true).maybeSingle(),
         supabase.from('meal_logs').select('meal_name,consumed_at').eq('user_id', userId).eq('date', yesterday).eq('is_caffeinated', true),
+        supabase.from('meal_logs').select('meal_name,consumed_at').eq('user_id', userId).eq('date', yesterday).eq('is_alcohol', true),
       ])
 
       // Fetch latest HR analysis
@@ -653,7 +658,7 @@ SLEEP HR ANALYSIS (from WHOOP screenshot):
       const fullHrContext = hrContext + (extraContext ? `
 
 ADDITIONAL CONTEXT FROM SEBASTIAN about why sleep was fragmented: ${extraContext}` : '')
-      const text = await generateDailyInsight(log, yesterdayLog, history || [], lang, yesterdayEvents || [], [], travelState, caffeineMeals || [], fullHrContext)
+      const text = await generateDailyInsight(log, yesterdayLog, history || [], lang, yesterdayEvents || [], [], travelState, caffeineMeals || [], fullHrContext, alcoholMeals || [])
       setInsight(text)
 
       await supabase.from('daily_logs').upsert({
