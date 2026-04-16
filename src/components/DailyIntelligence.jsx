@@ -441,26 +441,30 @@ function WhoopTab({ log, yesterdayLog, session, lang, onRefresh }) {
   const date = format(new Date(), 'yyyy-MM-dd')
   const uploaded = !!log?.bed_time  // driven by DB, survives tab switches
 
+  // Evening fields can be on today's log OR yesterday's — evening saves to current date
+  // e.g. if you log evening on night of Apr 15, it saves to Apr 15 (yesterdayLog)
+  // but if you log it on the morning of Apr 16, it saves to Apr 16 (log)
+  const eveningSource = log?.phone_away_time ? log : yesterdayLog
+
   // Compute wind-down duration: phone away → asleep
   let windDownMins = null
-  if (yesterdayLog?.phone_away_time && log?.bed_time) {
-    const pm = parseInt(yesterdayLog.phone_away_time.split(':')[0])*60 + parseInt(yesterdayLog.phone_away_time.split(':')[1])
+  if (eveningSource?.phone_away_time && log?.bed_time) {
+    const pm = parseInt(eveningSource.phone_away_time.split(':')[0])*60 + parseInt(eveningSource.phone_away_time.split(':')[1])
     let bm = parseInt(log.bed_time.split(':')[0])*60 + parseInt(log.bed_time.split(':')[1])
     if (bm < 360) bm += 1440
     windDownMins = bm - pm
   }
 
-  // Last night summary grid — always show available data, pending tiles for upload-dependent values
+  // Last night summary grid
   const summary = []
-  if (yesterdayLog?.dinner_time) summary.push({ icon: '🍽', label: lang === 'de' ? 'Abendessen' : 'Dinner', value: yesterdayLog.dinner_time.slice(0,5) })
-  if (yesterdayLog?.phone_away_time) summary.push({ icon: '📵', label: lang === 'de' ? 'Handy weg' : 'Phone away', value: yesterdayLog.phone_away_time.slice(0,5) })
-  // Asleep + wind-down: show pending if evening was logged but screenshot not yet uploaded
-  const hasEveningData = !!(yesterdayLog?.phone_away_time || yesterdayLog?.wind_down)
+  if (eveningSource?.dinner_time) summary.push({ icon: '🍽', label: lang === 'de' ? 'Abendessen' : 'Dinner', value: eveningSource.dinner_time.slice(0,5) })
+  if (eveningSource?.phone_away_time) summary.push({ icon: '📵', label: lang === 'de' ? 'Handy weg' : 'Phone away', value: eveningSource.phone_away_time.slice(0,5) })
+  const hasEveningData = !!(eveningSource?.phone_away_time || eveningSource?.wind_down)
   summary.push({ icon: '🛏', label: lang === 'de' ? 'Eingeschlafen' : 'Asleep', value: log?.bed_time ? log.bed_time.slice(0,5) : '—', pending: !log?.bed_time && hasEveningData })
   summary.push({ icon: '⏱', label: lang === 'de' ? 'Wind-down' : 'Wind-down', value: windDownMins !== null ? `${windDownMins}min` : '—', pending: windDownMins === null && hasEveningData })
   if (log?.sleep_efficiency) summary.push({ icon: '📊', label: lang === 'de' ? 'Effizienz' : 'Efficiency', value: `${Math.round(log.sleep_efficiency)}%` })
-  if (yesterdayLog?.wind_down) summary.push({ icon: yesterdayLog.wind_down === 'good' ? '😌' : yesterdayLog.wind_down === 'ok' ? '😐' : '😣', label: lang === 'de' ? 'Qualität' : 'Quality', value: yesterdayLog.wind_down })
-  if (yesterdayLog?.ac_temp) summary.push({ icon: '❄', label: 'AC', value: `${yesterdayLog.ac_temp}°F` })
+  if (eveningSource?.wind_down) summary.push({ icon: eveningSource.wind_down === 'good' ? '😌' : eveningSource.wind_down === 'ok' ? '😐' : '😣', label: lang === 'de' ? 'Qualität' : 'Quality', value: eveningSource.wind_down })
+  if (eveningSource?.ac_temp) summary.push({ icon: '❄', label: 'AC', value: `${eveningSource.ac_temp}°F` })
 
   return (
     <div style={{ padding: '12px 14px', display: 'flex', flexDirection: 'column', gap: 12 }}>
