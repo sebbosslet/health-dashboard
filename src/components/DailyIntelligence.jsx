@@ -548,10 +548,10 @@ function WhoopTab({ log, yesterdayLog, session, lang, onRefresh }) {
       )}
 
       {/* HR Analysis — shown if data extracted from screenshot */}
-      {hrAnalysis && (hrAnalysis.hr_baseline || hrAnalysis.analysis || hrAnalysis.likely_cause) && (
+      {hrAnalysis && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
           <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
-            {lang === 'de' ? 'Herzfrequenz-Analyse' : 'Heart rate analysis'}
+            {hrAnalysis.hr_baseline ? (lang === 'de' ? 'Herzfrequenz-Analyse' : 'Heart rate analysis') : (lang === 'de' ? 'Schlafanalyse' : 'Sleep analysis')}
           </div>
 
           {/* Sleep stages if available (from summary screenshot) */}
@@ -715,7 +715,7 @@ function getEmoji(name) {
 
 export default function DailyIntelligence({ session, log, onSave, habitGoals, activeHabits, onToggleHabit }) {
   const { lang } = useLang()
-  const [section, setSection] = useState(null)
+  const [section, setSection] = useState('whoop')
   const [yesterdayLog, setYesterdayLog] = useState(null)
   const hour = new Date().getHours()
 
@@ -771,24 +771,6 @@ export default function DailyIntelligence({ session, log, onSave, habitGoals, ac
       )}
       {section === 'insight' && (
         <InsightCard log={log} userId={session.user.id} lang={lang} />
-      )}
-
-      {!section && (
-        <div style={{ padding: '10px 14px 12px', display: 'flex', gap: 8 }}>
-          {sections.map(s => (
-            <button key={s.key} onClick={() => setSection(s.key)} style={{
-              flex: 1, padding: '9px', borderRadius: 8,
-              background: s.done ? 'var(--surface2)' : 'var(--green-light)',
-              border: `0.5px solid ${s.done ? 'var(--border)' : 'var(--green)'}`,
-              color: s.done ? 'var(--text2)' : 'var(--green)',
-              fontWeight: 600, fontSize: 11, cursor: 'pointer', fontFamily: 'inherit',
-              display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4,
-            }}>
-              {s.label}
-              {s.done && <span style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--green)', flexShrink: 0 }} />}
-            </button>
-          ))}
-        </div>
       )}
     </div>
   )
