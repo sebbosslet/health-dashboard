@@ -450,12 +450,14 @@ function WhoopTab({ log, yesterdayLog, session, lang, onRefresh }) {
     windDownMins = bm - pm
   }
 
-  // Last night summary grid — only shown after upload
+  // Last night summary grid — always show available data, pending tiles for upload-dependent values
   const summary = []
   if (yesterdayLog?.dinner_time) summary.push({ icon: '🍽', label: lang === 'de' ? 'Abendessen' : 'Dinner', value: yesterdayLog.dinner_time.slice(0,5) })
   if (yesterdayLog?.phone_away_time) summary.push({ icon: '📵', label: lang === 'de' ? 'Handy weg' : 'Phone away', value: yesterdayLog.phone_away_time.slice(0,5) })
-  if (log?.bed_time) summary.push({ icon: '🛏', label: lang === 'de' ? 'Eingeschlafen' : 'Asleep', value: log.bed_time.slice(0,5) })
-  if (windDownMins !== null) summary.push({ icon: '⏱', label: lang === 'de' ? 'Wind-down' : 'Wind-down', value: `${windDownMins}min` })
+  // Asleep + wind-down: show pending if evening was logged but screenshot not yet uploaded
+  const hasEveningData = !!(yesterdayLog?.phone_away_time || yesterdayLog?.wind_down)
+  summary.push({ icon: '🛏', label: lang === 'de' ? 'Eingeschlafen' : 'Asleep', value: log?.bed_time ? log.bed_time.slice(0,5) : '—', pending: !log?.bed_time && hasEveningData })
+  summary.push({ icon: '⏱', label: lang === 'de' ? 'Wind-down' : 'Wind-down', value: windDownMins !== null ? `${windDownMins}min` : '—', pending: windDownMins === null && hasEveningData })
   if (log?.sleep_efficiency) summary.push({ icon: '📊', label: lang === 'de' ? 'Effizienz' : 'Efficiency', value: `${Math.round(log.sleep_efficiency)}%` })
   if (yesterdayLog?.wind_down) summary.push({ icon: yesterdayLog.wind_down === 'good' ? '😌' : yesterdayLog.wind_down === 'ok' ? '😐' : '😣', label: lang === 'de' ? 'Qualität' : 'Quality', value: yesterdayLog.wind_down })
   if (yesterdayLog?.ac_temp) summary.push({ icon: '❄', label: 'AC', value: `${yesterdayLog.ac_temp}°F` })
@@ -495,9 +497,9 @@ function WhoopTab({ log, yesterdayLog, session, lang, onRefresh }) {
           </div>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 6 }}>
             {summary.map((s, i) => (
-              <div key={i} style={{ background: 'var(--surface2)', borderRadius: 8, padding: '7px 8px', textAlign: 'center' }}>
+              <div key={i} style={{ background: s.pending ? 'transparent' : 'var(--surface2)', borderRadius: 8, padding: '7px 8px', textAlign: 'center', border: s.pending ? '1.5px dashed var(--border)' : 'none', opacity: s.pending ? 0.5 : 1 }}>
                 <div style={{ fontSize: 14, marginBottom: 2 }}>{s.icon}</div>
-                <div style={{ fontSize: 13, fontWeight: 700, fontFamily: 'var(--font-mono)', color: 'var(--text)' }}>{s.value}</div>
+                <div style={{ fontSize: 13, fontWeight: 700, fontFamily: 'var(--font-mono)', color: s.pending ? 'var(--text3)' : 'var(--text)' }}>{s.value}</div>
                 <div style={{ fontSize: 9, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.04em', marginTop: 1 }}>{s.label}</div>
               </div>
             ))}
@@ -505,11 +507,7 @@ function WhoopTab({ log, yesterdayLog, session, lang, onRefresh }) {
         </div>
       )}
 
-      {!uploaded && summary.length === 0 && (
-        <div style={{ fontSize: 12, color: 'var(--text3)', textAlign: 'center', padding: '4px 0' }}>
-          {lang === 'de' ? 'Logge deinen Abend und lade den WHOOP Screenshot hoch' : 'Log your evening and upload your WHOOP screenshot above'}
-        </div>
-      )}
+
     </div>
   )
 }
