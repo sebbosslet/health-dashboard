@@ -118,12 +118,7 @@ ${patternContext}
 ${yesterdayContext}
 ${todayContext}
 
-First output a short stats block in this exact format (fill in dashes if not available):
-Dinner: [dinner_time or —] | Phone away: [phone_away_time or —] | Asleep: [bed_time or —] | Screen-free gap: [calculate minutes from phone away to asleep, or —]
-Recovery: [recovery]% | HRV: [hrv]ms | RHR: [rhr]bpm | Sleep: [duration]h | Efficiency: [efficiency]%
-Morning: Energy [energy]/5 | Mood [mood]/5 | Soreness [soreness]/5 [only if logged, otherwise show "—"]
-
-Then write 3-4 direct sentences connecting last evening to this morning's WHOOP data. IMPORTANT: only reference morning check-in scores if they were actually logged (not "NOT logged yet"). Reference personal patterns when relevant. Ask one smart follow-up question. Be direct and honest.`
+Write 3-4 direct sentences connecting last evening to this morning's WHOOP data. Do NOT output a stats table — the numbers are already visible in the dashboard. Focus purely on the insight: what caused last night's result, what it means for today, and one smart follow-up question. IMPORTANT: only reference morning check-in scores if they were actually logged (not "NOT logged yet"). Reference personal patterns when relevant. Be direct and honest.`
 
   const res = await fetch('/.netlify/functions/claude-proxy', {
     method: 'POST',
@@ -140,7 +135,7 @@ Then write 3-4 direct sentences connecting last evening to this morning's WHOOP 
 
 // ─── WHOOP Screenshot Upload (inline in morning) ──────────────────────────────
 
-function WhoopUpload({ session, date, lang, bedTime }) {
+function WhoopUpload({ session, date, lang, bedTime, onDone }) {
   const fileRef = useRef()
   const [analysing, setAnalysing] = useState(false)
   const [done, setDone] = useState(!!bedTime)
@@ -179,6 +174,7 @@ function WhoopUpload({ session, date, lang, bedTime }) {
       }
 
       setDone(true)
+      if (onDone) await onDone({ bed_time: result.sleep_onset || null })
       showToast(lang === 'de' ? `Analysiert${result.sleep_onset ? ` · Einschlafzeit ${result.sleep_onset}` : ''}` : `Analysed${result.sleep_onset ? ` · Sleep onset ${result.sleep_onset}` : ''}`)
     } catch (err) {
       console.error(err)
@@ -445,7 +441,7 @@ export function EveningLog({ log, onSave, lang, habitGoals, activeHabits, onTogg
 
 // ─── WHOOP Tab (upload + last night summary) ──────────────────────────────────
 
-function WhoopTab({ log, yesterdayLog, session, lang }) {
+function WhoopTab({ log, yesterdayLog, session, lang, onRefresh }) {
   const date = format(new Date(), 'yyyy-MM-dd')
 
   // Last night's summary from yesterday's evening log + today's WHOOP data
@@ -468,7 +464,7 @@ function WhoopTab({ log, yesterdayLog, session, lang }) {
   return (
     <div style={{ padding: '12px 14px', display: 'flex', flexDirection: 'column', gap: 12 }}>
       {/* Upload widget */}
-      <WhoopUpload session={session} date={date} lang={lang} bedTime={log?.bed_time?.slice(0,5) || ''} />
+      <WhoopUpload session={session} date={date} lang={lang} bedTime={log?.bed_time?.slice(0,5) || ''} onDone={onRefresh} />
 
       {/* Last night summary */}
       {summary.length > 0 && (
@@ -536,32 +532,8 @@ function InsightCard({ log, userId, lang }) {
     setLoading(false)
   }
 
-  // Split stats block from prose
-  function parseInsight(text) {
-    if (!text) return { stats: null, prose: null }
-    const lines = text.split('\n')
-    const statsLines = []
-    const proseLines = []
-    let inStats = true
-    for (const line of lines) {
-      // Stats lines contain | separators
-      if (inStats && (line.includes('|') || line.trim() === '')) {
-        if (line.trim()) statsLines.push(line.trim())
-      } else {
-        inStats = false
-        if (line.trim()) proseLines.push(line)
-      }
-    }
-    return {
-      stats: statsLines.length ? statsLines : null,
-      prose: proseLines.join('\n').trim() || text,
-    }
-  }
-
   const yesterdayDate = format(subDays(new Date(), 1), 'd MMM')
   const todayDate = format(new Date(), 'd MMM')
-  const { stats, prose } = parseInsight(insight)
-  const hasScreenshot = !!log?.bed_time
 
   return (
     <div style={{ padding: '12px 14px', display: 'flex', flexDirection: 'column', gap: 12 }}>
@@ -578,16 +550,7 @@ function InsightCard({ log, userId, lang }) {
 
       {insight ? (
         <>
-          {/* Stats block */}
-          {stats && (
-            <div style={{ background: 'var(--surface2)', borderRadius: 8, padding: '8px 10px', display: 'flex', flexDirection: 'column', gap: 3 }}>
-              {stats.map((line, i) => (
-                <div key={i} style={{ fontSize: 11, fontFamily: 'var(--font-mono)', color: 'var(--text2)', lineHeight: 1.6 }}>{line}</div>
-              ))}
-            </div>
-          )}
-          {/* Prose */}
-          <div style={{ fontSize: 13, color: 'var(--text)', lineHeight: 1.7 }}>{prose}</div>
+          <div style={{ fontSize: 13, color: 'var(--text)', lineHeight: 1.7 }}>{insight}</div>
           <button onClick={generateInsight} disabled={loading} style={{ padding: '6px 12px', borderRadius: 20, border: '0.5px solid var(--border)', background: 'none', color: 'var(--text2)', fontSize: 11, cursor: 'pointer', fontFamily: 'inherit', alignSelf: 'flex-start' }}>
             {loading ? '...' : (lang === 'de' ? '↺ Neu analysieren' : '↺ Re-analyse')}
           </button>
@@ -678,7 +641,7 @@ export default function DailyIntelligence({ session, log, onSave, habitGoals, ac
       </div>
 
       {section === 'whoop' && (
-        <WhoopTab log={log} yesterdayLog={yesterdayLog} session={session} lang={lang} />
+        <WhoopTab log={log} yesterdayLog={yesterdayLog} session={session} lang={lang} onRefresh={onSave} />
       )}
       {section === 'morning' && (
         <MorningCheckin log={log} onSave={onSave} lang={lang} yesterdayLog={yesterdayLog} session={session} />
