@@ -29,43 +29,52 @@ DAY CONTEXT FOR ${dateStr}:
 - Calories: ${contextLog.calories || 'unknown'}
 - Evening note: ${contextLog.evening_note || 'none'}${caffeineContext}` : `No day context logged.${caffeineContext}`
 
-  const prompt = `You are a sleep medicine expert analysing a WHOOP heart rate screenshot from sleep on ${dateStr}.
+  const prompt = `You are a sleep medicine expert analysing a WHOOP sleep screenshot for ${dateStr}.
 
-CRITICAL — fix the scale distortion problem first:
-1. Read the Y-axis BPM labels to get actual absolute values
-2. Note the full scale range (axis_max - axis_min)
-3. A 5bpm spike on a 40-80bpm scale = harmless. On a 50-55bpm scale = significant
-4. Always report absolute BPM, never relative positions
+This may be either the HR graph view or the sleep summary view (showing sleep stages, duration, start/end times). Extract everything visible.
+
+CRITICAL for HR graph analysis — fix scale distortion:
+1. Read Y-axis BPM labels for absolute values
+2. A 5bpm spike on 40-80bpm scale = harmless. On 50-55bpm scale = significant
+3. Always report absolute BPM
+
 ${dayContext}
 ${historyContext}
 
-Analyse for these specific patterns:
-- THYROID over-medication: sustained elevated baseline (>60bpm), gradual multi-minute elevations, higher overall HR floor
-- STRESS/CORTISOL: elevated baseline throughout, HR never fully dropping, worse in first half
-- SLEEP APNEA: sharp sudden spikes (>15bpm) at irregular intervals, quick return to baseline, repetitive pattern
-- TEMPERATURE: gradually rising HR through night, elevated in second half
-- LATE EATING: elevated first 2-3 hours then settling
+Analyse for these patterns if HR graph is visible:
+- THYROID over-medication: sustained elevated baseline (>60bpm), gradual multi-minute elevations
+- STRESS/CORTISOL: HR never fully drops, elevated throughout, worse in first half
+- SLEEP APNEA: sharp sudden spikes (>15bpm) at irregular intervals, quick return to baseline
+- TEMPERATURE: gradually rising HR through night
+- LATE EATING/CAFFEINE: elevated first 2-3 hours then settling
 
 Respond ONLY with valid JSON (no markdown):
 {
-  "hr_baseline": number,
-  "hr_min": number,
-  "hr_max": number,
-  "hr_range": number,
-  "axis_min": number,
-  "axis_max": number,
-  "spike_count": number,
-  "spike_avg_magnitude": number,
-  "spike_max_magnitude": number,
-  "stable_pct": number,
-  "fragmented_pct": number,
-  "stability_score": number,
-  "likely_cause": "thyroid|stress|apnea|temperature|food|mixed|unclear",
+  "sleep_onset": "HH:MM" or null,
+  "wake_time": "HH:MM" or null,
+  "sleep_duration_h": number or null,
+  "awake_pct": number or null,
+  "light_pct": number or null,
+  "deep_pct": number or null,
+  "rem_pct": number or null,
+  "hr_baseline": number or null,
+  "hr_min": number or null,
+  "hr_max": number or null,
+  "hr_range": number or null,
+  "axis_min": number or null,
+  "axis_max": number or null,
+  "spike_count": number or null,
+  "spike_avg_magnitude": number or null,
+  "spike_max_magnitude": number or null,
+  "stable_pct": number or null,
+  "fragmented_pct": number or null,
+  "stability_score": number or null,
+  "likely_cause": "thyroid|stress|apnea|temperature|food|caffeine|mixed|unclear",
   "cause_confidence": "low|medium|high",
-  "cause_reasoning": "1-2 sentences on why this pattern points to that cause",
-  "micro_arousals_likely": true|false,
+  "cause_reasoning": "1-2 sentences on why",
+  "micro_arousals_likely": true or false,
   "micro_arousal_count": number or null,
-  "analysis": "3-4 direct sentences in plain English. State absolute numbers. Is this concerning or normal? What caused it? What does it mean for today?",
+  "analysis": "3-4 direct sentences. Reference sleep onset time if visible. State absolute numbers. Is this concerning? What caused it?",
   "eye_bag_risk": "low|medium|high",
   "recommendation": "one concrete actionable recommendation for tonight"
 }`
@@ -212,29 +221,30 @@ function StabilityScore({ score, size = 'md' }) {
 
 function NightCard({ analysis, lang }) {
   const [open, setOpen] = useState(false)
-  const scaleRange = analysis.axis_max - analysis.axis_min
-  const isScaleNarrow = scaleRange <= 15
+  const scaleRange = analysis.axis_max != null && analysis.axis_min != null ? analysis.axis_max - analysis.axis_min : null
+  const isScaleNarrow = scaleRange != null && scaleRange <= 15
   const spikesClinical = analysis.spike_avg_magnitude >= 10
+  const hasHR = analysis.hr_baseline != null
+  const hasSummary = analysis.sleep_onset || analysis.sleep_duration_h || analysis.deep_pct != null
 
   return (
     <div style={{ border: '0.5px solid var(--border)', borderRadius: 12, overflow: 'hidden', background: 'var(--surface)' }}>
       <div onClick={() => setOpen(v => !v)} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px', cursor: 'pointer' }}>
-        <StabilityScore score={analysis.stability_score} />
+        {hasHR ? <StabilityScore score={analysis.stability_score} /> : (
+          <div style={{ width: 36, height: 36, borderRadius: '50%', background: 'var(--surface2)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16, flexShrink: 0 }}>😴</div>
+        )}
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{ fontSize: 13, fontWeight: 600 }}>{format(new Date(analysis.date + 'T12:00:00'), 'd MMM')}</div>
           <div style={{ fontSize: 11, color: 'var(--text2)', marginTop: 2, display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-            <span>{analysis.spike_count} spikes</span>
-            <span>·</span>
-            <span>{analysis.axis_min}–{analysis.axis_max} bpm</span>
-            <span>·</span>
-            <span style={{ color: spikesClinical ? 'var(--red)' : isScaleNarrow ? 'var(--amber)' : 'var(--green)' }}>
-              {spikesClinical ? 'clinically relevant' : isScaleNarrow ? 'scale distortion' : 'minor'}
-            </span>
+            {analysis.sleep_onset && <span>😴 {analysis.sleep_onset.slice(0,5)}</span>}
+            {analysis.wake_time && <span>☀️ {analysis.wake_time.slice(0,5)}</span>}
+            {analysis.sleep_duration_h && <span>· {analysis.sleep_duration_h}h</span>}
+            {hasHR && <span>· {analysis.spike_count} spikes</span>}
           </div>
         </div>
         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 4, flexShrink: 0 }}>
-          <CauseBadge cause={analysis.likely_cause} confidence={analysis.cause_confidence} />
-          {analysis.eye_bag_risk === 'high' && <span style={{ fontSize: 10, color: 'var(--text3)' }}>👁 eye bag risk</span>}
+          {analysis.likely_cause && <CauseBadge cause={analysis.likely_cause} confidence={analysis.cause_confidence} />}
+          {analysis.eye_bag_risk === 'high' && <span style={{ fontSize: 10, color: 'var(--text3)' }}>👁 risk</span>}
         </div>
         <svg width="12" height="12" viewBox="0 0 12 12" fill="none" style={{ transform: open ? 'rotate(180deg)' : 'none', transition: '0.15s', flexShrink: 0 }}>
           <path d="M2 4l4 4 4-4" stroke="var(--text3)" strokeWidth="1.3" strokeLinecap="round"/>
@@ -244,33 +254,53 @@ function NightCard({ analysis, lang }) {
       {open && (
         <div style={{ padding: '10px 14px 14px', borderTop: '0.5px solid var(--border)', background: 'var(--surface2)', display: 'flex', flexDirection: 'column', gap: 10 }}>
 
-          {/* Scale context — always show this first */}
-          <div style={{
-            background: isScaleNarrow ? 'rgba(186,117,23,0.08)' : 'rgba(26,122,94,0.06)',
-            border: `0.5px solid ${isScaleNarrow ? 'var(--amber)' : 'var(--green-border)'}`,
-            borderRadius: 8, padding: '8px 10px', fontSize: 11, lineHeight: 1.5
-          }}>
-            <strong style={{ color: isScaleNarrow ? 'var(--amber)' : 'var(--green)' }}>
-              {isScaleNarrow ? '⚠ Narrow scale — visual distortion likely' : '✓ Scale context'}
-            </strong>
-            <br />
-            {lang === 'de'
-              ? `Y-Achse: ${analysis.axis_min}–${analysis.axis_max} bpm (Δ${scaleRange} bpm). Spikes von Ø${analysis.spike_avg_magnitude} bpm ${spikesClinical ? 'sind klinisch relevant (>10bpm)' : `entsprechen ${((analysis.spike_avg_magnitude / scaleRange) * 100).toFixed(0)}% der Skalenbreite — aber nur ${analysis.spike_avg_magnitude} absoluten BPM.`}`
-              : `Y-axis: ${analysis.axis_min}–${analysis.axis_max} bpm (Δ${scaleRange} bpm). Avg spikes of ${analysis.spike_avg_magnitude} bpm ${spikesClinical ? 'are clinically relevant (>10bpm)' : `fill ${((analysis.spike_avg_magnitude / scaleRange) * 100).toFixed(0)}% of the chart — but are only ${analysis.spike_avg_magnitude} absolute bpm.`}`}
-          </div>
+          {/* Sleep stages if available */}
+          {hasSummary && (
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 6 }}>
+              {[
+                { label: lang === 'de' ? 'Wach' : 'Awake', value: analysis.awake_pct != null ? `${analysis.awake_pct}%` : '—', color: 'var(--text3)' },
+                { label: lang === 'de' ? 'Leicht' : 'Light', value: analysis.light_pct != null ? `${analysis.light_pct}%` : '—', color: 'var(--blue)' },
+                { label: lang === 'de' ? 'Tief' : 'Deep', value: analysis.deep_pct != null ? `${analysis.deep_pct}%` : '—', color: 'var(--purple)' },
+                { label: 'REM', value: analysis.rem_pct != null ? `${analysis.rem_pct}%` : '—', color: 'var(--green)' },
+              ].map(m => (
+                <div key={m.label} style={{ background: 'var(--surface)', borderRadius: 8, padding: '7px 4px', textAlign: 'center' }}>
+                  <div style={{ fontSize: 9, color: 'var(--text3)', textTransform: 'uppercase', marginBottom: 2 }}>{m.label}</div>
+                  <div style={{ fontSize: 14, fontWeight: 700, fontFamily: 'var(--font-mono)', color: m.color }}>{m.value}</div>
+                </div>
+              ))}
+            </div>
+          )}
 
-          {/* Metrics */}
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 6 }}>
-            {[
-              { label: 'Baseline', value: `${analysis.hr_baseline}`, unit: 'bpm', color: 'var(--blue)' },
-              { label: 'Spikes', value: `${analysis.spike_count}`, unit: `max ${analysis.spike_max_magnitude}bpm`, color: analysis.spike_count > 6 ? 'var(--red)' : 'var(--amber)' },
-              { label: 'Stable', value: `${analysis.stable_pct}%`, unit: 'of night', color: analysis.stable_pct >= 70 ? 'var(--green)' : 'var(--amber)' },
-            ].map(m => (
-              <div key={m.label} style={{ background: 'var(--surface)', borderRadius: 8, padding: '8px 6px', textAlign: 'center' }}>
-                <div style={{ fontSize: 9, color: 'var(--text3)', textTransform: 'uppercase', marginBottom: 3 }}>{m.label}</div>
-                <div style={{ fontSize: 15, fontWeight: 700, fontFamily: 'var(--font-mono)', color: m.color }}>{m.value}</div>
-                <div style={{ fontSize: 9, color: 'var(--text3)' }}>{m.unit}</div>
-              </div>
+          {/* Scale context — only if HR data present */}
+          {hasHR && scaleRange != null && (
+            <div style={{
+              background: isScaleNarrow ? 'rgba(186,117,23,0.08)' : 'rgba(26,122,94,0.06)',
+              border: `0.5px solid ${isScaleNarrow ? 'var(--amber)' : 'var(--green-border)'}`,
+              borderRadius: 8, padding: '8px 10px', fontSize: 11, lineHeight: 1.5
+            }}>
+              <strong style={{ color: isScaleNarrow ? 'var(--amber)' : 'var(--green)' }}>
+                {isScaleNarrow ? '⚠ Narrow scale' : '✓ Scale context'}
+              </strong>
+              {' '}
+              {lang === 'de'
+                ? `Y-Achse: ${analysis.axis_min}–${analysis.axis_max} bpm (Δ${scaleRange} bpm). Spikes von Ø${analysis.spike_avg_magnitude} bpm ${spikesClinical ? 'klinisch relevant' : 'visuell übertrieben'}.`
+                : `Y-axis: ${analysis.axis_min}–${analysis.axis_max} bpm (Δ${scaleRange} bpm). Avg ${analysis.spike_avg_magnitude} bpm spikes ${spikesClinical ? 'are clinically relevant' : 'look worse than they are'}.`}
+            </div>
+          )}
+
+          {/* HR Metrics */}
+          {hasHR && (
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 6 }}>
+              {[
+                { label: 'Baseline', value: `${analysis.hr_baseline}`, unit: 'bpm', color: 'var(--blue)' },
+                { label: 'Spikes', value: `${analysis.spike_count}`, unit: `max ${analysis.spike_max_magnitude}bpm`, color: analysis.spike_count > 6 ? 'var(--red)' : 'var(--amber)' },
+                { label: 'Stable', value: `${analysis.stable_pct}%`, unit: 'of night', color: analysis.stable_pct >= 70 ? 'var(--green)' : 'var(--amber)' },
+              ].map(m => (
+                <div key={m.label} style={{ background: 'var(--surface)', borderRadius: 8, padding: '8px 6px', textAlign: 'center' }}>
+                  <div style={{ fontSize: 9, color: 'var(--text3)', textTransform: 'uppercase', marginBottom: 3 }}>{m.label}</div>
+                  <div style={{ fontSize: 15, fontWeight: 700, fontFamily: 'var(--font-mono)', color: m.color }}>{m.value}</div>
+                  <div style={{ fontSize: 9, color: 'var(--text3)' }}>{m.unit}</div>
+                </div>
             ))}
           </div>
 
@@ -405,23 +435,40 @@ export default function SleepHRAnalysis({ session }) {
 
       const result = await analyseSleepHRScreenshot(base64, mimeType, selectedDate, contextLog, recent || [], lang, caffeineMeals || [])
 
-      // Upload screenshot to storage
-      const path = `${session.user.id}/sleep-hr/${selectedDate}.jpg`
-      await supabase.storage.from('progress-photos').upload(path, file, { contentType: mimeType, upsert: true })
-
-      // Save analysis
+      // Save analysis — image discarded, metrics only
       await supabase.from('sleep_hr_analysis').upsert({
         user_id: session.user.id,
         date: selectedDate,
-        screenshot_path: path,
+        screenshot_path: null, // intentionally not stored
         eye_bag_flag: eyeBags,
         dinner_time: contextLog?.dinner_time || null,
         ac_temp: contextLog?.ac_temp || null,
         ...result,
       }, { onConflict: 'user_id,date' })
 
-      setPreview(null)
-      showToast(lang === 'de' ? 'Analyse gespeichert' : 'Analysis saved')
+      // Auto-populate bed_time on daily_logs from sleep onset
+      if (result.sleep_onset) {
+        await supabase.from('daily_logs').upsert({
+          user_id: session.user.id,
+          date: selectedDate,
+          bed_time: result.sleep_onset,
+          updated_at: new Date().toISOString(),
+        }, { onConflict: 'user_id,date' })
+      }
+
+      // Also update eye bags flag on daily_logs
+      if (eyeBags) {
+        await supabase.from('daily_logs').upsert({
+          user_id: session.user.id,
+          date: selectedDate,
+          eye_bags: true,
+          updated_at: new Date().toISOString(),
+        }, { onConflict: 'user_id,date' })
+      }
+
+      showToast(lang === 'de'
+        ? `Analyse gespeichert${result.sleep_onset ? ` · Einschlafzeit ${result.sleep_onset} übernommen` : ''}`
+        : `Analysis saved${result.sleep_onset ? ` · Sleep onset ${result.sleep_onset} logged` : ''}`)
       fetchAnalyses()
     } catch (e) {
       console.error(e)
@@ -511,8 +558,8 @@ export default function SleepHRAnalysis({ session }) {
 
           <div style={{ fontSize: 10, color: 'var(--text3)', lineHeight: 1.5 }}>
             {lang === 'de'
-              ? 'In der WHOOP App: Schlafdetails → Herzfrequenzkurve → Screenshot machen'
-              : 'In WHOOP app: Sleep details → Heart rate graph → Take screenshot'}
+              ? 'WHOOP App → Schlafdetails. Zusammenfassung oder HR-Kurve. Einschlafzeit wird automatisch übernommen.'
+              : 'WHOOP app → Sleep details. Upload summary view or HR graph. Sleep onset auto-extracted.'}
           </div>
         </div>
       </div>

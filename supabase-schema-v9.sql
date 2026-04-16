@@ -41,3 +41,21 @@ alter table daily_logs add column if not exists ai_weekly_sleep_report text;
 -- Add dinner/AC columns to sleep_hr_analysis for correlation
 alter table sleep_hr_analysis add column if not exists dinner_time time;
 alter table sleep_hr_analysis add column if not exists ac_temp numeric;
+
+-- Add sleep summary fields extracted from WHOOP screenshot
+alter table sleep_hr_analysis add column if not exists sleep_onset time;
+alter table sleep_hr_analysis add column if not exists wake_time time;
+alter table sleep_hr_analysis add column if not exists sleep_duration_h numeric;
+alter table sleep_hr_analysis add column if not exists awake_pct numeric;
+alter table sleep_hr_analysis add column if not exists light_pct numeric;
+alter table sleep_hr_analysis add column if not exists deep_pct numeric;
+alter table sleep_hr_analysis add column if not exists rem_pct numeric;
+alter table sleep_hr_analysis add column if not exists likely_cause text;
+alter table sleep_hr_analysis add column if not exists cause_confidence text;
+alter table sleep_hr_analysis add column if not exists cause_reasoning text;
+alter table sleep_hr_analysis add column if not exists micro_arousals_likely boolean;
+alter table sleep_hr_analysis add column if not exists micro_arousal_count int;
+alter table sleep_hr_analysis add column if not exists eye_bag_risk text;
+alter table sleep_hr_analysis add column if not exists recommendation text;
+alter table sleep_hr_analysis add column if not exists dinner_time time;
+alter table sleep_hr_analysis add column if not exists ac_temp numeric;
