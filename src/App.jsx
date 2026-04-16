@@ -17,10 +17,7 @@ export default function App() {
     const error = url.searchParams.get('error')
     const errorDesc = url.searchParams.get('error_description')
 
-    console.log('App load URL params:', { code: code?.slice(0,10), state, error, errorDesc })
-
     if (code && state === 'whoop_connect') {
-      console.log('WHOOP code received, length:', code.length)
       setWhoopCode(code)
       window.history.replaceState({}, '', '/')
     } else if (error) {

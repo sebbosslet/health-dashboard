@@ -48,7 +48,6 @@ export default function CalendarPage({ session }) {
   const logsByDate = useMemo(() => {
     const map = {}
     logs.forEach(l => { map[l.date] = l })
-    console.log('CalendarPage logs:', logs.length, 'dates:', Object.keys(map).slice(0,5))
     return map
   }, [logs])
 

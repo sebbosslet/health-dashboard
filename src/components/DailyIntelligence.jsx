@@ -1,3 +1,5 @@
+import { CLAUDE_MODEL, CAFFEINE_REGEX } from '../lib/constants'
+import { compressImage } from '../lib/imageUtils'
 import { useState, useEffect, useRef } from 'react'
 import { format, subDays } from 'date-fns'
 import { supabase } from '../lib/supabase'
@@ -72,7 +74,6 @@ EVENING OF ${yesterdayDate} (what happened before this sleep):
 - Activities: ${yesterdayLog.activity?.join(', ') || 'none logged'}
 - Evening habits completed: ${yesterdayLog.habits?.join(', ') || 'none logged'}
 - Phone away at: ${yesterdayLog.phone_away_time?.slice(0,5) || 'not logged'}
-- Phone away at: ${yesterdayLog.phone_away_time?.slice(0,5) || 'not logged'}
 - Sleep onset: ${yesterdayLog.bed_time?.slice(0,5) || 'not logged'}${yesterdayLog.bed_time && parseInt(yesterdayLog.bed_time.split(':')[0]) < 6 ? ' (after midnight — next calendar day)' : ''}
 - Phone-to-sleep gap: ${yesterdayLog.phone_away_time && yesterdayLog.bed_time
     ? (() => {
@@ -128,7 +129,7 @@ Then write 3-4 direct sentences connecting last evening to this morning's WHOOP 
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
-      model: 'claude-sonnet-4-5-20250929',
+      model: CLAUDE_MODEL,
       max_tokens: 400,
       messages: [{ role: 'user', content: prompt }]
     })
@@ -152,21 +153,7 @@ function WhoopUpload({ session, date, lang, bedTime }) {
     if (!file) return
     setAnalysing(true)
     try {
-      // Compress image
-      const base64 = await new Promise((res, rej) => {
-        const img = new Image()
-        const url = URL.createObjectURL(file)
-        img.onload = () => {
-          const MAX = 800
-          let w = img.width, h = img.height
-          if (w > MAX || h > MAX) { if (w > h) { h = Math.round(h*MAX/w); w = MAX } else { w = Math.round(w*MAX/h); h = MAX } }
-          const c = document.createElement('canvas'); c.width = w; c.height = h
-          c.getContext('2d').drawImage(img, 0, 0, w, h)
-          URL.revokeObjectURL(url)
-          res(c.toDataURL('image/jpeg', 0.75).split(',')[1])
-        }
-        img.onerror = rej; img.src = url
-      })
+      const { base64 } = await compressImage(file)
 
       // Fetch recent analyses for context
       const { data: recent } = await supabase.from('sleep_hr_analysis').select('*').eq('user_id', session.user.id).order('date', { ascending: false }).limit(7)
@@ -178,7 +165,7 @@ function WhoopUpload({ session, date, lang, bedTime }) {
       const r = await fetch('/.netlify/functions/claude-proxy', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ model: 'claude-sonnet-4-5-20250929', max_tokens: 800, messages: [{ role: 'user', content: [{ type: 'image', source: { type: 'base64', media_type: 'image/jpeg', data: base64 } }, { type: 'text', text: prompt }] }] })
+        body: JSON.stringify({ model: CLAUDE_MODEL, max_tokens: 800, messages: [{ role: 'user', content: [{ type: 'image', source: { type: 'base64', media_type: 'image/jpeg', data: base64 } }, { type: 'text', text: prompt }] }] })
       })
       const data = await r.json()
       const result = JSON.parse(data.content?.[0]?.text?.replace(/```json|```/g, '').trim() || '{}')

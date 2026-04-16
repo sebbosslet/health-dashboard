@@ -1,3 +1,5 @@
+import { CLAUDE_MODEL } from '../lib/constants'
+import { compressImage } from '../lib/imageUtils'
 import { useLang } from '../lib/LangContext'
 import { useState, useEffect, useRef } from 'react'
 import { format } from 'date-fns'
@@ -82,7 +84,7 @@ export default function PhotosPage({ session }) {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          model: 'claude-sonnet-4-5-20250929',
+          model: CLAUDE_MODEL,
           max_tokens: 1000,
           messages: [{
             role: 'user',

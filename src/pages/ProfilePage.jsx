@@ -77,7 +77,6 @@ export default function ProfilePage({ session, whoopCode, whoopError }) {
     setSupplements(supps || [])
   }
 
-
   function connectWhoop() {
     const params = new URLSearchParams({
       client_id: WHOOP_CLIENT_ID,
@@ -87,7 +86,6 @@ export default function ProfilePage({ session, whoopCode, whoopError }) {
       state: 'whoop_connect',
     })
     const url = `https://api.prod.whoop.com/oauth/oauth2/auth?${params}`
-    console.log('WHOOP connect URL:', url)
     window.location.href = url
   }
 
@@ -100,7 +98,6 @@ export default function ProfilePage({ session, whoopCode, whoopError }) {
         body: JSON.stringify({ code, user_id: session.user.id, redirect_uri: REDIRECT_URI }),
       })
       const data = await res.json()
-      console.log('WHOOP auth response:', data)
       if (data.success) {
         showToast(t('profile_whoop_connected'))
         checkWhoopStatus()

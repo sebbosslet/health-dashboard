@@ -1,3 +1,4 @@
+import { CLAUDE_MODEL } from '../lib/constants'
 import { useState, useEffect } from 'react'
 import { format, startOfMonth, endOfMonth, subMonths, getDaysInMonth } from 'date-fns'
 import { supabase } from '../lib/supabase'
@@ -48,7 +49,7 @@ Write 3 short paragraphs: 1. Month highlights 2. Areas to improve 3. Recommendat
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
-      model: 'claude-sonnet-4-5-20250929',
+      model: CLAUDE_MODEL,
       max_tokens: 600,
       messages: [{ role: 'user', content: prompt }]
     })

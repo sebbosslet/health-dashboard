@@ -1,3 +1,5 @@
+import { CLAUDE_MODEL, CAFFEINE_REGEX } from '../lib/constants'
+import { compressImage } from '../lib/imageUtils'
 import { useState, useEffect, useRef } from 'react'
 import { supabase } from '../lib/supabase'
 import { useLang } from '../lib/LangContext'
@@ -14,7 +16,7 @@ async function estimateCaloriesFromPhoto(base64Image, mimeType, description = nu
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
-      model: 'claude-sonnet-4-5-20250929',
+      model: CLAUDE_MODEL,
       max_tokens: 1000,
       messages: [{
         role: 'user',
@@ -56,29 +58,7 @@ If you cannot identify food in the image, return:
   return JSON.parse(clean)
 }
 
-function fileToBase64(file) {
-  return new Promise((resolve, reject) => {
-    const img = new Image()
-    const url = URL.createObjectURL(file)
-    img.onload = () => {
-      // Resize to max 1024px and compress to jpeg 0.85
-      const MAX = 800
-      let w = img.width, h = img.height
-      if (w > MAX || h > MAX) {
-        if (w > h) { h = Math.round(h * MAX / w); w = MAX }
-        else { w = Math.round(w * MAX / h); h = MAX }
-      }
-      const canvas = document.createElement('canvas')
-      canvas.width = w; canvas.height = h
-      canvas.getContext('2d').drawImage(img, 0, 0, w, h)
-      URL.revokeObjectURL(url)
-      const dataUrl = canvas.toDataURL('image/jpeg', 0.75)
-      resolve(dataUrl.split(',')[1])
-    }
-    img.onerror = reject
-    img.src = url
-  })
-}
+
 
 const CONFIDENCE_COLORS = {
   high: 'var(--green)',
@@ -97,11 +77,7 @@ export default function MealLogger({ session, date, onCaloriesUpdated }) {
   const [showManual, setShowManual] = useState(false)
   const [describeText, setDescribeText] = useState('')
   const [describeAnalysing, setDescribeAnalysing] = useState(false)
-  const [manualName, setManualName] = useState('')
-  const [manualCals, setManualCals] = useState('')
-  const [manualProtein, setManualProtein] = useState('')
-  const [manualCarbs, setManualCarbs] = useState('')
-  const [manualFat, setManualFat] = useState('')
+
   const [error, setError] = useState(null)
   const [consumedAt, setConsumedAt] = useState(format(new Date(), 'HH:mm'))
   const [isCaffeinated, setIsCaffeinated] = useState(false)
@@ -137,8 +113,8 @@ export default function MealLogger({ session, date, onCaloriesUpdated }) {
     setPreview(null)
 
     try {
-      const mimeType = 'image/jpeg' // always jpeg after canvas compression
-      const base64 = await fileToBase64(file)
+      const mimeType = compressedMime
+      const { base64, mimeType: compressedMime } = await compressImage(file)
       const objectUrl = URL.createObjectURL(file)
 
       const result = await estimateCaloriesFromPhoto(base64, mimeType)
@@ -152,7 +128,7 @@ export default function MealLogger({ session, date, onCaloriesUpdated }) {
       setPreview({ objectUrl, result, mimeType, base64 })
 
       // Auto-detect caffeine (coffee, tea, soda, energy drinks)
-      const hasCaffeine = /coffee|espresso|cappuccino|latte|americano|flat white|cold brew|matcha|green tea|black tea|oolong|chai|earl grey|tea|coca.?cola|coke|pepsi|diet coke|red bull|monster|rockstar|energy drink|pre.?workout|preworkout|bang|celsius|ghost energy|prime energy|yerba mate|guarana|mountain dew|dr pepper/i.test(result.meal_name)
+      const hasCaffeine = CAFFEINE_REGEX.test(result.meal_name)
       setIsCaffeinated(hasCaffeine)
       setConsumedAt(format(new Date(), 'HH:mm'))
     } catch (err) {
@@ -199,7 +175,7 @@ export default function MealLogger({ session, date, onCaloriesUpdated }) {
         setEditingCalories(null)
         setShowReassess(false)
         setReassessText('')
-        const hasCaffeine = /coffee|espresso|cappuccino|latte|americano|flat white|cold brew|matcha|green tea|black tea|oolong|chai|earl grey|tea|coca.?cola|coke|pepsi|diet coke|red bull|monster|rockstar|energy drink|pre.?workout|preworkout|bang|celsius|ghost energy|prime energy|yerba mate|guarana|mountain dew|dr pepper/i.test(result.meal_name)
+        const hasCaffeine = CAFFEINE_REGEX.test(result.meal_name)
         setIsCaffeinated(hasCaffeine)
       }
     } catch (e) {
@@ -216,7 +192,7 @@ export default function MealLogger({ session, date, onCaloriesUpdated }) {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          model: 'claude-sonnet-4-5-20250929',
+          model: CLAUDE_MODEL,
           max_tokens: 600,
           messages: [{ role: 'user', content: `You are a nutrition estimator. The user has described a meal in text — there is no photo. Estimate the calories and macros based on the description alone.
 
@@ -241,7 +217,7 @@ Respond ONLY with valid JSON, no markdown:
         setShowManual(false)
         setDescribeText('')
         setEditingCalories(null)
-        const hasCaffeine = /coffee|espresso|cappuccino|latte|americano|flat white|cold brew|matcha|green tea|black tea|oolong|chai|earl grey|tea|coca.?cola|coke|pepsi|diet coke|red bull|monster|rockstar|energy drink|pre.?workout|preworkout|bang|celsius|ghost energy|prime energy|yerba mate|guarana|mountain dew|dr pepper/i.test(result.meal_name + ' ' + describeText)
+        const hasCaffeine = CAFFEINE_REGEX.test(result.meal_name + ' ' + describeText)
         setIsCaffeinated(hasCaffeine)
       }
     } catch (e) {
@@ -251,30 +227,7 @@ Respond ONLY with valid JSON, no markdown:
     setDescribeAnalysing(false)
   }
 
-  async function saveManual() {
-    if (!manualName || !manualCals) return
-    const hasCaffeine = /coffee|espresso|cappuccino|latte|americano|flat white|cold brew|matcha|green tea|black tea|oolong|chai|earl grey|tea|coca.?cola|coke|pepsi|diet coke|red bull|monster|rockstar|energy drink|pre.?workout|preworkout|bang|celsius|ghost energy|prime energy|yerba mate|guarana|mountain dew|dr pepper/i.test(manualName)
-    await supabase.from('meal_logs').insert({
-      user_id: session.user.id,
-      date: dateStr,
-      meal_name: manualName,
-      meal_type: mealType,
-      calories: parseInt(manualCals),
-      protein: manualProtein ? parseFloat(manualProtein) : null,
-      carbs: manualCarbs ? parseFloat(manualCarbs) : null,
-      fat: manualFat ? parseFloat(manualFat) : null,
-      source: 'manual',
-      consumed_at: consumedAt || null,
-      is_caffeinated: hasCaffeine,
-    })
-    setShowManual(false)
-    setManualName('')
-    setManualCals('')
-    setManualProtein('')
-    setManualCarbs('')
-    setManualFat('')
-    fetchMeals()
-  }
+
 
   async function deleteMeal(id) {
     await supabase.from('meal_logs').delete().eq('id', id)

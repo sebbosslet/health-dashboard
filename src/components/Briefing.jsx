@@ -1,3 +1,4 @@
+import { CLAUDE_MODEL } from '../lib/constants'
 import { useState, useEffect } from 'react'
 import { format, subDays, startOfWeek, endOfWeek, isMonday } from 'date-fns'
 import { supabase } from '../lib/supabase'
@@ -157,7 +158,7 @@ ${context}`
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
-      model: 'claude-sonnet-4-5-20250929',
+      model: CLAUDE_MODEL,
       max_tokens: 250,
       messages: [{ role: 'user', content: prompt }]
     })

@@ -1,3 +1,5 @@
+import { CLAUDE_MODEL } from '../lib/constants'
+import { compressImage } from '../lib/imageUtils'
 import { useState, useEffect, useRef } from 'react'
 import { supabase } from '../lib/supabase'
 import { useLang } from '../lib/LangContext'
@@ -20,7 +22,7 @@ async function generateRecipeFromPrompt(prompt, lang) {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
-      model: 'claude-sonnet-4-5-20250929',
+      model: CLAUDE_MODEL,
       max_tokens: 1500,
       messages: [
         { role: 'user', content: `${systemPrompt}\n\n${userPrompt}` }
@@ -42,7 +44,7 @@ async function analyseMealPrepIngredients(description, lang) {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
-      model: 'claude-sonnet-4-5-20250929',
+      model: CLAUDE_MODEL,
       max_tokens: 500,
       messages: [{ role: 'user', content: prompt }]
     })
@@ -62,7 +64,7 @@ async function analysePortionPhoto(base64Image, mimeType, totalCalories, portion
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
-      model: 'claude-sonnet-4-5-20250929',
+      model: CLAUDE_MODEL,
       max_tokens: 300,
       messages: [{
         role: 'user',
@@ -79,27 +81,7 @@ async function analysePortionPhoto(base64Image, mimeType, totalCalories, portion
   return JSON.parse(clean)
 }
 
-function fileToBase64(file) {
-  return new Promise((resolve, reject) => {
-    const img = new Image()
-    const url = URL.createObjectURL(file)
-    img.onload = () => {
-      const MAX = 800
-      let w = img.width, h = img.height
-      if (w > MAX || h > MAX) {
-        if (w > h) { h = Math.round(h * MAX / w); w = MAX }
-        else { w = Math.round(w * MAX / h); h = MAX }
-      }
-      const canvas = document.createElement('canvas')
-      canvas.width = w; canvas.height = h
-      canvas.getContext('2d').drawImage(img, 0, 0, w, h)
-      URL.revokeObjectURL(url)
-      resolve(canvas.toDataURL('image/jpeg', 0.75).split(',')[1])
-    }
-    img.onerror = reject
-    img.src = url
-  })
-}
+
 
 // ─── Recipe Card ─────────────────────────────────────────────────────────────
 
@@ -423,7 +405,7 @@ function MealPrepTab({ session, lang }) {
 
   async function handleIngredientPhoto(file) {
     if (!file) return
-    const base64 = await fileToBase64(file)
+    const { base64 } = await compressImage(file)
     const mimeType = file.type || 'image/jpeg'
     setIngredientDesc(prev => prev + (prev ? '\n' : '') + `[Photo uploaded: ${file.name}]`)
     // Analyse immediately
@@ -433,7 +415,7 @@ function MealPrepTab({ session, lang }) {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          model: 'claude-sonnet-4-5-20250929',
+          model: CLAUDE_MODEL,
           max_tokens: 300,
           messages: [{
             role: 'user',
@@ -470,7 +452,7 @@ function MealPrepTab({ session, lang }) {
     if (!file || !batchResult) return
     setAnalysingPortion(true)
     try {
-      const base64 = await fileToBase64(file)
+      const { base64 } = await compressImage(file)
       const mimeType = file.type || 'image/jpeg'
       const portionNum = portionPhotos.length + 1
       const result = await analysePortionPhoto(base64, mimeType, batchResult.total_calories, portionNum, portionCount, lang)
