@@ -147,7 +147,7 @@ export default function MealLogger({ session, date, onCaloriesUpdated }) {
         return
       }
 
-      setPreview({ objectUrl, result, mimeType })
+      setPreview({ objectUrl, result, mimeType, base64 })
 
       // Auto-detect caffeine (coffee, tea, soda, energy drinks)
       const hasCaffeine = /coffee|espresso|cappuccino|latte|americano|flat white|cold brew|matcha|green tea|black tea|oolong|chai|earl grey|tea|coca.?cola|coke|pepsi|diet coke|red bull|monster|rockstar|energy drink|pre.?workout|preworkout|bang|celsius|ghost energy|prime energy|yerba mate|guarana|mountain dew|dr pepper/i.test(result.meal_name)
