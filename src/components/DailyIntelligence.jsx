@@ -267,11 +267,9 @@ function EveningLog({ log, onSave, lang, habitGoals, activeHabits, onToggleHabit
     : { habits: 'Evening habits', phone: 'Phone away at', wind: 'Wind-down quality', note: 'Anything affect your evening?', save: 'Save evening', saving: 'Saving...', good: 'Good', ok: 'OK', poor: 'Poor', dinner: 'Dinner at', ac: 'AC temp (°F)' }
 
   async function handleSave() {
-    const dinnerRawRef = dinnerRef.current?.value
-    const dinnerRawState = dinnerTime
-    const dinnerVal = dinnerRawRef || dinnerRawState || null
+    // Capture current input values from both ref (DOM) and state (onBlur)
+    const dinnerVal = dinnerRef.current?.value || dinnerTime || null
     const phoneVal = phoneRef.current?.value || phoneAway || null
-    console.log('[evening] ref:', dinnerRawRef, 'state:', dinnerRawState, 'final:', dinnerVal)
     setSaving(true)
     await onSave({
       phone_away_time: phoneVal || null,
@@ -308,29 +306,24 @@ function EveningLog({ log, onSave, lang, habitGoals, activeHabits, onToggleHabit
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
         <div className="field">
           <label className="field-label">📵 {labels.phone}</label>
-          <input ref={phoneRef} className="field-input" type="time" defaultValue={phoneAway} onChange={e => setPhoneAway(e.target.value)} />
+          <input
+            ref={phoneRef}
+            className="field-input"
+            type="time"
+            defaultValue={phoneAway}
+            onChange={e => setPhoneAway(e.target.value)}
+            onBlur={e => setPhoneAway(e.target.value)}
+          />
         </div>
         <div className="field">
           <label className="field-label">🍽 {labels.dinner}</label>
           <input
             ref={dinnerRef}
             className="field-input"
-            type="text"
-            inputMode="numeric"
-            placeholder="20:30"
+            type="time"
             defaultValue={dinnerTime}
             onChange={e => setDinnerTime(e.target.value)}
-            onBlur={e => {
-              // Normalize HH:MM format
-              const v = e.target.value.replace(/[^0-9:]/g, '')
-              if (v.length === 4 && !v.includes(':')) {
-                const normalized = v.slice(0,2) + ':' + v.slice(2)
-                e.target.value = normalized
-                setDinnerTime(normalized)
-              } else {
-                setDinnerTime(v)
-              }
-            }}
+            onBlur={e => setDinnerTime(e.target.value)}
           />
         </div>
         <div className="field">
