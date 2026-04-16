@@ -467,7 +467,15 @@ function WhoopTab({ log, yesterdayLog, session, lang, onRefresh }) {
   }, [session.user.id, date])
 
   // bed_time can be on today's log (uploaded today) or yesterday's log (uploaded via old Trends flow)
-  const bedTime = log?.bed_time || yesterdayLog?.bed_time
+  // Prefer today's bed_time (from new upload), fall back to yesterday's
+  // Also correct 12:xx AM misread (12:03 AM should be 00:03, not noon)
+  function correctBedTime(t) {
+    if (!t) return null
+    const [h] = t.split(':').map(Number)
+    // Sleep onset of 12:xx is almost certainly midnight (00:xx), never noon
+    return h === 12 ? '00:' + t.slice(3) : t
+  }
+  const bedTime = correctBedTime(log?.bed_time) || correctBedTime(yesterdayLog?.bed_time)
   const uploaded = !!bedTime
 
   // Evening fields can be on today's log OR yesterday's
@@ -540,11 +548,28 @@ function WhoopTab({ log, yesterdayLog, session, lang, onRefresh }) {
       )}
 
       {/* HR Analysis — shown if data extracted from screenshot */}
-      {hrAnalysis && (hrAnalysis.hr_baseline || hrAnalysis.spike_count != null || hrAnalysis.analysis) && (
+      {hrAnalysis && (hrAnalysis.hr_baseline || hrAnalysis.analysis || hrAnalysis.likely_cause) && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
           <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
             {lang === 'de' ? 'Herzfrequenz-Analyse' : 'Heart rate analysis'}
           </div>
+
+          {/* Sleep stages if available (from summary screenshot) */}
+          {hrAnalysis && hrAnalysis.deep_pct != null && (
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 6 }}>
+              {[
+                { label: 'Awake', value: `${hrAnalysis.awake_pct}%`, color: 'var(--text3)' },
+                { label: 'Light', value: `${hrAnalysis.light_pct}%`, color: 'var(--blue)' },
+                { label: 'Deep', value: `${hrAnalysis.deep_pct}%`, color: 'var(--purple)' },
+                { label: 'REM', value: `${hrAnalysis.rem_pct}%`, color: 'var(--green)' },
+              ].map(m => (
+                <div key={m.label} style={{ background: 'var(--surface2)', borderRadius: 8, padding: '6px 4px', textAlign: 'center' }}>
+                  <div style={{ fontSize: 9, color: 'var(--text3)', textTransform: 'uppercase', marginBottom: 2 }}>{m.label}</div>
+                  <div style={{ fontSize: 13, fontWeight: 700, fontFamily: 'var(--font-mono)', color: m.color }}>{m.value}</div>
+                </div>
+              ))}
+            </div>
+          )}
 
           {/* HR metrics row */}
           {hrAnalysis.hr_baseline && (
