@@ -25,7 +25,7 @@ async function estimateCaloriesFromPhoto(base64Image, mimeType, description = nu
           },
           {
             type: 'text',
-            text: `You are a nutrition estimator. Analyse this food photo and provide a rough calorie and macro estimate. Be practical and realistic — this is for personal health tracking, not clinical use.
+            text: `You are a nutrition estimator. Analyse this food photo and provide a rough calorie and macro estimate. Be practical and realistic — this is for personal health tracking, not clinical use.${extraContext}
 
 Respond ONLY with a valid JSON object, no markdown, no explanation, just the JSON:
 {
