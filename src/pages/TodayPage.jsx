@@ -130,9 +130,6 @@ export default function TodayPage({ session }) {
 
       <div className="page-section">
 
-        {/* Morning briefing - auto-generated, shows before 1pm */}
-        <MorningBriefing session={session} todayLog={log} settings={settings} />
-
         {/* Proactive nudges - contextual, time-aware */}
         <ProactiveNudges session={session} todayLog={log} settings={settings} />
 

@@ -72,13 +72,15 @@ EVENING OF ${yesterdayDate} (what happened before this sleep):
 - Activities: ${yesterdayLog.activity?.join(', ') || 'none logged'}
 - Evening habits completed: ${yesterdayLog.habits?.join(', ') || 'none logged'}
 - Phone away at: ${yesterdayLog.phone_away_time?.slice(0,5) || 'not logged'}
-- In bed at: ${yesterdayLog.bed_time?.slice(0,5) || 'not logged'}
-- Phone-to-bed gap: ${yesterdayLog.phone_away_time && yesterdayLog.bed_time
+- Phone away at: ${yesterdayLog.phone_away_time?.slice(0,5) || 'not logged'}
+- Sleep onset: ${yesterdayLog.bed_time?.slice(0,5) || 'not logged'}${yesterdayLog.bed_time && parseInt(yesterdayLog.bed_time.split(':')[0]) < 6 ? ' (after midnight — next calendar day)' : ''}
+- Phone-to-sleep gap: ${yesterdayLog.phone_away_time && yesterdayLog.bed_time
     ? (() => {
         const pm = parseInt(yesterdayLog.phone_away_time.split(':')[0])*60 + parseInt(yesterdayLog.phone_away_time.split(':')[1])
         let bm = parseInt(yesterdayLog.bed_time.split(':')[0])*60 + parseInt(yesterdayLog.bed_time.split(':')[1])
-        if (bm < 360) bm += 1440 // after midnight
-        return (bm - pm) + 'min'
+        if (bm < 360) bm += 1440 // after midnight — add 24h before calculating
+        const gap = bm - pm
+        return `${gap} minutes (DO NOT recalculate this — midnight crossover already accounted for)`
       })()
     : 'not calculable'}
 - Wind-down quality: ${yesterdayLog.wind_down || 'not logged'}
@@ -96,7 +98,8 @@ THIS MORNING (${format(new Date(), 'd MMM')} — result of that sleep):
 - HRV: ${todayLog.hrv ? todayLog.hrv + 'ms' : 'not synced'}
 - RHR: ${todayLog.rhr ? todayLog.rhr + 'bpm' : 'not synced'}
 - Restorative sleep: ${todayLog.sleep_restorative ? todayLog.sleep_restorative.toFixed(1) + 'h' : 'not synced'}
-- How you feel: Energy ${todayLog.morning_energy || '?'}/5, Mood ${todayLog.morning_mood || '?'}/5, Soreness ${todayLog.morning_soreness || '?'}/5
+- Sleep onset (from WHOOP screenshot): ${todayLog.bed_time?.slice(0,5) || 'not uploaded yet'}
+- Morning check-in (only use if logged today): Energy ${todayLog.morning_energy > 0 ? todayLog.morning_energy + '/5' : 'NOT logged yet — do not guess'}, Mood ${todayLog.morning_mood > 0 ? todayLog.morning_mood + '/5' : 'NOT logged yet'}, Soreness ${todayLog.morning_soreness > 0 ? todayLog.morning_soreness + '/5' : 'NOT logged yet'}
 - Morning note: ${todayLog.morning_note || 'none'}
 `
 
@@ -114,7 +117,12 @@ ${patternContext}
 ${yesterdayContext}
 ${todayContext}
 
-Write 3-5 direct sentences. Concretely connect what happened yesterday evening with today's WHOOP outcome. Reference his personal patterns when relevant. Ask one smart follow-up question at the end. Be like an experienced coach — direct, honest, not excessively positive. If key data is missing, say specifically what would sharpen the analysis.`
+First output a short stats block in this exact format (fill in dashes if not available):
+Dinner: [dinner_time or —] | Phone away: [phone_away_time or —] | Asleep: [bed_time or —] | Screen-free gap: [calculate minutes from phone away to asleep, or —]
+Recovery: [recovery]% | HRV: [hrv]ms | RHR: [rhr]bpm | Sleep: [duration]h | Efficiency: [efficiency]%
+Morning: Energy [energy]/5 | Mood [mood]/5 | Soreness [soreness]/5 [only if logged, otherwise show "—"]
+
+Then write 3-4 direct sentences connecting last evening to this morning's WHOOP data. IMPORTANT: only reference morning check-in scores if they were actually logged (not "NOT logged yet"). Reference personal patterns when relevant. Ask one smart follow-up question. Be direct and honest.`
 
   const res = await fetch('/.netlify/functions/claude-proxy', {
     method: 'POST',
@@ -364,6 +372,11 @@ function InsightCard({ log, userId, lang }) {
   const [loading, setLoading] = useState(false)
   const today = format(new Date(), 'yyyy-MM-dd')
 
+  // Re-sync insight when log updates
+  useEffect(() => {
+    setInsight(log?.ai_insight || '')
+  }, [log?.ai_insight])
+
   async function generateInsight() {
     setLoading(true)
     try {
@@ -391,9 +404,32 @@ function InsightCard({ log, userId, lang }) {
     setLoading(false)
   }
 
-  // Show yesterday's evening context in the insight header
+  // Split stats block from prose
+  function parseInsight(text) {
+    if (!text) return { stats: null, prose: null }
+    const lines = text.split('\n')
+    const statsLines = []
+    const proseLines = []
+    let inStats = true
+    for (const line of lines) {
+      // Stats lines contain | separators
+      if (inStats && (line.includes('|') || line.trim() === '')) {
+        if (line.trim()) statsLines.push(line.trim())
+      } else {
+        inStats = false
+        if (line.trim()) proseLines.push(line)
+      }
+    }
+    return {
+      stats: statsLines.length ? statsLines : null,
+      prose: proseLines.join('\n').trim() || text,
+    }
+  }
+
   const yesterdayDate = format(subDays(new Date(), 1), 'd MMM')
   const todayDate = format(new Date(), 'd MMM')
+  const { stats, prose } = parseInsight(insight)
+  const hasScreenshot = !!log?.bed_time
 
   return (
     <div style={{ padding: '12px 14px', display: 'flex', flexDirection: 'column', gap: 12 }}>
@@ -408,9 +444,27 @@ function InsightCard({ log, userId, lang }) {
         </span>
       </div>
 
+      {/* WHOOP screenshot nudge if not yet uploaded */}
+      {!hasScreenshot && (
+        <div style={{ fontSize: 11, color: 'var(--amber)', background: 'rgba(186,117,23,0.08)', borderRadius: 8, padding: '7px 10px', lineHeight: 1.5 }}>
+          📸 {lang === 'de'
+            ? 'WHOOP Screenshot noch nicht hochgeladen — Trends → Sleep HR für Einschlafzeit und Schlafphasen'
+            : 'WHOOP screenshot not yet uploaded — go to Trends → Sleep HR to extract sleep onset and stages'}
+        </div>
+      )}
+
       {insight ? (
         <>
-          <div style={{ fontSize: 13, color: 'var(--text)', lineHeight: 1.7 }}>{insight}</div>
+          {/* Stats block */}
+          {stats && (
+            <div style={{ background: 'var(--surface2)', borderRadius: 8, padding: '8px 10px', display: 'flex', flexDirection: 'column', gap: 3 }}>
+              {stats.map((line, i) => (
+                <div key={i} style={{ fontSize: 11, fontFamily: 'var(--font-mono)', color: 'var(--text2)', lineHeight: 1.6 }}>{line}</div>
+              ))}
+            </div>
+          )}
+          {/* Prose */}
+          <div style={{ fontSize: 13, color: 'var(--text)', lineHeight: 1.7 }}>{prose}</div>
           <button onClick={generateInsight} disabled={loading} style={{ padding: '6px 12px', borderRadius: 20, border: '0.5px solid var(--border)', background: 'none', color: 'var(--text2)', fontSize: 11, cursor: 'pointer', fontFamily: 'inherit', alignSelf: 'flex-start' }}>
             {loading ? '...' : (lang === 'de' ? '↺ Neu analysieren' : '↺ Re-analyse')}
           </button>
@@ -419,13 +473,13 @@ function InsightCard({ log, userId, lang }) {
         <>
           <div style={{ fontSize: 12, color: 'var(--text2)', lineHeight: 1.6 }}>
             {lang === 'de'
-              ? `Verbindet deinen Abend vom ${yesterdayDate} mit deinen WHOOP-Daten von heute. Liest deine 30-Tage-Muster für persönliche Korrelationen.`
-              : `Connects your evening of ${yesterdayDate} with today's WHOOP data. Reads your 30-day patterns for personal correlations.`}
+              ? `Verbindet deinen Abend vom ${yesterdayDate} mit deinen WHOOP-Daten von heute. Generiere es wenn du alles eingegeben hast.`
+              : `Connects your evening of ${yesterdayDate} with today's WHOOP data. Generate when you've entered everything and synced WHOOP.`}
           </div>
           <button className="btn-primary" onClick={generateInsight} disabled={loading}>
             {loading
               ? (lang === 'de' ? 'Analysiere...' : 'Analysing...')
-              : (lang === 'de' ? '✨ Meinen Tag analysieren' : '✨ Analyse my day')}
+              : (lang === 'de' ? '✨ Analyse generieren' : '✨ Generate analysis')}
           </button>
         </>
       )}

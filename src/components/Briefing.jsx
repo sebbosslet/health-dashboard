@@ -131,7 +131,7 @@ ${isBestSleepInWeek ? '★ Best sleep this week' : ''}
 YESTERDAY EVENING:
 - Activities: ${yesterdayLog?.activity?.join(', ') || 'none'}
 - Habits: ${yesterdayLog?.habits?.join(', ') || 'none'}
-- Phone away: ${yesterdayLog?.phone_away_time?.slice(0,5) || 'not logged'}, Bed: ${yesterdayLog?.bed_time?.slice(0,5) || 'not logged'}${phoneGap !== null ? `, Gap: ${phoneGap}min` : ''}
+- Phone away: ${yesterdayLog?.phone_away_time?.slice(0,5) || 'not logged'}, Sleep onset: ${yesterdayLog?.bed_time?.slice(0,5) || 'not logged'}${yesterdayLog?.bed_time && parseInt(yesterdayLog.bed_time.split(':')[0]) < 6 ? ' (after midnight)' : ''}${phoneGap !== null ? `, Gap: ${phoneGap} minutes (use this number — midnight crossover already handled)` : ''}
 - Wind-down: ${yesterdayLog?.wind_down || 'not logged'}
 - Calories: ${yesterdayLog?.calories || 'not logged'}
 
