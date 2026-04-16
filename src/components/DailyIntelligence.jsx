@@ -12,7 +12,9 @@ async function generateDailyInsight(todayLog, yesterdayLog, historicalLogs, lang
     .filter(l => l.phone_away_time && l.sleep_efficiency)
     .map(l => {
       const phoneMin = parseInt(l.phone_away_time?.split(':')[0]) * 60 + parseInt(l.phone_away_time?.split(':')[1] || 0)
-      const bedMin = l.bed_time ? parseInt(l.bed_time?.split(':')[0]) * 60 + parseInt(l.bed_time?.split(':')[1] || 0) : null
+      let bedMin = l.bed_time ? parseInt(l.bed_time?.split(':')[0]) * 60 + parseInt(l.bed_time?.split(':')[1] || 0) : null
+      // Handle midnight crossover: if bed time is before 6am it's after midnight
+      if (bedMin !== null && bedMin < 360) bedMin += 1440
       return { gap: bedMin ? bedMin - phoneMin : null, efficiency: l.sleep_efficiency, recovery: l.recovery_score }
     }).filter(d => d.gap !== null && d.gap > 0)
 
@@ -74,7 +76,8 @@ EVENING OF ${yesterdayDate} (what happened before this sleep):
 - Phone-to-bed gap: ${yesterdayLog.phone_away_time && yesterdayLog.bed_time
     ? (() => {
         const pm = parseInt(yesterdayLog.phone_away_time.split(':')[0])*60 + parseInt(yesterdayLog.phone_away_time.split(':')[1])
-        const bm = parseInt(yesterdayLog.bed_time.split(':')[0])*60 + parseInt(yesterdayLog.bed_time.split(':')[1])
+        let bm = parseInt(yesterdayLog.bed_time.split(':')[0])*60 + parseInt(yesterdayLog.bed_time.split(':')[1])
+        if (bm < 360) bm += 1440 // after midnight
         return (bm - pm) + 'min'
       })()
     : 'not calculable'}

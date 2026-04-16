@@ -41,12 +41,14 @@ function computePatterns(history) {
   const phoneData = history.filter(l => l.phone_away_time && l.sleep_efficiency)
   const shortGap = phoneData.filter(l => {
     const pm = parseInt(l.phone_away_time.split(':')[0])*60 + parseInt(l.phone_away_time.split(':')[1])
-    const bm = l.bed_time ? parseInt(l.bed_time.split(':')[0])*60 + parseInt(l.bed_time.split(':')[1]) : pm + 30
+    let bm = l.bed_time ? parseInt(l.bed_time.split(':')[0])*60 + parseInt(l.bed_time.split(':')[1]) : pm + 30
+    if (l.bed_time && bm < 360) bm += 1440
     return (bm - pm) < 45
   })
   const longGap = phoneData.filter(l => {
     const pm = parseInt(l.phone_away_time.split(':')[0])*60 + parseInt(l.phone_away_time.split(':')[1])
-    const bm = l.bed_time ? parseInt(l.bed_time.split(':')[0])*60 + parseInt(l.bed_time.split(':')[1]) : pm + 30
+    let bm = l.bed_time ? parseInt(l.bed_time.split(':')[0])*60 + parseInt(l.bed_time.split(':')[1]) : pm + 30
+    if (l.bed_time && bm < 360) bm += 1440
     return (bm - pm) >= 45
   })
   const avgEfficiencyShortGap = shortGap.length >= 3
@@ -116,7 +118,8 @@ SLEEP HR ANALYSIS (last uploaded — ${lastHR.date}):
   const phoneGap = yesterdayLog?.phone_away_time && yesterdayLog?.bed_time
     ? (() => {
         const pm = parseInt(yesterdayLog.phone_away_time.split(':')[0])*60 + parseInt(yesterdayLog.phone_away_time.split(':')[1])
-        const bm = parseInt(yesterdayLog.bed_time.split(':')[0])*60 + parseInt(yesterdayLog.bed_time.split(':')[1])
+        let bm = parseInt(yesterdayLog.bed_time.split(':')[0])*60 + parseInt(yesterdayLog.bed_time.split(':')[1])
+        if (bm < 360) bm += 1440
         return bm - pm
       })() : null
 
