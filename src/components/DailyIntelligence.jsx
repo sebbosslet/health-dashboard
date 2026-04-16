@@ -296,11 +296,13 @@ function EveningLog({ log, onSave, lang, habitGoals, activeHabits, onToggleHabit
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
         <div className="field">
           <label className="field-label">📵 {labels.phone}</label>
-          <input className="field-input" type="time" value={phoneAway} onChange={e => setPhoneAway(e.target.value)} />
+          <input className="field-input" type="time" defaultValue={phoneAway} onChange={e => setPhoneAway(e.target.value)} />
+          {phoneAway && <div style={{ fontSize: 10, color: 'var(--green)', marginTop: 2 }}>✓ {phoneAway}</div>}
         </div>
         <div className="field">
           <label className="field-label">🍽 {labels.dinner}</label>
-          <input className="field-input" type="time" value={dinnerTime} onChange={e => setDinnerTime(e.target.value)} />
+          <input className="field-input" type="time" defaultValue={dinnerTime} onChange={e => setDinnerTime(e.target.value)} />
+          {dinnerTime && <div style={{ fontSize: 10, color: 'var(--green)', marginTop: 2 }}>✓ {dinnerTime}</div>}
         </div>
         <div className="field">
           <label className="field-label">❄ {labels.ac}</label>
@@ -479,12 +481,13 @@ export default function DailyIntelligence({ session, log, onSave, habitGoals, ac
       </div>
 
       {section === 'morning' && (
-        <MorningCheckin key={log?.updated_at || 'morning'} log={log} onSave={onSave} lang={lang} yesterdayLog={yesterdayLog} />
+        <MorningCheckin log={log} onSave={onSave} lang={lang} yesterdayLog={yesterdayLog} />
       )}
       {section === 'evening' && (
         <EveningLog
-          key={log?.updated_at || 'evening'}
-          log={log} onSave={onSave} lang={lang}
+          log={log}
+          onSave={(fields) => onSave({ ...fields, habits: Array.from(activeHabits) })}
+          lang={lang}
           habitGoals={habitGoals} activeHabits={activeHabits} onToggleHabit={onToggleHabit}
         />
       )}
