@@ -4,8 +4,6 @@ import { supabase } from '../lib/supabase'
 import { useLang } from '../lib/LangContext'
 import { showToast } from './Toast'
 
-// ─── Helpers ──────────────────────────────────────────────────────────────────
-
 function timeDiff(scheduled, actual) {
   if (!scheduled || !actual) return null
   const [sh, sm] = scheduled.split(':').map(Number)
@@ -13,154 +11,190 @@ function timeDiff(scheduled, actual) {
   const diff = (ah * 60 + am) - (sh * 60 + sm)
   if (Math.abs(diff) < 2) return null
   const abs = Math.abs(diff)
-  const label = abs >= 60 ? `${Math.floor(abs/60)}h ${abs%60 > 0 ? abs%60+'m' : ''}`.trim() : `${abs}m`
-  return { mins: diff, label, early: diff < 0 }
+  const label = abs >= 60 ? `${Math.floor(abs/60)}h${abs%60 ? ` ${abs%60}m` : ''}` : `${abs}m`
+  return { label, early: diff < 0 }
 }
 
-function formatTime(t) {
-  if (!t) return ''
-  return t.slice(0, 5)
-}
+// ─── Single logged item row ───────────────────────────────────────────────────
 
-// ─── Item Row (single med or supp) ───────────────────────────────────────────
-
-function ItemRow({ item, log, onToggle, onLogTime, type, lang }) {
-  const [showTime, setShowTime] = useState(false)
-  const [takenTime, setTakenTime] = useState(log?.taken_time?.slice(0,5) || '')
-  const [fasted, setFasted] = useState(log?.fasted ?? null)
-
+function LogRow({ item, log, onToggle, onSaveTime, type, lang }) {
   const isMed = type === 'medication'
-  const taken = log?.taken || false
-  const diff = taken && item.scheduled_time && log?.taken_time
-    ? timeDiff(item.scheduled_time.slice(0,5), log.taken_time.slice(0,5))
-    : null
+  const taken = !!log?.taken
+  const [showEdit, setShowEdit] = useState(false)
+  const [takenTime, setTakenTime] = useState(log?.taken_time?.slice(0,5) || format(new Date(), 'HH:mm'))
+  const diff = taken && log?.taken_time ? timeDiff(null, log.taken_time.slice(0,5)) : null
 
-  async function handleToggle() {
-    const nowTime = format(new Date(), 'HH:mm')
-    await onToggle(item.id, !taken, !taken ? nowTime : null)
-    if (!taken) setTakenTime(nowTime)
+  async function handleCheck() {
+    const now = format(new Date(), 'HH:mm')
+    if (!taken) {
+      await onToggle(item.id, true, now)
+      setTakenTime(now)
+    } else {
+      await onToggle(item.id, false, null)
+    }
   }
 
   async function handleSaveTime() {
-    await onLogTime(item.id, takenTime, fasted)
-    setShowTime(false)
-    showToast(lang === 'de' ? 'Uhrzeit gespeichert' : 'Time saved')
+    await onSaveTime(item.id, takenTime)
+    setShowEdit(false)
+    showToast(lang === 'de' ? 'Gespeichert' : 'Saved')
   }
 
   return (
     <div style={{ borderBottom: '0.5px solid var(--border)' }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px' }}>
-
         {/* Checkbox */}
-        <button onClick={handleToggle} style={{
-          width: 26, height: 26, borderRadius: 8, border: `1.5px solid ${taken ? 'var(--green)' : 'var(--border)'}`,
+        <button onClick={handleCheck} style={{
+          width: 28, height: 28, borderRadius: 8, flexShrink: 0,
+          border: `1.5px solid ${taken ? 'var(--green)' : 'var(--border)'}`,
           background: taken ? 'var(--green)' : 'var(--surface2)',
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
-          cursor: 'pointer', flexShrink: 0, padding: 0
+          display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', padding: 0,
         }}>
           {taken && <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M2.5 7l3.5 3.5 5.5-6" stroke="white" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/></svg>}
         </button>
 
-        {/* Name + dose */}
+        {/* Name + meta */}
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
             <span style={{ fontSize: 13, fontWeight: 600, color: taken ? 'var(--text2)' : 'var(--text)', textDecoration: taken ? 'line-through' : 'none' }}>
               {item.name}
             </span>
-            {item.dose && (
-              <span style={{ fontSize: 11, color: 'var(--text3)', background: 'var(--surface2)', padding: '1px 6px', borderRadius: 10 }}>
-                {item.dose}
-              </span>
-            )}
+            {item.dose && <span style={{ fontSize: 11, color: 'var(--text3)', background: 'var(--surface2)', padding: '1px 6px', borderRadius: 10 }}>{item.dose}</span>}
           </div>
-          <div style={{ display: 'flex', gap: 8, marginTop: 2, flexWrap: 'wrap' }}>
-            {item.scheduled_time && (
-              <span style={{ fontSize: 10, color: 'var(--text3)' }}>
-                ⏰ {formatTime(item.scheduled_time)}
-              </span>
-            )}
-            {item.instructions && (
-              <span style={{ fontSize: 10, color: 'var(--text3)' }}>{item.instructions}</span>
-            )}
-            {item.with_food && !isMed && (
-              <span style={{ fontSize: 10, color: 'var(--text3)' }}>🍽 {lang === 'de' ? 'mit Essen' : 'with food'}</span>
-            )}
-          </div>
+          {((isMed && (item.fasted_flag || item.instructions)) || (!isMed && item.with_food)) && (
+            <div style={{ fontSize: 11, color: 'var(--text3)', marginTop: 1 }}>
+              {isMed ? [item.fasted_flag && '⚡ fasted', item.instructions].filter(Boolean).join(' · ')
+                : '🍽 with food'}
+            </div>
+          )}
         </div>
 
-        {/* Time taken / diff indicator */}
-        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 2, flexShrink: 0 }}>
+        {/* Timestamp */}
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 1, flexShrink: 0 }}>
           {taken && log?.taken_time && (
-            <span style={{ fontSize: 11, fontFamily: 'var(--font-mono)', color: 'var(--green)', fontWeight: 600 }}>
-              {formatTime(log.taken_time)}
-            </span>
-          )}
-          {diff && (
-            <span style={{ fontSize: 9, color: diff.early ? 'var(--blue)' : 'var(--amber)' }}>
-              {diff.early ? '↑' : '↓'} {diff.label}
+            <span style={{ fontSize: 12, fontFamily: 'var(--font-mono)', color: 'var(--green)', fontWeight: 600 }}>
+              {log.taken_time.slice(0,5)}
             </span>
           )}
           {taken && (
-            <button onClick={() => setShowTime(v => !v)} style={{ fontSize: 9, color: 'var(--text3)', background: 'none', border: 'none', cursor: 'pointer', padding: 0, fontFamily: 'inherit' }}>
-              {showTime ? '▲' : lang === 'de' ? 'bearbeiten' : 'edit'}
+            <button onClick={() => setShowEdit(v => !v)} style={{ fontSize: 10, color: 'var(--text3)', background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'inherit', padding: 0 }}>
+              {showEdit ? '▲' : lang === 'de' ? 'ändern' : 'edit time'}
             </button>
           )}
         </div>
       </div>
 
-      {/* Expanded time editor */}
-      {showTime && taken && (
-        <div style={{ padding: '0 14px 12px', display: 'flex', flexDirection: 'column', gap: 8 }}>
-          <div style={{ display: 'flex', gap: 8, alignItems: 'flex-end' }}>
-            <div className="field" style={{ flex: 1 }}>
-              <label className="field-label">{lang === 'de' ? 'Uhrzeit eingenommen' : 'Time taken'}</label>
-              <input className="field-input" type="time" value={takenTime} onChange={e => setTakenTime(e.target.value)} />
-            </div>
-            {isMed && (
-              <div className="field" style={{ flex: 1 }}>
-                <label className="field-label">{lang === 'de' ? 'Nüchtern?' : 'Fasted?'}</label>
-                <div style={{ display: 'flex', gap: 4 }}>
-                  {[true, false].map(v => (
-                    <button key={String(v)} onClick={() => setFasted(v)} style={{
-                      flex: 1, padding: '9px 4px', borderRadius: 8, fontSize: 12,
-                      border: `1px solid ${fasted === v ? 'var(--green)' : 'var(--border)'}`,
-                      background: fasted === v ? 'var(--green-light)' : 'var(--surface2)',
-                      color: fasted === v ? 'var(--green)' : 'var(--text2)',
-                      fontWeight: fasted === v ? 600 : 400, cursor: 'pointer', fontFamily: 'inherit'
-                    }}>{v ? '✓' : '✗'}</button>
-                  ))}
-                </div>
-              </div>
-            )}
-            <button onClick={handleSaveTime} className="btn-primary" style={{ padding: '9px 16px', marginBottom: 0, flexShrink: 0 }}>
-              {lang === 'de' ? 'OK' : 'Save'}
-            </button>
-          </div>
+      {/* Inline time editor */}
+      {showEdit && taken && (
+        <div style={{ padding: '0 14px 10px', display: 'flex', gap: 8, alignItems: 'center' }}>
+          <input className="field-input" type="time" value={takenTime} onChange={e => setTakenTime(e.target.value)} style={{ flex: 1 }} />
+          <button onClick={handleSaveTime} className="btn-primary" style={{ padding: '8px 16px', flexShrink: 0 }}>OK</button>
         </div>
       )}
     </div>
   )
 }
 
+// ─── Add from master (picker) ─────────────────────────────────────────────────
 
-// ─── Container (medications or supplements) ───────────────────────────────────
+function AddFromMaster({ type, userId, date, allItems, loggedIds, onAdded, onCancel, lang }) {
+  const isMed = type === 'medication'
+  const available = allItems.filter(i => !loggedIds.has(i.id))
+  const [selectedId, setSelectedId] = useState(null)
+  const [takenTime, setTakenTime] = useState(format(new Date(), 'HH:mm'))
+  const [saving, setSaving] = useState(false)
 
-function TrackingContainer({ type, userId, date, lang }) {
+  const logTable = isMed ? 'medication_logs' : 'supplement_logs'
+  const idField = isMed ? 'medication_id' : 'supplement_id'
+
+  async function handleAdd() {
+    if (!selectedId) return
+    setSaving(true)
+    await supabase.from(logTable).upsert({
+      user_id: userId, date, [idField]: selectedId,
+      taken: true, taken_time: takenTime || null,
+    }, { onConflict: `user_id,${idField},date` })
+    setSaving(false)
+    onAdded()
+    showToast(lang === 'de' ? 'Geloggt' : 'Logged')
+  }
+
+  if (available.length === 0) {
+    return (
+      <div style={{ padding: '10px 14px 12px', background: 'var(--surface2)', borderTop: '0.5px solid var(--border)' }}>
+        <div style={{ fontSize: 12, color: 'var(--text3)', marginBottom: 8 }}>
+          {lang === 'de' ? 'Alle Einträge bereits geloggt.' : 'All items already logged.'}
+        </div>
+        <button onClick={onCancel} className="btn-secondary" style={{ width: '100%' }}>{lang === 'de' ? 'Schließen' : 'Close'}</button>
+      </div>
+    )
+  }
+
+  return (
+    <div style={{ padding: '10px 14px 12px', background: 'var(--surface2)', borderTop: '0.5px solid var(--border)', display: 'flex', flexDirection: 'column', gap: 10 }}>
+      <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--green)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+        {isMed ? (lang === 'de' ? 'Medikament hinzufügen' : 'Log medication') : (lang === 'de' ? 'Supplement hinzufügen' : 'Log supplement')}
+      </div>
+
+      {/* Item picker */}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+        {available.map(item => (
+          <button key={item.id} onClick={() => setSelectedId(item.id)} style={{
+            display: 'flex', alignItems: 'center', gap: 10, padding: '9px 12px',
+            borderRadius: 8, border: `1.5px solid ${selectedId === item.id ? 'var(--green)' : 'var(--border)'}`,
+            background: selectedId === item.id ? 'var(--green-light)' : 'var(--surface)',
+            cursor: 'pointer', fontFamily: 'inherit', textAlign: 'left',
+          }}>
+            <div style={{ flex: 1 }}>
+              <span style={{ fontSize: 13, fontWeight: 600, color: selectedId === item.id ? 'var(--green)' : 'var(--text)' }}>{item.name}</span>
+              {item.dose && <span style={{ fontSize: 11, color: 'var(--text3)', marginLeft: 8 }}>{item.dose}</span>}
+            </div>
+            {selectedId === item.id && (
+              <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M2 7l4 4 6-6" stroke="var(--green)" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/></svg>
+            )}
+          </button>
+        ))}
+      </div>
+
+      {/* Time — prefills to now, always visible */}
+      {selectedId && (
+        <div className="field">
+          <label className="field-label">⏰ {lang === 'de' ? 'Uhrzeit eingenommen' : 'Time taken'}</label>
+          <input className="field-input" type="time" value={takenTime} onChange={e => setTakenTime(e.target.value)} />
+        </div>
+      )}
+
+      <div style={{ display: 'flex', gap: 8 }}>
+        <button onClick={onCancel} className="btn-secondary" style={{ flex: 1 }}>{lang === 'de' ? 'Abbrechen' : 'Cancel'}</button>
+        <button onClick={handleAdd} disabled={!selectedId || saving} className="btn-primary" style={{ flex: 2 }}>
+          {saving ? '...' : (lang === 'de' ? 'Hinzufügen' : 'Add')}
+        </button>
+      </div>
+    </div>
+  )
+}
+
+// ─── Container ────────────────────────────────────────────────────────────────
+
+function Container({ type, userId, date, lang }) {
   const isMed = type === 'medication'
   const table = isMed ? 'medications' : 'supplements'
   const logTable = isMed ? 'medication_logs' : 'supplement_logs'
   const idField = isMed ? 'medication_id' : 'supplement_id'
 
-  const [items, setItems] = useState([])
-  const [logs, setLogs] = useState({}) // keyed by item id
+  const [allItems, setAllItems] = useState([])   // full master list
+  const [logs, setLogs] = useState({})           // keyed by item id
+  const [showAdd, setShowAdd] = useState(false)
   const [loading, setLoading] = useState(true)
 
+  const dailyItems = allItems.filter(i => i.active) // pre-suggested items
+
   async function fetchAll() {
-    const [{ data: itemData }, { data: logData }] = await Promise.all([
-      supabase.from(table).select('*').eq('user_id', userId).eq('active', true).order('sort_order').order('created_at'),
+    const [{ data: items }, { data: logData }] = await Promise.all([
+      supabase.from(table).select('*').eq('user_id', userId).order('created_at'),
       supabase.from(logTable).select('*').eq('user_id', userId).eq('date', date),
     ])
-    setItems(itemData || [])
+    setAllItems(items || [])
     const logMap = {}
     ;(logData || []).forEach(l => { logMap[l[idField]] = l })
     setLogs(logMap)
@@ -172,101 +206,93 @@ function TrackingContainer({ type, userId, date, lang }) {
   async function handleToggle(itemId, taken, takenTime) {
     const existing = logs[itemId]
     if (existing) {
-      await supabase.from(logTable).update({
-        taken, taken_time: taken ? takenTime : null, [`${logTable === 'medication_logs' ? 'fasted' : 'note'}`]: null
-      }).eq('id', existing.id)
+      await supabase.from(logTable).update({ taken, taken_time: taken ? takenTime : null }).eq('id', existing.id)
     } else {
-      await supabase.from(logTable).insert({
-        user_id: userId, date, [idField]: itemId, taken, taken_time: takenTime || null
-      })
+      await supabase.from(logTable).insert({ user_id: userId, date, [idField]: itemId, taken, taken_time: takenTime || null })
     }
     fetchAll()
   }
 
-  async function handleLogTime(itemId, takenTime, fasted) {
+  async function handleSaveTime(itemId, takenTime) {
     const existing = logs[itemId]
-    const updates = { taken_time: takenTime }
-    if (isMed && fasted !== null) updates.fasted = fasted
-    if (existing) {
-      await supabase.from(logTable).update(updates).eq('id', existing.id)
-    } else {
-      await supabase.from(logTable).insert({ user_id: userId, date, [idField]: itemId, taken: true, ...updates })
-    }
+    if (existing) await supabase.from(logTable).update({ taken_time: takenTime }).eq('id', existing.id)
     fetchAll()
   }
 
-  const takenCount = Object.values(logs).filter(l => l.taken).length
-  const totalCount = items.length
-
-  const title = isMed
-    ? (lang === 'de' ? '💊 Medikamente' : '💊 Medications')
-    : (lang === 'de' ? '🧴 Supplemente' : '🧴 Supplements')
+  // Items to show: daily items + any non-daily items that were manually logged today
+  const manuallyLogged = allItems.filter(i => !i.active && logs[i.id])
+  const displayItems = [...dailyItems, ...manuallyLogged]
+  const takenCount = displayItems.filter(i => logs[i.id]?.taken).length
+  const title = isMed ? (lang === 'de' ? '💊 Medikamente' : '💊 Medications') : (lang === 'de' ? '🧴 Supplemente' : '🧴 Supplements')
+  const loggedIds = new Set(Object.keys(logs))
 
   return (
     <div className="card">
       <div className="card-header">
         <span className="card-title">{title}</span>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          {totalCount > 0 && (
-            <span style={{
-              fontSize: 11, fontWeight: 700, fontFamily: 'var(--font-mono)',
-              color: takenCount === totalCount ? 'var(--green)' : 'var(--text2)'
-            }}>
-              {takenCount}/{totalCount}
-            </span>
-          )}
-          {takenCount === totalCount && totalCount > 0 && (
-            <span style={{ fontSize: 14 }}>✅</span>
-          )}
-        </div>
+        {displayItems.length > 0 && (
+          <span style={{ fontSize: 11, fontWeight: 700, fontFamily: 'var(--font-mono)', color: takenCount === displayItems.length ? 'var(--green)' : 'var(--text2)' }}>
+            {takenCount}/{displayItems.length} {takenCount === displayItems.length && '✅'}
+          </span>
+        )}
       </div>
 
       {loading ? (
         <div style={{ padding: '14px', textAlign: 'center', color: 'var(--text3)', fontSize: 13 }}>...</div>
-      ) : items.length === 0 ? (
-        <div style={{ padding: '12px 14px', textAlign: 'center', display: 'flex', flexDirection: 'column', gap: 4 }}>
-          <div style={{ fontSize: 13, color: 'var(--text2)' }}>
-            {isMed
-              ? (lang === 'de' ? 'Noch keine Medikamente' : 'No medications yet')
-              : (lang === 'de' ? 'Noch keine Supplemente' : 'No supplements yet')}
-          </div>
-          <div style={{ fontSize: 11, color: 'var(--text3)' }}>
-            {lang === 'de' ? 'Füge sie im Profil-Tab hinzu' : 'Add them in the Profile tab → Meds & Supps'}
-          </div>
+      ) : displayItems.length === 0 && !showAdd ? (
+        <div style={{ padding: '12px 14px', fontSize: 12, color: 'var(--text3)', textAlign: 'center', lineHeight: 1.5 }}>
+          {lang === 'de' ? 'Keine aktiven Einträge — füge sie in Profil → Meds & Supps hinzu.' : 'No active entries — add them in Profile → Meds & Supps.'}
         </div>
       ) : (
-        items.map(item => (
-          <ItemRow
+        displayItems.map(item => (
+          <LogRow
             key={item.id}
             item={item}
             log={logs[item.id]}
             onToggle={handleToggle}
-            onLogTime={handleLogTime}
+            onSaveTime={handleSaveTime}
             type={type}
             lang={lang}
           />
         ))
       )}
 
-      <div style={{ padding: '8px 14px', borderTop: items.length > 0 ? '0.5px solid var(--border)' : 'none' }}>
-        <div style={{ fontSize: 11, color: 'var(--text3)', textAlign: 'center' }}>
-          {lang === 'de' ? '→ Medikamente in Profil verwalten' : '→ Manage in Profile tab'}
-        </div>
-      </div>
+      {showAdd ? (
+        <AddFromMaster
+          type={type}
+          userId={userId}
+          date={date}
+          allItems={allItems}
+          loggedIds={loggedIds}
+          lang={lang}
+          onAdded={() => { setShowAdd(false); fetchAll() }}
+          onCancel={() => setShowAdd(false)}
+        />
+      ) : (
+        <button onClick={() => setShowAdd(true)} style={{
+          width: '100%', padding: '9px 14px',
+          borderTop: displayItems.length > 0 ? '0.5px solid var(--border)' : 'none',
+          background: 'none', border: 'none', color: 'var(--green)', fontSize: 12, fontWeight: 600,
+          cursor: 'pointer', fontFamily: 'inherit',
+          display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+        }}>
+          <svg width="13" height="13" viewBox="0 0 13 13" fill="none"><path d="M6.5 1.5v10M1.5 6.5h10" stroke="var(--green)" strokeWidth="1.5" strokeLinecap="round"/></svg>
+          {isMed ? (lang === 'de' ? 'Weiteres Medikament loggen' : 'Log another medication') : (lang === 'de' ? 'Weiteres Supplement loggen' : 'Log another supplement')}
+        </button>
+      )}
     </div>
   )
 }
 
-// ─── Main Export ──────────────────────────────────────────────────────────────
+// ─── Export ───────────────────────────────────────────────────────────────────
 
 export default function MedSupTracker({ session, date }) {
   const { lang } = useLang()
   const dateStr = format(date || new Date(), 'yyyy-MM-dd')
-
   return (
     <>
-      <TrackingContainer type="medication" userId={session.user.id} date={dateStr} lang={lang} />
-      <TrackingContainer type="supplement" userId={session.user.id} date={dateStr} lang={lang} />
+      <Container type="medication" userId={session.user.id} date={dateStr} lang={lang} />
+      <Container type="supplement" userId={session.user.id} date={dateStr} lang={lang} />
     </>
   )
 }
