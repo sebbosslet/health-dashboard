@@ -135,7 +135,7 @@ Write 3-4 direct sentences connecting last evening to this morning's WHOOP data.
 
 // ─── WHOOP Screenshot Upload (inline in morning) ──────────────────────────────
 
-function WhoopUpload({ session, date, lang, bedTime, onDone }) {
+function WhoopUpload({ session, date, lang, bedTime, onDone, onRefetchHr }) {
   const fileRef = useRef()
   const [analysing, setAnalysing] = useState(false)
   const [done, setDone] = useState(!!bedTime)
@@ -217,6 +217,7 @@ Sleep onset is typically 22:xx-23:xx or 00:xx-02:xx. Wake time is typically 06:x
       }
 
       setDone(true)
+      if (onRefetchHr) onRefetchHr()
       if (onDone) await onDone({ bed_time: result.sleep_onset || null })
       showToast(lang === 'de' ? `Analysiert${result.sleep_onset ? ` · Einschlafzeit ${result.sleep_onset}` : ''}` : `Analysed${result.sleep_onset ? ` · Sleep onset ${result.sleep_onset}` : ''}`)
     } catch (err) {
@@ -485,8 +486,7 @@ function WhoopTab({ log, yesterdayLog, session, lang, onRefresh }) {
   const [hrAnalysis, setHrAnalysis] = useState(null)
   const [forceUpload, setForceUpload] = useState(false)
 
-  useEffect(() => {
-    // Load HR analysis for today or yesterday (whichever has data)
+  function fetchHrAnalysis() {
     supabase.from('sleep_hr_analysis')
       .select('*').eq('user_id', session.user.id)
       .gte('date', yesterday).order('date', { ascending: false }).limit(3)
@@ -494,7 +494,9 @@ function WhoopTab({ log, yesterdayLog, session, lang, onRefresh }) {
         console.log('[HR] rows:', data, 'error:', error)
         setHrAnalysis(data?.[0] || null)
       })
-  }, [session.user.id, date])
+  }
+
+  useEffect(() => { fetchHrAnalysis() }, [session.user.id, date])
 
   // bed_time can be on today's log (uploaded today) or yesterday's log (uploaded via old Trends flow)
   // Prefer today's bed_time (from new upload), fall back to yesterday's
@@ -556,7 +558,7 @@ function WhoopTab({ log, yesterdayLog, session, lang, onRefresh }) {
           </div>
         </div>
       ) : (
-        <WhoopUpload session={session} date={date} lang={lang} bedTime='' onDone={(fields) => { setForceUpload(false); if (onRefresh) onRefresh(fields) }} />
+        <WhoopUpload session={session} date={date} lang={lang} bedTime='' onRefetchHr={fetchHrAnalysis} onDone={(fields) => { setForceUpload(false); if (onRefresh) onRefresh(fields) }} />
       )}
 
       {/* Last night summary — always shown if there's data */}
