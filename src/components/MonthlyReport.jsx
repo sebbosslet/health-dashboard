@@ -48,7 +48,7 @@ Write 3 short paragraphs: 1. Month highlights 2. Areas to improve 3. Recommendat
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
-      model: 'claude-sonnet-4-20250514',
+      model: 'claude-sonnet-4-5-20251001',
       max_tokens: 600,
       messages: [{ role: 'user', content: prompt }]
     })

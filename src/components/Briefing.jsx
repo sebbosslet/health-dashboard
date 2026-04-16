@@ -154,7 +154,7 @@ ${context}`
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
-      model: 'claude-sonnet-4-20250514',
+      model: 'claude-sonnet-4-5-20251001',
       max_tokens: 250,
       messages: [{ role: 'user', content: prompt }]
     })

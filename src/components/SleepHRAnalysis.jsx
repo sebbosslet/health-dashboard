@@ -70,7 +70,7 @@ Respond ONLY with valid JSON (no markdown):
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
-      model: 'claude-sonnet-4-20250514',
+      model: 'claude-sonnet-4-5-20251001',
       max_tokens: 1000,
       messages: [{
         role: 'user',
@@ -145,7 +145,7 @@ ${analyses.map(a => `${a.date}: stability ${a.stability_score}/10, ${a.spike_cou
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
-      model: 'claude-sonnet-4-20250514',
+      model: 'claude-sonnet-4-5-20251001',
       max_tokens: 500,
       messages: [{ role: 'user', content: `${prompt}\n\n${dataContext}\n\n${instruction}` }]
     })
