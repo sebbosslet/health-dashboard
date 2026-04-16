@@ -142,96 +142,6 @@ function ItemRow({ item, log, onToggle, onLogTime, type, lang }) {
   )
 }
 
-// ─── Add Form (inline) ────────────────────────────────────────────────────────
-
-function AddForm({ type, userId, onSaved, onCancel, lang }) {
-  const isMed = type === 'medication'
-  const [name, setName] = useState('')
-  const [dose, setDose] = useState('')
-  const [time, setTime] = useState('')
-  const [instructions, setInstructions] = useState('')
-  const [withFood, setWithFood] = useState(false)
-  const [saving, setSaving] = useState(false)
-
-  async function handleSave() {
-    if (!name.trim()) return
-    setSaving(true)
-    const table = isMed ? 'medications' : 'supplements'
-    const payload = {
-      user_id: userId,
-      name: name.trim(),
-      dose: dose.trim() || null,
-      scheduled_time: time || null,
-      active: true,
-    }
-    if (isMed) payload.instructions = instructions.trim() || null
-    else payload.with_food = withFood
-
-    const { error } = await supabase.from(table).insert(payload)
-    setSaving(false)
-    if (!error) {
-      showToast(lang === 'de' ? 'Gespeichert' : 'Saved')
-      onSaved()
-    }
-  }
-
-  return (
-    <div style={{ padding: '10px 14px 14px', background: 'var(--surface2)', borderTop: '0.5px solid var(--border)', display: 'flex', flexDirection: 'column', gap: 10 }}>
-      <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--green)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-        {isMed
-          ? (lang === 'de' ? '+ Medikament hinzufügen' : '+ Add medication')
-          : (lang === 'de' ? '+ Supplement hinzufügen' : '+ Add supplement')}
-      </div>
-
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
-        <div className="field" style={{ gridColumn: '1 / -1' }}>
-          <label className="field-label">{lang === 'de' ? 'Name' : 'Name'}</label>
-          <input className="field-input" value={name} onChange={e => setName(e.target.value)}
-            placeholder={isMed ? (lang === 'de' ? 'z.B. Levothyroxin' : 'e.g. Levothyroxin') : (lang === 'de' ? 'z.B. Magnesium' : 'e.g. Magnesium')}
-            autoFocus />
-        </div>
-        <div className="field">
-          <label className="field-label">{lang === 'de' ? 'Dosis' : 'Dose'}</label>
-          <input className="field-input" value={dose} onChange={e => setDose(e.target.value)}
-            placeholder={isMed ? '100mcg' : '400mg'} />
-        </div>
-        <div className="field">
-          <label className="field-label">{lang === 'de' ? 'Uhrzeit' : 'Scheduled time'}</label>
-          <input className="field-input" type="time" value={time} onChange={e => setTime(e.target.value)} />
-        </div>
-        {isMed && (
-          <div className="field" style={{ gridColumn: '1 / -1' }}>
-            <label className="field-label">{lang === 'de' ? 'Hinweise' : 'Instructions'}</label>
-            <input className="field-input" value={instructions} onChange={e => setInstructions(e.target.value)}
-              placeholder={lang === 'de' ? 'z.B. Nüchtern, 30min vor dem Frühstück' : 'e.g. Fasted, 30min before food'} />
-          </div>
-        )}
-        {!isMed && (
-          <div style={{ gridColumn: '1 / -1', display: 'flex', alignItems: 'center', gap: 8 }}>
-            <button onClick={() => setWithFood(v => !v)} style={{
-              width: 22, height: 22, borderRadius: 6,
-              border: `1.5px solid ${withFood ? 'var(--green)' : 'var(--border)'}`,
-              background: withFood ? 'var(--green)' : 'var(--surface)',
-              display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', padding: 0
-            }}>
-              {withFood && <svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M2 6l3 3 5-5" stroke="white" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"/></svg>}
-            </button>
-            <span style={{ fontSize: 12, color: 'var(--text2)' }}>{lang === 'de' ? 'Mit Essen einnehmen' : 'Take with food'}</span>
-          </div>
-        )}
-      </div>
-
-      <div style={{ display: 'flex', gap: 8 }}>
-        <button onClick={onCancel} className="btn-secondary" style={{ flex: 1 }}>
-          {lang === 'de' ? 'Abbrechen' : 'Cancel'}
-        </button>
-        <button onClick={handleSave} className="btn-primary" disabled={saving || !name.trim()} style={{ flex: 2 }}>
-          {saving ? (lang === 'de' ? 'Speichern...' : 'Saving...') : (lang === 'de' ? 'Speichern' : 'Save')}
-        </button>
-      </div>
-    </div>
-  )
-}
 
 // ─── Container (medications or supplements) ───────────────────────────────────
 
@@ -243,7 +153,6 @@ function TrackingContainer({ type, userId, date, lang }) {
 
   const [items, setItems] = useState([])
   const [logs, setLogs] = useState({}) // keyed by item id
-  const [showAdd, setShowAdd] = useState(false)
   const [loading, setLoading] = useState(true)
 
   async function fetchAll() {
@@ -314,11 +223,16 @@ function TrackingContainer({ type, userId, date, lang }) {
 
       {loading ? (
         <div style={{ padding: '14px', textAlign: 'center', color: 'var(--text3)', fontSize: 13 }}>...</div>
-      ) : items.length === 0 && !showAdd ? (
-        <div style={{ padding: '14px', textAlign: 'center', color: 'var(--text2)', fontSize: 13 }}>
-          {isMed
-            ? (lang === 'de' ? 'Keine Medikamente eingetragen' : 'No medications added yet')
-            : (lang === 'de' ? 'Keine Supplemente eingetragen' : 'No supplements added yet')}
+      ) : items.length === 0 ? (
+        <div style={{ padding: '12px 14px', textAlign: 'center', display: 'flex', flexDirection: 'column', gap: 4 }}>
+          <div style={{ fontSize: 13, color: 'var(--text2)' }}>
+            {isMed
+              ? (lang === 'de' ? 'Noch keine Medikamente' : 'No medications yet')
+              : (lang === 'de' ? 'Noch keine Supplemente' : 'No supplements yet')}
+          </div>
+          <div style={{ fontSize: 11, color: 'var(--text3)' }}>
+            {lang === 'de' ? 'Füge sie im Profil-Tab hinzu' : 'Add them in the Profile tab → Meds & Supps'}
+          </div>
         </div>
       ) : (
         items.map(item => (
