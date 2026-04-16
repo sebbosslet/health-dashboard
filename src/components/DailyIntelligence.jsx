@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { format, subDays } from 'date-fns'
 import { supabase } from '../lib/supabase'
 import { useLang } from '../lib/LangContext'
@@ -243,6 +243,8 @@ function EveningLog({ log, onSave, lang, habitGoals, activeHabits, onToggleHabit
   const [windDown, setWindDown] = useState(log?.wind_down || '')
   const [note, setNote] = useState(log?.evening_note || '')
   const [dinnerTime, setDinnerTime] = useState(log?.dinner_time?.slice(0,5) || '')
+  const dinnerRef = useRef(null)
+  const phoneRef = useRef(null)
   const [acTemp, setAcTemp] = useState(log?.ac_temp || '')
   const [saving, setSaving] = useState(false)
 
@@ -260,13 +262,16 @@ function EveningLog({ log, onSave, lang, habitGoals, activeHabits, onToggleHabit
     : { habits: 'Evening habits', phone: 'Phone away at', wind: 'Wind-down quality', note: 'Anything affect your evening?', save: 'Save evening', saving: 'Saving...', good: 'Good', ok: 'OK', poor: 'Poor', dinner: 'Dinner at', ac: 'AC temp (°F)' }
 
   async function handleSave() {
-    console.log('[evening] handleSave called, dinnerTime:', dinnerTime, 'acTemp:', acTemp, 'phoneAway:', phoneAway)
+    // Read directly from DOM refs to avoid iOS onChange state issues
+    const dinnerVal = dinnerRef.current?.value || dinnerTime || null
+    const phoneVal = phoneRef.current?.value || phoneAway || null
+    console.log('[evening] saving dinnerVal:', dinnerVal, 'phoneVal:', phoneVal, 'acTemp:', acTemp)
     setSaving(true)
     await onSave({
-      phone_away_time: phoneAway || null,
+      phone_away_time: phoneVal || null,
       wind_down: windDown || null,
       evening_note: note || null,
-      dinner_time: dinnerTime || null,
+      dinner_time: dinnerVal || null,
       ac_temp: acTemp ? parseFloat(acTemp) : null,
     })
     setSaving(false)
@@ -297,11 +302,11 @@ function EveningLog({ log, onSave, lang, habitGoals, activeHabits, onToggleHabit
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
         <div className="field">
           <label className="field-label">📵 {labels.phone}</label>
-          <input key={`phone-${phoneAway}`} className="field-input" type="time" defaultValue={phoneAway} onChange={e => setPhoneAway(e.target.value)} />
+          <input ref={phoneRef} key={`phone-${phoneAway}`} className="field-input" type="time" defaultValue={phoneAway} onChange={e => setPhoneAway(e.target.value)} />
         </div>
         <div className="field">
           <label className="field-label">🍽 {labels.dinner}</label>
-          <input key={`dinner-${dinnerTime}`} className="field-input" type="time" defaultValue={dinnerTime} onChange={e => setDinnerTime(e.target.value)} />
+          <input ref={dinnerRef} key={`dinner-${dinnerTime}`} className="field-input" type="time" defaultValue={dinnerTime} onChange={e => setDinnerTime(e.target.value)} />
         </div>
         <div className="field">
           <label className="field-label">❄ {labels.ac}</label>
