@@ -324,7 +324,7 @@ function MorningCheckin({ log, onSave, lang, yesterdayLog, session }) {
 
 // ─── Evening Log (merged with habits) ────────────────────────────────────────
 
-function EveningLog({ log, onSave, lang, habitGoals, activeHabits, onToggleHabit }) {
+export function EveningLog({ log, onSave, lang, habitGoals, activeHabits, onToggleHabit }) {
   const [phoneAway, setPhoneAway] = useState(log?.phone_away_time?.slice(0,5) || '')
   const [windDown, setWindDown] = useState(log?.wind_down || '')
   const [note, setNote] = useState(log?.evening_note || '')
@@ -439,6 +439,60 @@ function EveningLog({ log, onSave, lang, habitGoals, activeHabits, onToggleHabit
       <button className="btn-primary" onClick={handleSave} disabled={saving}>
         {saving ? labels.saving : labels.save}
       </button>
+    </div>
+  )
+}
+
+// ─── WHOOP Tab (upload + last night summary) ──────────────────────────────────
+
+function WhoopTab({ log, yesterdayLog, session, lang }) {
+  const date = format(new Date(), 'yyyy-MM-dd')
+
+  // Last night's summary from yesterday's evening log + today's WHOOP data
+  const summary = []
+  if (yesterdayLog?.dinner_time) summary.push({ icon: '🍽', label: lang === 'de' ? 'Abendessen' : 'Dinner', value: yesterdayLog.dinner_time.slice(0,5) })
+  if (yesterdayLog?.phone_away_time) summary.push({ icon: '📵', label: lang === 'de' ? 'Handy weg' : 'Phone away', value: yesterdayLog.phone_away_time.slice(0,5) })
+  if (log?.bed_time) summary.push({ icon: '🛏', label: lang === 'de' ? 'Eingeschlafen' : 'Asleep', value: log.bed_time.slice(0,5) })
+  if (yesterdayLog?.phone_away_time && log?.bed_time) {
+    const pm = parseInt(yesterdayLog.phone_away_time.split(':')[0])*60 + parseInt(yesterdayLog.phone_away_time.split(':')[1])
+    let bm = parseInt(log.bed_time.split(':')[0])*60 + parseInt(log.bed_time.split(':')[1])
+    if (bm < 360) bm += 1440
+    const gap = bm - pm
+    summary.push({ icon: '⏱', label: lang === 'de' ? 'Bildschirmfrei' : 'Screen-free', value: `${gap}min` })
+  }
+  if (log?.sleep_duration) summary.push({ icon: '💤', label: lang === 'de' ? 'Schlaf' : 'Sleep', value: `${log.sleep_duration.toFixed(1)}h` })
+  if (log?.sleep_efficiency) summary.push({ icon: '📊', label: lang === 'de' ? 'Effizienz' : 'Efficiency', value: `${Math.round(log.sleep_efficiency)}%` })
+  if (yesterdayLog?.wind_down) summary.push({ icon: yesterdayLog.wind_down === 'good' ? '😌' : yesterdayLog.wind_down === 'ok' ? '😐' : '😣', label: lang === 'de' ? 'Wind-down' : 'Wind-down', value: yesterdayLog.wind_down })
+  if (yesterdayLog?.ac_temp) summary.push({ icon: '❄', label: 'AC', value: `${yesterdayLog.ac_temp}°F` })
+
+  return (
+    <div style={{ padding: '12px 14px', display: 'flex', flexDirection: 'column', gap: 12 }}>
+      {/* Upload widget */}
+      <WhoopUpload session={session} date={date} lang={lang} bedTime={log?.bed_time?.slice(0,5) || ''} />
+
+      {/* Last night summary */}
+      {summary.length > 0 && (
+        <div>
+          <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 8 }}>
+            {lang === 'de' ? 'Letzte Nacht' : 'Last night'}
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 6 }}>
+            {summary.map((s, i) => (
+              <div key={i} style={{ background: 'var(--surface2)', borderRadius: 8, padding: '7px 8px', textAlign: 'center' }}>
+                <div style={{ fontSize: 14, marginBottom: 2 }}>{s.icon}</div>
+                <div style={{ fontSize: 13, fontWeight: 700, fontFamily: 'var(--font-mono)', color: 'var(--text)' }}>{s.value}</div>
+                <div style={{ fontSize: 9, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.04em', marginTop: 1 }}>{s.label}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {summary.length === 0 && (
+        <div style={{ fontSize: 12, color: 'var(--text3)', textAlign: 'center', padding: '8px 0' }}>
+          {lang === 'de' ? 'Noch keine Daten für die letzte Nacht' : 'No data yet for last night — log your evening and sync WHOOP'}
+        </div>
+      )}
     </div>
   )
 }
@@ -587,15 +641,13 @@ export default function DailyIntelligence({ session, log, onSave, habitGoals, ac
   }, [session.user.id])
 
   // Smart default section based on time of day
-  const defaultSection = hour < 13 ? 'morning' : 'evening'
-
   const hasMorning = log?.morning_energy > 0
-  const hasEvening = !!(log?.phone_away_time || log?.bed_time || log?.wind_down || (log?.habits?.length > 0))
+  const hasWhoop = !!log?.bed_time
   const hasInsight = !!log?.ai_insight
 
   const sections = [
+    { key: 'whoop', label: '📸 WHOOP', done: hasWhoop },
     { key: 'morning', label: lang === 'de' ? '🌅 Morgen' : '🌅 Morning', done: hasMorning },
-    { key: 'evening', label: lang === 'de' ? '🌙 Abend' : '🌙 Evening', done: hasEvening },
     { key: 'insight', label: '✨ Insight', done: hasInsight },
   ]
 
@@ -604,7 +656,7 @@ export default function DailyIntelligence({ session, log, onSave, habitGoals, ac
       <div className="card-header">
         <span className="card-title">🧠 {lang === 'de' ? 'Tages-Analyse' : 'Daily Intelligence'}</span>
         <span style={{ fontSize: 11, color: 'var(--text3)' }}>
-          {[hasMorning, hasEvening, hasInsight].filter(Boolean).length}/3
+          {[hasWhoop, hasMorning, hasInsight].filter(Boolean).length}/3
         </span>
       </div>
 
@@ -625,16 +677,11 @@ export default function DailyIntelligence({ session, log, onSave, habitGoals, ac
         ))}
       </div>
 
+      {section === 'whoop' && (
+        <WhoopTab log={log} yesterdayLog={yesterdayLog} session={session} lang={lang} />
+      )}
       {section === 'morning' && (
         <MorningCheckin log={log} onSave={onSave} lang={lang} yesterdayLog={yesterdayLog} session={session} />
-      )}
-      {section === 'evening' && (
-        <EveningLog
-          log={log}
-          onSave={(fields) => onSave({ ...fields, habits: Array.from(activeHabits) })}
-          lang={lang}
-          habitGoals={habitGoals} activeHabits={activeHabits} onToggleHabit={onToggleHabit}
-        />
       )}
       {section === 'insight' && (
         <InsightCard log={log} userId={session.user.id} lang={lang} />
@@ -642,28 +689,19 @@ export default function DailyIntelligence({ session, log, onSave, habitGoals, ac
 
       {!section && (
         <div style={{ padding: '10px 14px 12px', display: 'flex', gap: 8 }}>
-          <button onClick={() => setSection('morning')} style={{
-            flex: 1, padding: '9px', borderRadius: 8,
-            background: hasMorning ? 'var(--surface2)' : 'var(--green-light)',
-            border: `0.5px solid ${hasMorning ? 'var(--border)' : 'var(--green)'}`,
-            color: hasMorning ? 'var(--text2)' : 'var(--green)',
-            fontWeight: 600, fontSize: 12, cursor: 'pointer', fontFamily: 'inherit',
-            display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4,
-          }}>
-            🌅 {lang === 'de' ? 'Morgen' : 'Morning'}
-            {hasMorning && <span style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--green)', flexShrink: 0 }} />}
-          </button>
-          <button onClick={() => setSection('evening')} style={{
-            flex: 1, padding: '9px', borderRadius: 8,
-            background: hasEvening ? 'var(--surface2)' : 'var(--green-light)',
-            border: `0.5px solid ${hasEvening ? 'var(--border)' : 'var(--green)'}`,
-            color: hasEvening ? 'var(--text2)' : 'var(--green)',
-            fontWeight: 600, fontSize: 12, cursor: 'pointer', fontFamily: 'inherit',
-            display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4,
-          }}>
-            🌙 {lang === 'de' ? 'Abend' : 'Evening'}
-            {hasEvening && <span style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--green)', flexShrink: 0 }} />}
-          </button>
+          {sections.map(s => (
+            <button key={s.key} onClick={() => setSection(s.key)} style={{
+              flex: 1, padding: '9px', borderRadius: 8,
+              background: s.done ? 'var(--surface2)' : 'var(--green-light)',
+              border: `0.5px solid ${s.done ? 'var(--border)' : 'var(--green)'}`,
+              color: s.done ? 'var(--text2)' : 'var(--green)',
+              fontWeight: 600, fontSize: 11, cursor: 'pointer', fontFamily: 'inherit',
+              display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4,
+            }}>
+              {s.label}
+              {s.done && <span style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--green)', flexShrink: 0 }} />}
+            </button>
+          ))}
         </div>
       )}
     </div>

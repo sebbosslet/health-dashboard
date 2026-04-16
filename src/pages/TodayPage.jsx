@@ -6,9 +6,9 @@ import { showToast } from '../components/Toast'
 import { Toast } from '../components/Toast'
 import { useLang } from '../lib/LangContext'
 import MealLogger from '../components/MealLogger'
-import DailyIntelligence from '../components/DailyIntelligence'
-import MedSupTracker from '../components/MedSupTracker'
-import { MorningBriefing, ProactiveNudges } from '../components/Briefing'
+import DailyIntelligence, { EveningLog } from '../components/DailyIntelligence'
+import { MedTracker, SupTracker } from '../components/MedSupTracker'
+import { ProactiveNudges } from '../components/Briefing'
 import DailyContext from '../components/DailyContext'
 
 function fmtHours(h) {
@@ -36,8 +36,52 @@ function getEmoji(name) {
   return '•'
 }
 
+// ─── End of Day card: evening log + day context ───────────────────────────────
+
+function EndOfDay({ session, log, onSave, habitGoals, activeHabits, onToggleHabit, today, lang }) {
+  const [open, setOpen] = useState(false)
+  const hasDone = !!(log?.phone_away_time || log?.wind_down || log?.habits?.length > 0)
+
+  return (
+    <div className="card">
+      <div className="card-header" onClick={() => setOpen(v => !v)} style={{ cursor: 'pointer' }}>
+        <span className="card-title">🌙 {lang === 'de' ? 'Tagesabschluss' : 'End of Day'}</span>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          {hasDone && <span style={{ width: 8, height: 8, borderRadius: '50%', background: 'var(--green)', display: 'inline-block' }} />}
+          <svg width="12" height="12" viewBox="0 0 12 12" fill="none" style={{ transform: open ? 'rotate(180deg)' : 'none', transition: '0.15s' }}>
+            <path d="M2 4l4 4 4-4" stroke="var(--text3)" strokeWidth="1.3" strokeLinecap="round"/>
+          </svg>
+        </div>
+      </div>
+      {open && (
+        <>
+          <EveningLog
+            log={log}
+            onSave={(fields) => onSave({ ...fields, habits: Array.from(activeHabits) })}
+            lang={lang}
+            habitGoals={habitGoals}
+            activeHabits={activeHabits}
+            onToggleHabit={onToggleHabit}
+          />
+          <div style={{ borderTop: '0.5px solid var(--border)' }}>
+            <DailyContext session={session} date={today} />
+          </div>
+        </>
+      )}
+      {!open && hasDone && (
+        <div style={{ padding: '6px 14px 10px', display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+          {log.phone_away_time && <span style={{ fontSize: 11, color: 'var(--text2)' }}>📵 {log.phone_away_time.slice(0,5)}</span>}
+          {log.dinner_time && <span style={{ fontSize: 11, color: 'var(--text2)' }}>🍽 {log.dinner_time.slice(0,5)}</span>}
+          {log.wind_down && <span style={{ fontSize: 11, color: 'var(--text2)' }}>{log.wind_down === 'good' ? '😌' : log.wind_down === 'ok' ? '😐' : '😣'} {log.wind_down}</span>}
+          {log.habits?.length > 0 && <span style={{ fontSize: 11, color: 'var(--green)' }}>✓ {log.habits.length} {lang === 'de' ? 'Gewohnheiten' : 'habits'}</span>}
+        </div>
+      )}
+    </div>
+  )
+}
+
 export default function TodayPage({ session }) {
-  const { t } = useLang()
+  const { t, lang } = useLang()
   const today = new Date()
   const { log, save, refetch } = useDailyLog(session.user.id, today)
 
@@ -130,10 +174,32 @@ export default function TodayPage({ session }) {
 
       <div className="page-section">
 
-        {/* Proactive nudges - contextual, time-aware */}
+        {/* Proactive nudges */}
         <ProactiveNudges session={session} todayLog={log} settings={settings} />
 
-        {/* WHOOP Recovery */}
+        {/* 1. WHOOP Sleep */}
+        {!!log?.sleep_duration && (
+          <div className="card">
+            <div className="card-header">
+              <span className="card-title">{t('today_sleep')}</span>
+              <span className="source-pill source-whoop">WHOOP</span>
+            </div>
+            <div className="metric-grid">
+              <div className="metric-cell">
+                <div className="metric-label">{t('metric_duration')}</div>
+                <div className="metric-value" style={{ color: 'var(--blue)' }}>{fmtHours(log.sleep_duration)}</div>
+                <div className="bar-wrap"><div className="bar bar-blue" style={{ width: `${Math.min(100, (log.sleep_duration / 9) * 100)}%` }} /></div>
+              </div>
+              <div className="metric-cell">
+                <div className="metric-label">{t('metric_efficiency')}</div>
+                <div className="metric-value" style={{ color: 'var(--green)' }}>{Math.round(log.sleep_efficiency || 0)}<span className="metric-unit">%</span></div>
+                <div className="bar-wrap"><div className="bar bar-green" style={{ width: `${log.sleep_efficiency || 0}%` }} /></div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* 2. WHOOP Recovery */}
         <div className="card">
           <div className="card-header">
             <span className="card-title">{t('today_recovery')}</span>
@@ -168,29 +234,61 @@ export default function TodayPage({ session }) {
           )}
         </div>
 
-        {/* Sleep */}
-        {!!log?.sleep_duration && (
-          <div className="card">
-            <div className="card-header">
-              <span className="card-title">{t('today_sleep')}</span>
-              <span className="source-pill source-whoop">WHOOP</span>
+        {/* 3. Daily Intelligence — WHOOP upload, morning check-in, insight */}
+        <DailyIntelligence
+          session={session}
+          log={log}
+          onSave={save}
+          habitGoals={habitGoals}
+          activeHabits={activeHabits}
+          onToggleHabit={(key) => toggle(activeHabits, setActiveHabits, key)}
+        />
+
+        {/* 4. Medications */}
+        <MedTracker session={session} date={today} />
+
+        {/* 5. Nutrition */}
+        <div className="card">
+          <div className="card-header">
+            <span className="card-title">{t('today_nutrition')}</span>
+            <span className="badge badge-green">{t('today_ai_photo')}</span>
+          </div>
+          <div style={{ padding: '10px 14px 0' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, color: 'var(--text2)', marginBottom: 5 }}>
+              <span>{t('metric_calories')}</span>
+              <span style={{ fontWeight: 600, color: mealCalories > calorieTarget ? 'var(--red)' : 'var(--amber)' }}>
+                {mealCalories.toLocaleString()} / {calorieTarget.toLocaleString()} kcal
+              </span>
             </div>
-            <div className="metric-grid">
-              <div className="metric-cell">
-                <div className="metric-label">{t('metric_duration')}</div>
-                <div className="metric-value" style={{ color: 'var(--blue)' }}>{fmtHours(log.sleep_duration)}</div>
-                <div className="bar-wrap"><div className="bar bar-blue" style={{ width: `${Math.min(100, (log.sleep_duration / 9) * 100)}%` }} /></div>
-              </div>
-              <div className="metric-cell">
-                <div className="metric-label">{t('metric_efficiency')}</div>
-                <div className="metric-value" style={{ color: 'var(--green)' }}>{Math.round(log.sleep_efficiency || 0)}<span className="metric-unit">%</span></div>
-                <div className="bar-wrap"><div className="bar bar-green" style={{ width: `${log.sleep_efficiency || 0}%` }} /></div>
-              </div>
+            <div className="bar-wrap-lg">
+              <div className="bar" style={{ width: `${calPct}%`, background: mealCalories > calorieTarget ? 'var(--red)' : 'var(--amber)' }} />
             </div>
           </div>
-        )}
+          <MealLogger session={session} date={today} onCaloriesUpdated={setMealCalories} />
+          <div style={{ padding: '10px 14px 12px', borderTop: '0.5px solid var(--border)' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+              <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--text2)' }}>{t('metric_water')}</span>
+              <span style={{ fontSize: 12, fontWeight: 700, color: parseInt(water) >= waterTarget ? 'var(--green)' : 'var(--blue)' }}>
+                {water || 0} / {waterTarget} ml
+              </span>
+            </div>
+            <div className="bar-wrap" style={{ marginBottom: 10 }}>
+              <div className="bar bar-blue" style={{ width: `${waterPct}%` }} />
+            </div>
+            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+              {[{ label: '1L 🫙', ml: 1000 }, { label: '750ml 🫙', ml: 750 }, { label: '500ml 🫙', ml: 500 }, { label: '250ml 🥛', ml: 250 }].map(btn => (
+                <button key={btn.ml} onClick={() => setWater(w => String((parseInt(w) || 0) + btn.ml))} style={{ flex: 1, minWidth: 60, padding: '8px 4px', borderRadius: 8, border: '0.5px solid var(--border)', background: 'var(--surface2)', color: 'var(--text)', fontSize: 12, fontWeight: 500, cursor: 'pointer', fontFamily: 'inherit' }}>
+                  + {btn.label}
+                </button>
+              ))}
+              {parseInt(water) > 0 && (
+                <button onClick={() => setWater('0')} style={{ padding: '8px 10px', borderRadius: 8, border: '0.5px solid var(--border)', background: 'none', color: 'var(--text3)', fontSize: 11, cursor: 'pointer', fontFamily: 'inherit' }}>↺</button>
+              )}
+            </div>
+          </div>
+        </div>
 
-        {/* Steps */}
+        {/* 6. Steps */}
         <div className="card">
           <div className="card-header">
             <span className="card-title">{t('today_steps')}</span>
@@ -221,65 +319,7 @@ export default function TodayPage({ session }) {
           </div>
         </div>
 
-        {/* Nutrition - now powered by MealLogger */}
-        <div className="card">
-          <div className="card-header">
-            <span className="card-title">{t('today_nutrition')}</span>
-            <span className="badge badge-green">{t('today_ai_photo')}</span>
-          </div>
-
-          {/* Calorie progress bar */}
-          <div style={{ padding: '10px 14px 0' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, color: 'var(--text2)', marginBottom: 5 }}>
-              <span>{t('metric_calories')}</span>
-              <span style={{ fontWeight: 600, color: mealCalories > calorieTarget ? 'var(--red)' : 'var(--amber)' }}>
-                {mealCalories.toLocaleString()} / {calorieTarget.toLocaleString()} kcal
-              </span>
-            </div>
-            <div className="bar-wrap-lg">
-              <div className="bar" style={{ width: `${calPct}%`, background: mealCalories > calorieTarget ? 'var(--red)' : 'var(--amber)' }} />
-            </div>
-          </div>
-
-          {/* MealLogger component */}
-          <MealLogger
-            session={session}
-            date={today}
-            onCaloriesUpdated={setMealCalories}
-          />
-
-          {/* Water tracker */}
-          <div style={{ padding: '10px 14px 12px', borderTop: '0.5px solid var(--border)' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-              <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--text2)' }}>{t('metric_water')}</span>
-              <span style={{ fontSize: 12, fontWeight: 700, color: parseInt(water) >= waterTarget ? 'var(--green)' : 'var(--blue)' }}>
-                {water || 0} / {waterTarget} ml
-              </span>
-            </div>
-            <div className="bar-wrap" style={{ marginBottom: 10 }}>
-              <div className="bar bar-blue" style={{ width: `${waterPct}%` }} />
-            </div>
-            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-              {[
-                { label: '1L 🫙', ml: 1000 },
-                { label: '750ml 🫙', ml: 750 },
-                { label: '500ml 🫙', ml: 500 },
-                { label: '250ml 🥛', ml: 250 },
-              ].map(btn => (
-                <button key={btn.ml} onClick={() => setWater(w => String((parseInt(w) || 0) + btn.ml))} style={{ flex: 1, minWidth: 60, padding: '8px 4px', borderRadius: 8, border: '0.5px solid var(--border)', background: 'var(--surface2)', color: 'var(--text)', fontSize: 12, fontWeight: 500, cursor: 'pointer', fontFamily: 'inherit' }}>
-                  + {btn.label}
-                </button>
-              ))}
-              {parseInt(water) > 0 && (
-                <button onClick={() => setWater('0')} style={{ padding: '8px 10px', borderRadius: 8, border: '0.5px solid var(--border)', background: 'none', color: 'var(--text3)', fontSize: 11, cursor: 'pointer', fontFamily: 'inherit' }}>
-                  ↺
-                </button>
-              )}
-            </div>
-          </div>
-        </div>
-
-        {/* Activity */}
+        {/* 7. Activity */}
         <div className="card">
           <div className="card-header"><span className="card-title">{t('today_activity')}</span></div>
           <div style={{ padding: '10px 14px 14px' }}>
@@ -296,20 +336,19 @@ export default function TodayPage({ session }) {
           </div>
         </div>
 
-        {/* Day context - travel, stress, special events */}
-        <DailyContext session={session} date={today} />
+        {/* 8. Supplements */}
+        <SupTracker session={session} date={today} />
 
-        {/* Medications & Supplements */}
-        <MedSupTracker session={session} date={today} />
-
-        {/* Daily Intelligence — end of day: evening log + morning check-in + insight */}
-        <DailyIntelligence
+        {/* 9. End of Day — evening log + day context */}
+        <EndOfDay
           session={session}
           log={log}
           onSave={save}
           habitGoals={habitGoals}
           activeHabits={activeHabits}
           onToggleHabit={(key) => toggle(activeHabits, setActiveHabits, key)}
+          today={today}
+          lang={lang}
         />
 
         <button className="btn-primary" onClick={handleSave} disabled={saving}>

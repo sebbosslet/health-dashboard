@@ -295,6 +295,18 @@ function Container({ type, userId, date, lang }) {
 
 // ─── Export ───────────────────────────────────────────────────────────────────
 
+export function MedTracker({ session, date }) {
+  const { lang } = useLang()
+  const dateStr = format(date || new Date(), 'yyyy-MM-dd')
+  return <Container type="medication" userId={session.user.id} date={dateStr} lang={lang} />
+}
+
+export function SupTracker({ session, date }) {
+  const { lang } = useLang()
+  const dateStr = format(date || new Date(), 'yyyy-MM-dd')
+  return <Container type="supplement" userId={session.user.id} date={dateStr} lang={lang} />
+}
+
 export default function MedSupTracker({ session, date }) {
   const { lang } = useLang()
   const dateStr = format(date || new Date(), 'yyyy-MM-dd')
