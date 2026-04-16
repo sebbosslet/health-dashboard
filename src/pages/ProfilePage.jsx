@@ -295,7 +295,7 @@ export default function ProfilePage({ session, whoopCode, whoopError }) {
                 <div style={{ fontSize: 11, fontFamily: 'var(--font-mono)', color: 'var(--text)', wordBreak: 'break-all', marginBottom: 8 }}>https://sebs.health/.netlify/functions/apple-health-sync</div>
                 <div style={{ fontSize: 11, color: 'var(--text2)', marginBottom: 4 }}>{t('shortcut_body')}</div>
                 <div style={{ fontSize: 10, fontFamily: 'var(--font-mono)', background: 'var(--surface)', borderRadius: 6, padding: '8px', lineHeight: 1.6 }}>
-                  {`{\n  "shortcut_token": "${shortcutToken}",\n  "weight": [Weight Sample],\n  "steps": [Step Count]\n}`}
+                  {`{\n  "shortcut_token": "${shortcutToken}",\n  "date": [Format Date as "yyyy-MM-dd"],\n  "weight": [Weight Sample],\n  "steps": [Step Count]\n}`}
                 </div>
               </div>
               <div className="privacy-note">

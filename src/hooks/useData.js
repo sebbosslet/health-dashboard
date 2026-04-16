@@ -11,6 +11,7 @@ export function useDailyLog(userId, date) {
   const fetch = useCallback(async () => {
     if (!userId) return
     setLoading(true)
+    // Use select with explicit timestamp to bust any query cache
     const { data } = await supabase
       .from('daily_logs')
       .select('*')

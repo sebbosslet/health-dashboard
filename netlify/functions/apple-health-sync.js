@@ -57,7 +57,19 @@ exports.handler = async (event) => {
     }
 
     const userId = settings.user_id
-    const dateStr = date || new Date().toISOString().split('T')[0]
+
+    // Use date from Shortcut if provided (preferred)
+    // Otherwise fall back to deriving local date from UTC with ET offset
+    let dateStr
+    if (date && /^\d{4}-\d{2}-\d{2}$/.test(date)) {
+      dateStr = date
+    } else {
+      // Netlify functions run in UTC. Approximate ET by subtracting 4-5 hours.
+      // We use -5 (EST) to be conservative — better to be on the earlier date
+      const etDate = new Date(Date.now() - 5 * 60 * 60 * 1000)
+      dateStr = etDate.toISOString().split('T')[0]
+    }
+    console.log('Using date:', dateStr)
 
     // Build update object with only provided fields
     const updates = { updated_at: new Date().toISOString() }
