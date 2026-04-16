@@ -4,7 +4,6 @@ import { format, subDays, startOfWeek, isMonday } from 'date-fns'
 import { supabase } from '../lib/supabase'
 import { useSettings } from '../hooks/useData'
 import MonthlyReport from '../components/MonthlyReport'
-import SleepHRAnalysis from '../components/SleepHRAnalysis'
 
 // ─── Chart components ─────────────────────────────────────────────────────────
 
@@ -174,7 +173,6 @@ export default function TrendsPage({ session }) {
   const [logs, setLogs] = useState([])
   const [period, setPeriod] = useState('30d')
   const [showReport, setShowReport] = useState(false)
-  const [showSleepHR, setShowSleepHR] = useState(false)
   const { settings } = useSettings(session.user.id)
 
   useEffect(() => {
@@ -242,19 +240,6 @@ export default function TrendsPage({ session }) {
 
   if (showReport) return <MonthlyReport session={session} onClose={() => setShowReport(false)} />
 
-  if (showSleepHR) return (
-    <div>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '16px 16px 0' }}>
-        <button onClick={() => setShowSleepHR(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text2)', display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, fontFamily: 'inherit', padding: 0 }}>
-          <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M10 3L5 8l5 5" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round"/></svg>
-          {lang === 'de' ? 'Zurück' : 'Back'}
-        </button>
-        <span style={{ fontSize: 16, fontWeight: 700 }}>💓 Sleep HR Analysis</span>
-      </div>
-      <div style={{ padding: '12px' }}><SleepHRAnalysis session={session} /></div>
-    </div>
-  )
-
   return (
     <>
       <div className="page-header">
@@ -281,7 +266,7 @@ export default function TrendsPage({ session }) {
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
           {[
             { icon: '📄', label: t('trends_monthly_report'), sub: lang === 'de' ? 'KI · PDF' : 'AI · PDF', onClick: () => setShowReport(true), color: 'var(--green)' },
-            { icon: '💓', label: 'Sleep HR', sub: lang === 'de' ? 'Schlafqualität' : 'Sleep quality', onClick: () => setShowSleepHR(true), color: 'var(--purple)' },
+
           ].map(c => (
             <div key={c.label} className="card" onClick={c.onClick} style={{ cursor: 'pointer' }}>
               <div style={{ padding: '12px', display: 'flex', flexDirection: 'column', gap: 6 }}>

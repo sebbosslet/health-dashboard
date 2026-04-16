@@ -168,16 +168,6 @@ export default function TodayPage({ session }) {
           )}
         </div>
 
-        {/* Daily Intelligence */}
-        <DailyIntelligence
-          session={session}
-          log={log}
-          onSave={save}
-          habitGoals={habitGoals}
-          activeHabits={activeHabits}
-          onToggleHabit={(key) => toggle(activeHabits, setActiveHabits, key)}
-        />
-
         {/* Sleep */}
         {!!log?.sleep_duration && (
           <div className="card">
@@ -311,6 +301,16 @@ export default function TodayPage({ session }) {
 
         {/* Medications & Supplements */}
         <MedSupTracker session={session} date={today} />
+
+        {/* Daily Intelligence — end of day: evening log + morning check-in + insight */}
+        <DailyIntelligence
+          session={session}
+          log={log}
+          onSave={save}
+          habitGoals={habitGoals}
+          activeHabits={activeHabits}
+          onToggleHabit={(key) => toggle(activeHabits, setActiveHabits, key)}
+        />
 
         <button className="btn-primary" onClick={handleSave} disabled={saving}>
           {saving ? t('today_saving') : t('today_save')}

@@ -137,9 +137,116 @@ Then write 3-4 direct sentences connecting last evening to this morning's WHOOP 
   return data.content?.[0]?.text || ''
 }
 
+// ─── WHOOP Screenshot Upload (inline in morning) ──────────────────────────────
+
+function WhoopUpload({ session, date, lang, bedTime }) {
+  const fileRef = useRef()
+  const [analysing, setAnalysing] = useState(false)
+  const [done, setDone] = useState(!!bedTime)
+
+  useEffect(() => { setDone(!!bedTime) }, [bedTime])
+
+  async function handleFile(e) {
+    const file = e.target.files?.[0]
+    e.target.value = ''
+    if (!file) return
+    setAnalysing(true)
+    try {
+      // Compress image
+      const base64 = await new Promise((res, rej) => {
+        const img = new Image()
+        const url = URL.createObjectURL(file)
+        img.onload = () => {
+          const MAX = 800
+          let w = img.width, h = img.height
+          if (w > MAX || h > MAX) { if (w > h) { h = Math.round(h*MAX/w); w = MAX } else { w = Math.round(w*MAX/h); h = MAX } }
+          const c = document.createElement('canvas'); c.width = w; c.height = h
+          c.getContext('2d').drawImage(img, 0, 0, w, h)
+          URL.revokeObjectURL(url)
+          res(c.toDataURL('image/jpeg', 0.75).split(',')[1])
+        }
+        img.onerror = rej; img.src = url
+      })
+
+      // Fetch recent analyses for context
+      const { data: recent } = await supabase.from('sleep_hr_analysis').select('*').eq('user_id', session.user.id).order('date', { ascending: false }).limit(7)
+      const { data: contextLog } = await supabase.from('daily_logs').select('*').eq('user_id', session.user.id).eq('date', date).maybeSingle()
+
+      // Call proxy
+      const prompt = `You are a sleep medicine expert. Analyse this WHOOP sleep screenshot for ${date}. Extract all visible data. Respond ONLY with valid JSON:\n{"sleep_onset":"HH:MM or null","wake_time":"HH:MM or null","sleep_duration_h":number or null,"awake_pct":number or null,"light_pct":number or null,"deep_pct":number or null,"rem_pct":number or null,"hr_baseline":number or null,"hr_min":number or null,"hr_max":number or null,"hr_range":number or null,"axis_min":number or null,"axis_max":number or null,"spike_count":number or null,"spike_avg_magnitude":number or null,"spike_max_magnitude":number or null,"stable_pct":number or null,"fragmented_pct":number or null,"stability_score":number or null,"likely_cause":"thyroid|stress|apnea|temperature|food|caffeine|mixed|unclear","cause_confidence":"low|medium|high","cause_reasoning":"1-2 sentences","micro_arousals_likely":true or false,"micro_arousal_count":number or null,"analysis":"3-4 sentences","eye_bag_risk":"low|medium|high","recommendation":"one sentence"}`
+
+      const r = await fetch('/.netlify/functions/claude-proxy', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ model: 'claude-sonnet-4-5-20250929', max_tokens: 800, messages: [{ role: 'user', content: [{ type: 'image', source: { type: 'base64', media_type: 'image/jpeg', data: base64 } }, { type: 'text', text: prompt }] }] })
+      })
+      const data = await r.json()
+      const result = JSON.parse(data.content?.[0]?.text?.replace(/```json|```/g, '').trim() || '{}')
+
+      // Save analysis
+      await supabase.from('sleep_hr_analysis').upsert({ user_id: session.user.id, date, ...result, screenshot_path: null }, { onConflict: 'user_id,date' })
+
+      // Save bed_time to daily_logs
+      if (result.sleep_onset) {
+        await supabase.from('daily_logs').upsert({ user_id: session.user.id, date, bed_time: result.sleep_onset, updated_at: new Date().toISOString() }, { onConflict: 'user_id,date' })
+      }
+
+      setDone(true)
+      showToast(lang === 'de' ? `Analysiert${result.sleep_onset ? ` · Einschlafzeit ${result.sleep_onset}` : ''}` : `Analysed${result.sleep_onset ? ` · Sleep onset ${result.sleep_onset}` : ''}`)
+    } catch (err) {
+      console.error(err)
+      showToast(lang === 'de' ? 'Analyse fehlgeschlagen' : 'Analysis failed')
+    }
+    setAnalysing(false)
+  }
+
+  if (done) return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 10px', background: 'var(--green-light)', borderRadius: 8 }}>
+      <span style={{ fontSize: 14 }}>✅</span>
+      <div style={{ flex: 1 }}>
+        <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--green)' }}>
+          {lang === 'de' ? 'WHOOP Screenshot analysiert' : 'WHOOP screenshot analysed'}
+          {bedTime && ` · 🛏 ${bedTime}`}
+        </div>
+        <button onClick={() => { setDone(false) }} style={{ fontSize: 10, color: 'var(--green)', background: 'none', border: 'none', cursor: 'pointer', padding: 0, fontFamily: 'inherit', opacity: 0.7 }}>
+          {lang === 'de' ? '↺ Neu hochladen' : '↺ Re-upload'}
+        </button>
+      </div>
+    </div>
+  )
+
+  if (analysing) return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 10px', background: 'var(--surface2)', borderRadius: 8 }}>
+      <div className="spinner" style={{ width: 16, height: 16, flexShrink: 0 }} />
+      <span style={{ fontSize: 12, color: 'var(--text2)' }}>{lang === 'de' ? 'Analysiere...' : 'Analysing screenshot...'}</span>
+    </div>
+  )
+
+  return (
+    <div>
+      <input ref={fileRef} type="file" accept="image/*" style={{ display: 'none' }} onChange={handleFile} />
+      <button onClick={() => fileRef.current?.click()} style={{
+        width: '100%', padding: '10px', borderRadius: 8, border: '1.5px dashed var(--border)',
+        background: 'none', cursor: 'pointer', fontFamily: 'inherit',
+        display: 'flex', alignItems: 'center', gap: 8,
+      }}>
+        <span style={{ fontSize: 16 }}>📸</span>
+        <div style={{ textAlign: 'left' }}>
+          <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--text)' }}>
+            {lang === 'de' ? 'WHOOP Screenshot hochladen' : 'Upload WHOOP screenshot'}
+          </div>
+          <div style={{ fontSize: 10, color: 'var(--text3)' }}>
+            {lang === 'de' ? 'Einschlafzeit + Schlafphasen werden automatisch extrahiert' : 'Sleep onset + stages auto-extracted'}
+          </div>
+        </div>
+      </button>
+    </div>
+  )
+}
+
 // ─── Morning Check-in ─────────────────────────────────────────────────────────
 
-function MorningCheckin({ log, onSave, lang, yesterdayLog }) {
+function MorningCheckin({ log, onSave, lang, yesterdayLog, session }) {
   const [energy, setEnergy] = useState(log?.morning_energy || 0)
   const [mood, setMood] = useState(log?.morning_mood || 0)
   const [soreness, setSoreness] = useState(log?.morning_soreness || 0)
@@ -218,24 +325,8 @@ function MorningCheckin({ log, onSave, lang, yesterdayLog }) {
 
       <input className="field-input" value={note} onChange={e => setNote(e.target.value)} placeholder={labels.placeholder} style={{ fontSize: 13 }} />
 
-      {/* Sleep onset — auto-populated from WHOOP screenshot */}
-      {bedTime ? (
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 10px', background: 'var(--green-light)', borderRadius: 8 }}>
-          <span style={{ fontSize: 14 }}>🛏</span>
-          <div style={{ flex: 1 }}>
-            <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--green)' }}>
-              {lang === 'de' ? 'Einschlafzeit' : 'Sleep onset'}: {bedTime}
-            </div>
-            <div style={{ fontSize: 10, color: 'var(--green)', opacity: 0.8 }}>
-              {lang === 'de' ? 'Automatisch aus WHOOP Screenshot' : 'Auto-extracted from WHOOP screenshot'}
-            </div>
-          </div>
-        </div>
-      ) : (
-        <div style={{ fontSize: 11, color: 'var(--text3)', background: 'var(--surface2)', borderRadius: 8, padding: '8px 10px' }}>
-          🛏 {lang === 'de' ? 'Einschlafzeit wird automatisch aus dem WHOOP Screenshot übernommen' : 'Sleep onset auto-extracted when you upload your WHOOP screenshot'}
-        </div>
-      )}
+      {/* WHOOP screenshot upload — inline in morning */}
+      <WhoopUpload session={session} date={format(new Date(), 'yyyy-MM-dd')} lang={lang} bedTime={bedTime} />
 
       <button className="btn-primary" onClick={handleSave} disabled={saving || !energy || !mood || !soreness}>
         {saving ? labels.saving : labels.save}
@@ -444,15 +535,6 @@ function InsightCard({ log, userId, lang }) {
         </span>
       </div>
 
-      {/* WHOOP screenshot nudge if not yet uploaded */}
-      {!hasScreenshot && (
-        <div style={{ fontSize: 11, color: 'var(--amber)', background: 'rgba(186,117,23,0.08)', borderRadius: 8, padding: '7px 10px', lineHeight: 1.5 }}>
-          📸 {lang === 'de'
-            ? 'WHOOP Screenshot noch nicht hochgeladen — Trends → Sleep HR für Einschlafzeit und Schlafphasen'
-            : 'WHOOP screenshot not yet uploaded — go to Trends → Sleep HR to extract sleep onset and stages'}
-        </div>
-      )}
-
       {insight ? (
         <>
           {/* Stats block */}
@@ -557,7 +639,7 @@ export default function DailyIntelligence({ session, log, onSave, habitGoals, ac
       </div>
 
       {section === 'morning' && (
-        <MorningCheckin log={log} onSave={onSave} lang={lang} yesterdayLog={yesterdayLog} />
+        <MorningCheckin log={log} onSave={onSave} lang={lang} yesterdayLog={yesterdayLog} session={session} />
       )}
       {section === 'evening' && (
         <EveningLog
