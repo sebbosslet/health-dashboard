@@ -174,9 +174,40 @@ Sleep onset is typically 22:xx-23:xx or 00:xx-02:xx. Wake time is typically 06:x
       const data = await r.json()
       const result = JSON.parse(data.content?.[0]?.text?.replace(/```json|```/g, '').trim() || '{}')
 
-      // Save analysis
-      const { error: hrError } = await supabase.from('sleep_hr_analysis').upsert({ user_id: session.user.id, date, ...result, screenshot_path: null }, { onConflict: 'user_id,date' })
-      console.log('[WHOOP upsert] date:', date, 'error:', hrError, 'analysis:', result.analysis?.slice(0,50))
+      // Save analysis — only insert columns that exist in the table
+      const hrPayload = {
+        user_id: session.user.id,
+        date,
+        screenshot_path: null,
+        sleep_onset: result.sleep_onset || null,
+        wake_time: result.wake_time || null,
+        sleep_duration_h: result.sleep_duration_h || null,
+        awake_pct: result.awake_pct || null,
+        light_pct: result.light_pct || null,
+        deep_pct: result.deep_pct || null,
+        rem_pct: result.rem_pct || null,
+        hr_baseline: result.hr_baseline || null,
+        hr_min: result.hr_min || null,
+        hr_max: result.hr_max || null,
+        hr_range: result.hr_range || null,
+        axis_min: result.axis_min || null,
+        axis_max: result.axis_max || null,
+        spike_count: result.spike_count ?? null,
+        spike_avg_magnitude: result.spike_avg_magnitude || null,
+        spike_max_magnitude: result.spike_max_magnitude || null,
+        stable_pct: result.stable_pct || null,
+        stability_score: result.stability_score || null,
+        likely_cause: result.likely_cause || null,
+        cause_confidence: result.cause_confidence || null,
+        cause_reasoning: result.cause_reasoning || null,
+        micro_arousals_likely: result.micro_arousals_likely ?? null,
+        micro_arousal_count: result.micro_arousal_count ?? null,
+        analysis: result.analysis || null,
+        eye_bag_risk: result.eye_bag_risk || null,
+        recommendation: result.recommendation || null,
+      }
+      const { error: hrError } = await supabase.from('sleep_hr_analysis').upsert(hrPayload, { onConflict: 'user_id,date' })
+      console.log('[WHOOP upsert] date:', date, 'error:', hrError?.message, 'analysis:', result.analysis?.slice(0,50))
 
       // Save bed_time to daily_logs
       if (result.sleep_onset) {
