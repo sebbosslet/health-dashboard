@@ -207,16 +207,24 @@ function MorningCheckin({ log, onSave, lang, yesterdayLog }) {
 
       <input className="field-input" value={note} onChange={e => setNote(e.target.value)} placeholder={labels.placeholder} style={{ fontSize: 13 }} />
 
-      {/* Bed time — logged in morning from WHOOP sleep diary */}
-      <div className="field">
-        <label className="field-label">
-          🛏 {lang === 'de' ? 'Einschlafzeit (aus WHOOP)' : 'Sleep onset (from WHOOP)'}
-        </label>
-        <input className="field-input" type="time" value={bedTime} onChange={e => setBedTime(e.target.value)} />
-        <div style={{ fontSize: 10, color: 'var(--text3)', marginTop: 3 }}>
-          {lang === 'de' ? 'Aus dem WHOOP Schlafdiary — wann bist du eingeschlafen?' : 'From your WHOOP sleep diary — when did you fall asleep?'}
+      {/* Sleep onset — auto-populated from WHOOP screenshot */}
+      {bedTime ? (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 10px', background: 'var(--green-light)', borderRadius: 8 }}>
+          <span style={{ fontSize: 14 }}>🛏</span>
+          <div style={{ flex: 1 }}>
+            <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--green)' }}>
+              {lang === 'de' ? 'Einschlafzeit' : 'Sleep onset'}: {bedTime}
+            </div>
+            <div style={{ fontSize: 10, color: 'var(--green)', opacity: 0.8 }}>
+              {lang === 'de' ? 'Automatisch aus WHOOP Screenshot' : 'Auto-extracted from WHOOP screenshot'}
+            </div>
+          </div>
         </div>
-      </div>
+      ) : (
+        <div style={{ fontSize: 11, color: 'var(--text3)', background: 'var(--surface2)', borderRadius: 8, padding: '8px 10px' }}>
+          🛏 {lang === 'de' ? 'Einschlafzeit wird automatisch aus dem WHOOP Screenshot übernommen' : 'Sleep onset auto-extracted when you upload your WHOOP screenshot'}
+        </div>
+      )}
 
       <button className="btn-primary" onClick={handleSave} disabled={saving || !energy || !mood || !soreness}>
         {saving ? labels.saving : labels.save}

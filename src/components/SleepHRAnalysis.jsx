@@ -303,6 +303,7 @@ function NightCard({ analysis, lang }) {
                 </div>
             ))}
           </div>
+          )}
 
           {/* Analysis text */}
           <div style={{ fontSize: 12, color: 'var(--text)', lineHeight: 1.7 }}>{analysis.analysis}</div>
