@@ -140,7 +140,8 @@ function WhoopUpload({ session, date, lang, bedTime, onDone }) {
   const [analysing, setAnalysing] = useState(false)
   const [done, setDone] = useState(!!bedTime)
 
-  useEffect(() => { setDone(!!bedTime) }, [bedTime])
+  // Sync from prop, but never go from done→not-done unless user explicitly re-uploads
+  useEffect(() => { if (bedTime) setDone(true) }, [bedTime])
 
   async function handleFile(e) {
     const file = e.target.files?.[0]
@@ -234,7 +235,6 @@ function MorningCheckin({ log, onSave, lang, yesterdayLog, session }) {
   const [mood, setMood] = useState(log?.morning_mood || 0)
   const [soreness, setSoreness] = useState(log?.morning_soreness || 0)
   const [note, setNote] = useState(log?.morning_note || '')
-  const [bedTime, setBedTime] = useState(log?.bed_time?.slice(0,5) || '')
   const [saving, setSaving] = useState(false)
 
   // Re-sync when log fields change
@@ -243,7 +243,6 @@ function MorningCheckin({ log, onSave, lang, yesterdayLog, session }) {
     setMood(log?.morning_mood || 0)
     setSoreness(log?.morning_soreness || 0)
     setNote(log?.morning_note || '')
-    setBedTime(log?.bed_time?.slice(0,5) || '')
   }, [log?.morning_energy, log?.morning_mood, log?.morning_soreness, log?.morning_note, log?.bed_time])
 
   const emojis = {
@@ -258,7 +257,7 @@ function MorningCheckin({ log, onSave, lang, yesterdayLog, session }) {
 
   async function handleSave() {
     setSaving(true)
-    await onSave({ morning_energy: energy, morning_mood: mood, morning_soreness: soreness, morning_note: note || null, bed_time: bedTime || null })
+    await onSave({ morning_energy: energy, morning_mood: mood, morning_soreness: soreness, morning_note: note || null })
     setSaving(false)
     showToast(lang === 'de' ? 'Check-in gespeichert' : 'Check-in saved')
   }
@@ -307,9 +306,6 @@ function MorningCheckin({ log, onSave, lang, yesterdayLog, session }) {
       ))}
 
       <input className="field-input" value={note} onChange={e => setNote(e.target.value)} placeholder={labels.placeholder} style={{ fontSize: 13 }} />
-
-      {/* WHOOP screenshot upload — inline in morning */}
-      <WhoopUpload session={session} date={format(new Date(), 'yyyy-MM-dd')} lang={lang} bedTime={bedTime} />
 
       <button className="btn-primary" onClick={handleSave} disabled={saving || !energy || !mood || !soreness}>
         {saving ? labels.saving : labels.save}
