@@ -11,7 +11,7 @@ function BarChart({ data, color, height = 52, target }) {
   const values = data.map(d => d.value).filter(v => v !== null && v > 0)
   const max = Math.max(...values, target || 1, 1)
   const avg = values.length ? values.reduce((a, b) => a + b, 0) / values.length : null
-  const lineValue = target || avg  // show target if provided, else average
+  const lineValue = target  // only show dashed line when explicit target exists
   return (
     <div style={{ position: 'relative' }}>
       {lineValue && (
@@ -174,6 +174,8 @@ export default function TrendsPage({ session }) {
   const [logs, setLogs] = useState([])
   const [period, setPeriod] = useState('30d')
   const { settings } = useSettings(session.user.id)
+  const [hrvTarget, setHrvTarget] = useState(null)
+  const [rhrTarget, setRhrTarget] = useState(null)
 
   useEffect(() => {
     const days = period === '7d' ? 7 : period === '30d' ? 30 : 90
@@ -182,6 +184,16 @@ export default function TrendsPage({ session }) {
       .gte('date', from).order('date', { ascending: true })
       .then(({ data }) => setLogs(data || []))
   }, [session.user.id, period])
+
+  useEffect(() => {
+    supabase.from('goals').select('name,target_value').eq('user_id', session.user.id)
+      .then(({ data }) => {
+        const hrv = data?.find(g => g.name.toLowerCase().includes('hrv'))
+        const rhr = data?.find(g => g.name.toLowerCase().includes('rhr') || g.name.toLowerCase().includes('resting heart'))
+        if (hrv) setHrvTarget(hrv.target_value)
+        if (rhr) setRhrTarget(rhr.target_value)
+      })
+  }, [session.user.id])
 
   const days = period === '7d' ? 7 : period === '30d' ? 30 : 90
   const chartDays = Math.min(days, 28)
@@ -311,7 +323,7 @@ export default function TrendsPage({ session }) {
             </span>
           </div>
           <div style={{ padding: '10px 14px 14px' }}>
-            <BarChart data={chartData('hrv')} color="var(--purple)" />
+            <BarChart data={chartData('hrv')} color="var(--purple)" target={hrvTarget} />
           </div>
         </div>
 
@@ -324,7 +336,7 @@ export default function TrendsPage({ session }) {
             </span>
           </div>
           <div style={{ padding: '10px 14px 14px' }}>
-            <BarChart data={chartData('rhr')} color="var(--red)" />
+            <BarChart data={chartData('rhr')} color="var(--red)" target={rhrTarget} />
           </div>
         </div>
 
