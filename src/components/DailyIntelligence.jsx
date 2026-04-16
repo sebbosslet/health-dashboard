@@ -248,13 +248,18 @@ function EveningLog({ log, onSave, lang, habitGoals, activeHabits, onToggleHabit
   const [acTemp, setAcTemp] = useState(log?.ac_temp || '')
   const [saving, setSaving] = useState(false)
 
-  // Re-sync when log fields change
+  // Re-sync when log fields change - set both state and input DOM value
   useEffect(() => {
-    setPhoneAway(log?.phone_away_time?.slice(0,5) || '')
+    const phone = log?.phone_away_time?.slice(0,5) || ''
+    const dinner = log?.dinner_time?.slice(0,5) || ''
+    setPhoneAway(phone)
     setWindDown(log?.wind_down || '')
     setNote(log?.evening_note || '')
-    setDinnerTime(log?.dinner_time?.slice(0,5) || '')
+    setDinnerTime(dinner)
     setAcTemp(log?.ac_temp != null ? String(log.ac_temp) : '')
+    // Also set DOM values directly for iOS time inputs
+    if (phoneRef.current) phoneRef.current.value = phone
+    if (dinnerRef.current) dinnerRef.current.value = dinner
   }, [log?.phone_away_time, log?.wind_down, log?.evening_note, log?.dinner_time, log?.ac_temp])
 
   const labels = lang === 'de'
@@ -302,11 +307,11 @@ function EveningLog({ log, onSave, lang, habitGoals, activeHabits, onToggleHabit
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
         <div className="field">
           <label className="field-label">📵 {labels.phone}</label>
-          <input ref={phoneRef} key={`phone-${phoneAway}`} className="field-input" type="time" defaultValue={phoneAway} onChange={e => setPhoneAway(e.target.value)} />
+          <input ref={phoneRef} className="field-input" type="time" defaultValue={phoneAway} onChange={e => setPhoneAway(e.target.value)} />
         </div>
         <div className="field">
           <label className="field-label">🍽 {labels.dinner}</label>
-          <input ref={dinnerRef} key={`dinner-${dinnerTime}`} className="field-input" type="time" defaultValue={dinnerTime} onChange={e => setDinnerTime(e.target.value)} />
+          <input ref={dinnerRef} className="field-input" type="time" defaultValue={dinnerTime} onChange={e => setDinnerTime(e.target.value)} />
         </div>
         <div className="field">
           <label className="field-label">❄ {labels.ac}</label>
