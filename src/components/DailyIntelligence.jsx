@@ -156,8 +156,16 @@ function WhoopUpload({ session, date, lang, bedTime, onDone }) {
       const { data: contextLog } = await supabase.from('daily_logs').select('*').eq('user_id', session.user.id).eq('date', date).maybeSingle()
 
       // Call proxy
-      const prompt = `You are a sleep medicine expert. Analyse this WHOOP sleep screenshot for ${date}. Extract all visible data. Respond ONLY with valid JSON:\n{"sleep_onset":"HH:MM or null","wake_time":"HH:MM or null","sleep_duration_h":number or null,"awake_pct":number or null,"light_pct":number or null,"deep_pct":number or null,"rem_pct":number or null,"hr_baseline":number or null,"hr_min":number or null,"hr_max":number or null,"hr_range":number or null,"axis_min":number or null,"axis_max":number or null,"spike_count":number or null,"spike_avg_magnitude":number or null,"spike_max_magnitude":number or null,"stable_pct":number or null,"fragmented_pct":number or null,"stability_score":number or null,"likely_cause":"thyroid|stress|apnea|temperature|food|caffeine|mixed|unclear","cause_confidence":"low|medium|high","cause_reasoning":"1-2 sentences","micro_arousals_likely":true or false,"micro_arousal_count":number or null,"analysis":"3-4 sentences","eye_bag_risk":"low|medium|high","recommendation":"one sentence"}`
+      const prompt = `You are a sleep medicine expert. Analyse this WHOOP sleep screenshot for ${date}. Extract all visible data. Respond ONLY with valid JSON.
 
+CRITICAL — all times must be in 24-hour format (HH:MM):
+- "10:27 PM" → "22:27"
+- "12:03 AM" → "00:03" (12:xx AM is midnight/after-midnight, NOT noon)
+- "6:45 AM" → "06:45"
+- "12:30 PM" → "12:30" (noon)
+Sleep onset is typically 22:xx-23:xx or 00:xx-02:xx. Wake time is typically 06:xx-09:xx.
+
+{"sleep_onset":"HH:MM or null","wake_time":"HH:MM or null","sleep_duration_h":number or null,"awake_pct":number or null,"light_pct":number or null,"deep_pct":number or null,"rem_pct":number or null,"hr_baseline":number or null,"hr_min":number or null,"hr_max":number or null,"hr_range":number or null,"axis_min":number or null,"axis_max":number or null,"spike_count":number or null,"spike_avg_magnitude":number or null,"spike_max_magnitude":number or null,"stable_pct":number or null,"fragmented_pct":number or null,"stability_score":number or null,"likely_cause":"thyroid|stress|apnea|temperature|food|caffeine|mixed|unclear","cause_confidence":"low|medium|high","cause_reasoning":"1-2 sentences","micro_arousals_likely":true or false,"micro_arousal_count":number or null,"analysis":"3-4 sentences","eye_bag_risk":"low|medium|high","recommendation":"one sentence"}`
       const r = await fetch('/.netlify/functions/claude-proxy', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -452,8 +460,9 @@ function WhoopTab({ log, yesterdayLog, session, lang, onRefresh }) {
   if (eveningSource?.phone_away_time && bedTime) {
     const pm = parseInt(eveningSource.phone_away_time.split(':')[0])*60 + parseInt(eveningSource.phone_away_time.split(':')[1])
     let bm = parseInt(bedTime.split(':')[0])*60 + parseInt(bedTime.split(':')[1])
-    if (bm < 360) bm += 1440
-    windDownMins = bm - pm
+    if (bm < 360) bm += 1440  // after midnight
+    const gap = bm - pm
+    if (gap > 0 && gap < 600) windDownMins = gap  // sanity check: 0-10h range only
   }
 
   // Last night summary grid
