@@ -456,6 +456,7 @@ function WhoopTab({ log, yesterdayLog, session, lang, onRefresh }) {
   const date = format(new Date(), 'yyyy-MM-dd')
   const yesterday = format(subDays(new Date(), 1), 'yyyy-MM-dd')
   const [hrAnalysis, setHrAnalysis] = useState(null)
+  const [forceUpload, setForceUpload] = useState(false)
 
   useEffect(() => {
     // Load HR analysis for today or yesterday (whichever has data)
@@ -507,28 +508,28 @@ function WhoopTab({ log, yesterdayLog, session, lang, onRefresh }) {
   return (
     <div style={{ padding: '12px 14px', display: 'flex', flexDirection: 'column', gap: 12 }}>
 
-      {/* Success state — shown when screenshot has been processed (bed_time exists) */}
-      {uploaded ? (
+      {/* Success state or upload widget */}
+      {uploaded && !forceUpload ? (
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 12px', background: 'var(--green-light)', borderRadius: 10, border: '0.5px solid var(--green-border)' }}>
           <span style={{ fontSize: 18 }}>✅</span>
           <div style={{ flex: 1 }}>
             <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--green)' }}>
-              {lang === 'de' ? 'WHOOP Screenshot analysiert' : 'Screenshot analysed'}
+              {lang === 'de' ? 'Screenshot analysiert' : 'Screenshot analysed'}
               {windDownMins !== null && (
                 <span style={{ fontWeight: 400, marginLeft: 6 }}>
-                  · {lang === 'de' ? `${windDownMins}min Wind-down` : `${windDownMins}min wind-down`}
+                  · {windDownMins}min wind-down
                 </span>
               )}
             </div>
             <div style={{ fontSize: 10, color: 'var(--green)', opacity: 0.75, marginTop: 1 }}>
-              🛏 {bedTime.slice(0,5)} · <button onClick={() => onRefresh && onRefresh({})} style={{ fontSize: 10, color: 'var(--green)', background: 'none', border: 'none', cursor: 'pointer', padding: 0, fontFamily: 'inherit', opacity: 0.7, textDecoration: 'underline' }}>
-                {lang === 'de' ? 'neu hochladen' : 're-upload'}
+              🛏 {bedTime.slice(0,5)} · <button onClick={() => setForceUpload(true)} style={{ fontSize: 10, color: 'var(--green)', background: 'none', border: 'none', cursor: 'pointer', padding: 0, fontFamily: 'inherit', opacity: 0.7, textDecoration: 'underline' }}>
+                re-upload
               </button>
             </div>
           </div>
         </div>
       ) : (
-        <WhoopUpload session={session} date={date} lang={lang} bedTime='' onDone={onRefresh} />
+        <WhoopUpload session={session} date={date} lang={lang} bedTime='' onDone={(fields) => { setForceUpload(false); if (onRefresh) onRefresh(fields) }} />
       )}
 
       {/* Last night summary — always shown if there's data */}
