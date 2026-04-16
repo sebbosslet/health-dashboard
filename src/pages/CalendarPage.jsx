@@ -1,3 +1,4 @@
+import MonthlyReport from '../components/MonthlyReport'
 import { useLang } from '../lib/LangContext'
 import { useState, useMemo, useEffect } from 'react'
 import { format, startOfMonth, endOfMonth, eachDayOfInterval, getDay, isSameDay, isFuture, startOfDay, subMonths, addMonths } from 'date-fns'
@@ -27,6 +28,7 @@ function logScore(log) {
 }
 
 export default function CalendarPage({ session }) {
+  const [showReport, setShowReport] = useState(false)
   const { t, lang } = useLang()
   const [currentMonth, setCurrentMonth] = useState(new Date())
   const [selectedLog, setSelectedLog] = useState(null)
@@ -115,6 +117,7 @@ export default function CalendarPage({ session }) {
 
   return (
     <>
+      {showReport && <MonthlyReport session={session} onClose={() => setShowReport(false)} />}
       <div className="page-header">
         <div className="page-header-title">{`${t('cal_title')}`}</div>
         <div style={{ fontSize: 11, padding: '4px 10px', borderRadius: 20, background: 'var(--green-light)', color: 'var(--green)', fontWeight: 600 }}>

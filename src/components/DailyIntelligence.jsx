@@ -363,8 +363,6 @@ export function EveningLog({ log, onSave, lang, habitGoals, activeHabits, onTogg
   const [phoneAway, setPhoneAway] = useState(log?.phone_away_time?.slice(0,5) || '')
   const [windDown, setWindDown] = useState(log?.wind_down || '')
   const [note, setNote] = useState(log?.evening_note || '')
-  const [dinnerTime, setDinnerTime] = useState(log?.dinner_time?.slice(0,5) || '')
-  const dinnerRef = useRef(null)
   const phoneRef = useRef(null)
   const [acTemp, setAcTemp] = useState(log?.ac_temp || '')
   const [saving, setSaving] = useState(false)
@@ -372,31 +370,26 @@ export function EveningLog({ log, onSave, lang, habitGoals, activeHabits, onTogg
   // Re-sync when log fields change - set both state and input DOM value
   useEffect(() => {
     const phone = log?.phone_away_time?.slice(0,5) || ''
-    const dinner = log?.dinner_time?.slice(0,5) || ''
     setPhoneAway(phone)
     setWindDown(log?.wind_down || '')
     setNote(log?.evening_note || '')
-    setDinnerTime(dinner)
     setAcTemp(log?.ac_temp != null ? String(log.ac_temp) : '')
     // Also set DOM values directly for iOS time inputs
     if (phoneRef.current) phoneRef.current.value = phone
-    if (dinnerRef.current) dinnerRef.current.value = dinner
   }, [log?.phone_away_time, log?.wind_down, log?.evening_note, log?.dinner_time, log?.ac_temp])
 
   const labels = lang === 'de'
-    ? { habits: 'Abendgewohnheiten', phone: 'Handy weggelegt um', wind: 'Abend-Qualität', note: 'Etwas Besonderes?', save: 'Abend speichern', saving: 'Speichern...', good: 'Gut', ok: 'OK', poor: 'Schlecht', dinner: 'Abendessen um', ac: 'AC-Temp (°F)' }
-    : { habits: 'Evening habits', phone: 'Phone away at', wind: 'Wind-down quality', note: 'Anything affect your evening?', save: 'Save evening', saving: 'Saving...', good: 'Good', ok: 'OK', poor: 'Poor', dinner: 'Dinner at', ac: 'AC temp (°F)' }
+    ? { habits: 'Abendgewohnheiten', phone: 'Handy weggelegt um', wind: 'Abend-Qualität', note: 'Etwas Besonderes?', save: 'Abend speichern', saving: 'Speichern...', good: 'Gut', ok: 'OK', poor: 'Schlecht', ac: 'AC-Temp (°F)' }
+    : { habits: 'Evening habits', phone: 'Phone away at', wind: 'Wind-down quality', note: 'Anything affect your evening?', save: 'Save evening', saving: 'Saving...', good: 'Good', ok: 'OK', poor: 'Poor', ac: 'AC temp (°F)' }
 
   async function handleSave() {
     // Capture current input values from both ref (DOM) and state (onBlur)
-    const dinnerVal = dinnerRef.current?.value || dinnerTime || null
     const phoneVal = phoneRef.current?.value || phoneAway || null
     setSaving(true)
     await onSave({
       phone_away_time: phoneVal || null,
       wind_down: windDown || null,
       evening_note: note || null,
-      dinner_time: dinnerVal || null,
       ac_temp: acTemp ? parseFloat(acTemp) : null,
     })
     setSaving(false)
@@ -413,9 +406,10 @@ export function EveningLog({ log, onSave, lang, habitGoals, activeHabits, onTogg
           <div className="toggle-grid">
             {habitGoals.map(h => {
               const key = h.name.toLowerCase().replace(/\s+/g, '_')
+              const emoji = h.emoji || getEmoji(h.name)
               return (
                 <button key={key} className={`toggle-btn ${activeHabits.has(key) ? 'active' : ''}`} onClick={() => onToggleHabit(key)}>
-                  {getEmoji(h.name)} {h.name}
+                  {emoji} {h.name}
                 </button>
               )
             })}
@@ -425,28 +419,37 @@ export function EveningLog({ log, onSave, lang, habitGoals, activeHabits, onTogg
 
       {/* Evening time fields */}
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-        <div className="field">
-          <label className="field-label">📵 {labels.phone}</label>
-          <input
-            ref={phoneRef}
-            className="field-input"
-            type="time"
-            defaultValue={phoneAway}
-            onChange={e => setPhoneAway(e.target.value)}
-            onBlur={e => setPhoneAway(e.target.value)}
-          />
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 0' }}>
+          <button onClick={() => {
+            if (!phoneAway) {
+              const now = format(new Date(), 'HH:mm')
+              setPhoneAway(now)
+              if (phoneRef.current) phoneRef.current.value = now
+            } else {
+              setPhoneAway('')
+              if (phoneRef.current) phoneRef.current.value = ''
+            }
+          }} style={{
+            width: 28, height: 28, borderRadius: 8, flexShrink: 0,
+            border: `1.5px solid ${phoneAway ? 'var(--green)' : 'var(--border)'}`,
+            background: phoneAway ? 'var(--green)' : 'var(--surface2)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', padding: 0,
+          }}>
+            {phoneAway && <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M2.5 7l3.5 3.5 5.5-6" stroke="white" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/></svg>}
+          </button>
+          <span style={{ fontSize: 13, fontWeight: 600, flex: 1, color: phoneAway ? 'var(--text)' : 'var(--text2)' }}>📵 {labels.phone}</span>
+          {phoneAway && (
+            <input
+              ref={phoneRef}
+              type="time"
+              defaultValue={phoneAway}
+              onChange={e => setPhoneAway(e.target.value)}
+              onBlur={e => setPhoneAway(e.target.value)}
+              style={{ fontSize: 13, fontWeight: 700, fontFamily: 'var(--font-mono)', color: 'var(--green)', background: 'none', border: 'none', outline: 'none', width: 80, textAlign: 'right', cursor: 'pointer' }}
+            />
+          )}
         </div>
-        <div className="field">
-          <label className="field-label">🍽 {labels.dinner}</label>
-          <input
-            ref={dinnerRef}
-            className="field-input"
-            type="time"
-            defaultValue={dinnerTime}
-            onChange={e => setDinnerTime(e.target.value)}
-            onBlur={e => setDinnerTime(e.target.value)}
-          />
-        </div>
+
         <div className="field">
           <label className="field-label">❄ {labels.ac}</label>
           <input className="field-input" type="number" step="1" value={acTemp} onChange={e => setAcTemp(e.target.value)} placeholder="68" inputMode="numeric" />
@@ -600,7 +603,7 @@ function InsightCard({ log, userId, lang }) {
   const [insight, setInsight] = useState(log?.ai_insight || '')
   const [loading, setLoading] = useState(false)
   const [hrAnalysis, setHrAnalysis] = useState(null)
-  const [anomalyAnswers, setAnomalyAnswers] = useState([])
+  const [anomalyText, setAnomalyText] = useState('')
   const [showAnomalyPrompt, setShowAnomalyPrompt] = useState(false)
   const today = format(new Date(), 'yyyy-MM-dd')
   const yesterday = format(subDays(new Date(), 1), 'yyyy-MM-dd')
@@ -688,32 +691,24 @@ ADDITIONAL CONTEXT FROM SEBASTIAN about why sleep was fragmented: ${extraContext
           <div style={{ fontSize: 11, color: 'var(--text2)' }}>
             {lang === 'de' ? 'Wähle alles Zutreffende aus — wird in die Analyse einbezogen' : 'Select all that apply — this will be folded into the analysis'}
           </div>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-            {ANOMALY_PROMPTS.map(p => (
-              <button key={p.id} onClick={() => setAnomalyAnswers(prev =>
-                prev.includes(p.id) ? prev.filter(x => x !== p.id) : [...prev.filter(x => x !== 'none'), p.id]
-              )} style={{
-                display: 'flex', alignItems: 'center', gap: 10, padding: '9px 12px',
-                borderRadius: 8, border: `1.5px solid ${anomalyAnswers.includes(p.id) ? 'var(--amber)' : 'var(--border)'}`,
-                background: anomalyAnswers.includes(p.id) ? 'rgba(186,117,23,0.08)' : 'var(--surface2)',
-                cursor: 'pointer', fontFamily: 'inherit', textAlign: 'left',
-              }}>
-                <span style={{ fontSize: 16, flexShrink: 0 }}>{p.emoji}</span>
-                <span style={{ fontSize: 12, color: anomalyAnswers.includes(p.id) ? 'var(--amber)' : 'var(--text)' }}>{p.label}</span>
-                {anomalyAnswers.includes(p.id) && <span style={{ marginLeft: 'auto', color: 'var(--amber)', fontSize: 14 }}>✓</span>}
-              </button>
-            ))}
-          </div>
+          <textarea
+            className="field-input"
+            value={anomalyText}
+            onChange={e => setAnomalyText(e.target.value)}
+            placeholder={lang === 'de'
+              ? 'z.B. musste zweimal auf Toilette, schlechte Träume, Gedanken kreisten...'
+              : 'e.g. got up twice to use bathroom, bad dreams, mind was racing, too hot...'}
+            rows={3}
+            style={{ resize: 'none', fontSize: 13 }}
+            autoFocus
+          />
           <div style={{ display: 'flex', gap: 8 }}>
             <button onClick={() => setShowAnomalyPrompt(false)} className="btn-secondary" style={{ flex: 1 }}>
               {lang === 'de' ? 'Überspringen' : 'Skip'}
             </button>
             <button onClick={() => {
-              const ctx = anomalyAnswers.length > 0
-                ? anomalyAnswers.map(id => ANOMALY_PROMPTS.find(p => p.id === id)?.label).join(', ')
-                : ''
               setShowAnomalyPrompt(false)
-              generateInsight(ctx)
+              generateInsight(anomalyText.trim())
             }} className="btn-primary" style={{ flex: 2 }} disabled={loading}>
               {loading ? (lang === 'de' ? 'Analysiere...' : 'Analysing...') : (lang === 'de' ? '✨ Analyse generieren' : '✨ Generate analysis')}
             </button>
@@ -729,8 +724,8 @@ ADDITIONAL CONTEXT FROM SEBASTIAN about why sleep was fragmented: ${extraContext
               {loading ? '...' : '↺ Re-analyse'}
             </button>
             {hrAnalysis && (hrAnalysis.micro_arousals_likely || (hrAnalysis.awake_pct > 15)) && (
-              <button onClick={() => { setShowAnomalyPrompt(true); setInsight('') }} style={{ padding: '6px 12px', borderRadius: 20, border: '0.5px solid var(--amber)', background: 'rgba(186,117,23,0.08)', color: 'var(--amber)', fontSize: 11, cursor: 'pointer', fontFamily: 'inherit' }}>
-                ⚠️ {lang === 'de' ? 'Ursache angeben' : 'Add context'}
+              <button onClick={() => { setAnomalyText(''); setShowAnomalyPrompt(true); setInsight('') }} style={{ padding: '6px 12px', borderRadius: 20, border: '0.5px solid var(--amber)', background: 'rgba(186,117,23,0.08)', color: 'var(--amber)', fontSize: 11, cursor: 'pointer', fontFamily: 'inherit' }}>
+                ⚠️ {lang === 'de' ? 'Kontext hinzufügen' : 'Add context'}
               </button>
             )}
           </div>

@@ -326,9 +326,10 @@ export default function TodayPage({ session }) {
             <div className="toggle-grid">
               {activityGoals.map(a => {
                 const key = a.name.toLowerCase().replace(/\s+/g, '_')
+                const emoji = a.emoji || getEmoji(a.name)
                 return (
                   <button key={key} className={`toggle-btn ${activeActivity.has(key) ? 'active' : ''}`} onClick={() => toggle(activeActivity, setActiveActivity, key)}>
-                    {getEmoji(a.name)} {a.name}
+                    {emoji} {a.name}
                   </button>
                 )
               })}

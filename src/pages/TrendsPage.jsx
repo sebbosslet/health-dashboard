@@ -3,7 +3,6 @@ import { useState, useEffect } from 'react'
 import { format, subDays, startOfWeek, isMonday } from 'date-fns'
 import { supabase } from '../lib/supabase'
 import { useSettings } from '../hooks/useData'
-import MonthlyReport from '../components/MonthlyReport'
 
 // ─── Chart components ─────────────────────────────────────────────────────────
 
@@ -172,7 +171,6 @@ export default function TrendsPage({ session }) {
   const { t, lang } = useLang()
   const [logs, setLogs] = useState([])
   const [period, setPeriod] = useState('30d')
-  const [showReport, setShowReport] = useState(false)
   const { settings } = useSettings(session.user.id)
 
   useEffect(() => {
@@ -238,7 +236,6 @@ export default function TrendsPage({ session }) {
   })
   const hasFeel = feelData.some(d => d.energy || d.mood)
 
-  if (showReport) return <MonthlyReport session={session} onClose={() => setShowReport(false)} />
 
   return (
     <>
@@ -265,7 +262,6 @@ export default function TrendsPage({ session }) {
         {/* Report + Sleep HR entry points */}
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
           {[
-            { icon: '📄', label: t('trends_monthly_report'), sub: lang === 'de' ? 'KI · PDF' : 'AI · PDF', onClick: () => setShowReport(true), color: 'var(--green)' },
 
           ].map(c => (
             <div key={c.label} className="card" onClick={c.onClick} style={{ cursor: 'pointer' }}>
@@ -313,7 +309,7 @@ export default function TrendsPage({ session }) {
             </span>
           </div>
           <div style={{ padding: '10px 14px 14px' }}>
-            <LineChart data={chartData('hrv')} color="var(--purple)" />
+            <BarChart data={chartData('hrv')} color="var(--purple)" />
           </div>
         </div>
 
@@ -326,7 +322,7 @@ export default function TrendsPage({ session }) {
             </span>
           </div>
           <div style={{ padding: '10px 14px 14px' }}>
-            <LineChart data={chartData('rhr')} color="var(--red)" />
+            <BarChart data={chartData('rhr')} color="var(--red)" />
           </div>
         </div>
 

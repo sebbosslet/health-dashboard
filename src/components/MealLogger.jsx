@@ -82,12 +82,27 @@ export default function MealLogger({ session, date, onCaloriesUpdated }) {
   const [consumedAt, setConsumedAt] = useState(format(new Date(), 'HH:mm'))
   const [isCaffeinated, setIsCaffeinated] = useState(false)
   const [showReassess, setShowReassess] = useState(false)
+  const [dinnerTime, setDinnerTime] = useState('')
+  const dinnerRef = useRef()
   const [reassessText, setReassessText] = useState('')
   const [reassessing, setReassessing] = useState(false)
 
   const dateStr = format(date || new Date(), 'yyyy-MM-dd')
 
   useEffect(() => { fetchMeals() }, [dateStr, session.user.id])
+
+  useEffect(() => {
+    // Load saved dinner time from daily_logs
+    supabase.from('daily_logs').select('dinner_time').eq('user_id', session.user.id).eq('date', dateStr).maybeSingle()
+      .then(({ data }) => {
+        if (data?.dinner_time) setDinnerTime(data.dinner_time.slice(0,5))
+      })
+  }, [dateStr])
+
+  useEffect(() => {
+    supabase.from('daily_logs').select('dinner_time').eq('user_id', session.user.id).eq('date', dateStr).maybeSingle()
+      .then(({ data }) => { if (data?.dinner_time) setDinnerTime(data.dinner_time.slice(0,5)) })
+  }, [dateStr])
 
   async function fetchMeals() {
     const { data } = await supabase
@@ -113,8 +128,7 @@ export default function MealLogger({ session, date, onCaloriesUpdated }) {
     setPreview(null)
 
     try {
-      const mimeType = compressedMime
-      const { base64, mimeType: compressedMime } = await compressImage(file)
+      const { base64, mimeType } = await compressImage(file)
       const objectUrl = URL.createObjectURL(file)
 
       const result = await estimateCaloriesFromPhoto(base64, mimeType)
@@ -283,6 +297,38 @@ Respond ONLY with valid JSON, no markdown:
           <div style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 14px', background: 'var(--surface2)' }}>
             <span style={{ fontSize: 12, color: 'var(--text2)', fontWeight: 600 }}>{lang === 'de' ? 'Gesamt heute' : 'Total today'}</span>
             <span style={{ fontSize: 14, fontWeight: 700, fontFamily: 'var(--font-mono)', color: 'var(--amber)' }}>{totalCals} kcal</span>
+          </div>
+
+          {/* Dinner time */}
+          <div style={{ padding: '8px 14px 10px', borderTop: '0.5px solid var(--border)', display: 'flex', alignItems: 'center', gap: 10 }}>
+            <button onClick={() => {
+              if (!dinnerTime) {
+                const now = format(new Date(), 'HH:mm')
+                setDinnerTime(now)
+                if (dinnerRef.current) dinnerRef.current.value = now
+                supabase.from('daily_logs').upsert({ user_id: session.user.id, date: dateStr, dinner_time: now, updated_at: new Date().toISOString() }, { onConflict: 'user_id,date' })
+              } else {
+                setDinnerTime('')
+                supabase.from('daily_logs').upsert({ user_id: session.user.id, date: dateStr, dinner_time: null, updated_at: new Date().toISOString() }, { onConflict: 'user_id,date' })
+              }
+            }} style={{
+              width: 26, height: 26, borderRadius: 7, flexShrink: 0,
+              border: `1.5px solid ${dinnerTime ? 'var(--green)' : 'var(--border)'}`,
+              background: dinnerTime ? 'var(--green)' : 'var(--surface2)',
+              display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', padding: 0,
+            }}>
+              {dinnerTime && <svg width="13" height="13" viewBox="0 0 13 13" fill="none"><path d="M2.5 6.5l3 3 5-5" stroke="white" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/></svg>}
+            </button>
+            <span style={{ fontSize: 12, fontWeight: 600, flex: 1, color: dinnerTime ? 'var(--text)' : 'var(--text2)' }}>
+              🍽 {lang === 'de' ? 'Abendessen um' : 'Dinner at'}
+            </span>
+            {dinnerTime && (
+              <input ref={dinnerRef} type="time" defaultValue={dinnerTime}
+                onChange={e => { setDinnerTime(e.target.value); supabase.from('daily_logs').upsert({ user_id: session.user.id, date: dateStr, dinner_time: e.target.value, updated_at: new Date().toISOString() }, { onConflict: 'user_id,date' }) }}
+                onBlur={e => { setDinnerTime(e.target.value); supabase.from('daily_logs').upsert({ user_id: session.user.id, date: dateStr, dinner_time: e.target.value, updated_at: new Date().toISOString() }, { onConflict: 'user_id,date' }) }}
+                style={{ fontSize: 13, fontWeight: 700, fontFamily: 'var(--font-mono)', color: 'var(--green)', background: 'none', border: 'none', outline: 'none', width: 80, textAlign: 'right', cursor: 'pointer' }}
+              />
+            )}
           </div>
         </div>
       )}

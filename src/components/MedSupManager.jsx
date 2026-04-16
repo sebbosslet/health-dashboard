@@ -6,7 +6,8 @@ function ItemForm({ type, userId, existing, onSaved, onCancel, lang }) {
   const isMed = type === 'medication'
   const [name, setName] = useState(existing?.name || '')
   const [dose, setDose] = useState(existing?.dose || '')
-  const [instructions, setInstructions] = useState(existing?.instructions || '')
+  const [effectiveFrom, setEffectiveFrom] = useState(existing?.effective_from || '')
+  const [multiDose, setMultiDose] = useState(existing?.multi_dose || false)
   const [withFood, setWithFood] = useState(existing?.with_food || false)
   const [fasted, setFasted] = useState(existing?.fasted_flag || false)
   const [daily, setDaily] = useState(existing ? existing.active : true)
@@ -17,7 +18,7 @@ function ItemForm({ type, userId, existing, onSaved, onCancel, lang }) {
     setSaving(true)
     const table = isMed ? 'medications' : 'supplements'
     const payload = { user_id: userId, name: name.trim(), dose: dose.trim() || null, active: daily }
-    if (isMed) { payload.instructions = instructions.trim() || null; payload.fasted_flag = fasted }
+    if (isMed) { payload.fasted_flag = fasted; payload.effective_from = effectiveFrom || null; payload.multi_dose = multiDose }
     else payload.with_food = withFood
     if (existing) await supabase.from(table).update(payload).eq('id', existing.id)
     else await supabase.from(table).insert(payload)
@@ -41,10 +42,19 @@ function ItemForm({ type, userId, existing, onSaved, onCancel, lang }) {
           <input className="field-input" value={dose} onChange={e => setDose(e.target.value)} placeholder={isMed ? '100mcg' : '400mg'} />
         </div>
         {isMed && (
-          <div className="field">
-            <label className="field-label">{lang === 'de' ? 'Hinweise' : 'Instructions'}</label>
-            <input className="field-input" value={instructions} onChange={e => setInstructions(e.target.value)} placeholder={lang === 'de' ? 'z.B. nüchtern' : 'e.g. before food'} />
-          </div>
+          <>
+            <div className="field">
+              <label className="field-label">{lang === 'de' ? 'Wirksam ab' : 'Effective from'}</label>
+              <input className="field-input" type="date" value={effectiveFrom} onChange={e => setEffectiveFrom(e.target.value)} />
+              <div style={{ fontSize: 10, color: 'var(--text3)', marginTop: 3 }}>
+                {lang === 'de' ? 'Nicht im Heute-Tab anzeigen wenn Datum in der Zukunft liegt' : 'Not shown on Today if date is in the future'}
+              </div>
+            </div>
+            <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', fontSize: 12, color: 'var(--text2)' }}>
+              <input type="checkbox" checked={multiDose} onChange={e => setMultiDose(e.target.checked)} style={{ width: 16, height: 16, accentColor: 'var(--blue)' }} />
+              💊 {lang === 'de' ? 'Mehr als einmal täglich' : 'More than once a day'}
+            </label>
+          </>
         )}
       </div>
       <div style={{ display: 'flex', gap: 16 }}>
@@ -135,7 +145,7 @@ function Section({ type, userId, items, onReload, lang }) {
               </div>
               {((isMed && (item.fasted_flag || item.instructions)) || (!isMed && item.with_food)) && (
                 <div style={{ fontSize: 11, color: 'var(--text3)', marginTop: 2 }}>
-                  {isMed ? [item.fasted_flag && (lang === 'de' ? '⚡ nüchtern' : '⚡ fasted'), item.instructions].filter(Boolean).join(' · ')
+                  {isMed ? [item.fasted_flag && (lang === 'de' ? '⚡ nüchtern' : '⚡ fasted'), item.multi_dose && (lang === 'de' ? '× mehrmals tägl.' : '× multi-dose'), item.effective_from && `from ${item.effective_from}`].filter(Boolean).join(' · ')
                     : (lang === 'de' ? '🍽 mit Essen' : '🍽 with food')}
                 </div>
               )}

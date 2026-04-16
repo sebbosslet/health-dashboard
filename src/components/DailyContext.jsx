@@ -20,7 +20,7 @@ const TRAVEL_PRESETS = [
   { from: 'CET', to: 'ET',   offset: -6, label: 'CET → ET' },
   { from: 'ET',  to: 'BST',  offset: 5,  label: 'ET → London' },
   { from: 'BST', to: 'ET',   offset: -5, label: 'London → ET' },
-  { from: 'CET', to: 'EST',  offset: -6, label: 'CET → ET' },
+  { key: 'other', label: 'Other' },
 ]
 
 const QUICK_EVENTS = {
@@ -162,7 +162,7 @@ function AddEventForm({ userId, date, lang, onSaved, onCancel }) {
   }
 
   async function handleTravelSave() {
-    const tz = travelPreset || { from: customFrom, to: customTo, offset: parseInt(customOffset) || 0 }
+    const tz = (travelPreset && travelPreset.key !== 'other') ? travelPreset : { from: 'Other', to: 'Other', offset: parseInt(customOffset) || 0 }
     await saveEvent({
       event_type: 'travel',
       label: `✈️ ${tz.from} → ${tz.to}`,
@@ -263,21 +263,11 @@ function AddEventForm({ userId, date, lang, onSaved, onCancel }) {
             ))}
           </div>
 
-          {/* Custom timezone */}
-          {!travelPreset && (
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8 }}>
-              <div className="field">
-                <label className="field-label">{lang === 'de' ? 'Von' : 'From'}</label>
-                <input className="field-input" value={customFrom} onChange={e => setCustomFrom(e.target.value)} placeholder="ET" style={{ textTransform: 'uppercase' }} />
-              </div>
-              <div className="field">
-                <label className="field-label">{lang === 'de' ? 'Nach' : 'To'}</label>
-                <input className="field-input" value={customTo} onChange={e => setCustomTo(e.target.value)} placeholder="CET" style={{ textTransform: 'uppercase' }} />
-              </div>
-              <div className="field">
-                <label className="field-label">{lang === 'de' ? 'Diff (h)' : 'Offset (h)'}</label>
-                <input className="field-input" type="number" value={customOffset} onChange={e => setCustomOffset(e.target.value)} placeholder="+6" inputMode="numeric" />
-              </div>
+          {/* Other: show only offset field */}
+          {travelPreset?.key === 'other' && (
+            <div className="field">
+              <label className="field-label">{lang === 'de' ? 'Zeitdifferenz (Stunden)' : 'Time difference (hours)'}</label>
+              <input className="field-input" type="number" value={customOffset} onChange={e => setCustomOffset(e.target.value)} placeholder="+6 or -5" inputMode="numeric" style={{ width: '50%' }} />
             </div>
           )}
 
@@ -289,7 +279,7 @@ function AddEventForm({ userId, date, lang, onSaved, onCancel }) {
 
           <div style={{ display: 'flex', gap: 8 }}>
             <button onClick={() => { setStep('type'); setTravelPreset(null) }} className="btn-secondary">{lang === 'de' ? 'Zurück' : 'Back'}</button>
-            <button onClick={handleTravelSave} className="btn-primary" disabled={saving || (!travelPreset && (!customFrom || !customTo))} style={{ flex: 1 }}>
+            <button onClick={handleTravelSave} className="btn-primary" disabled={saving || (!travelPreset) || (travelPreset?.key === 'other' && !customOffset)} style={{ flex: 1 }}>
               {saving ? '...' : (lang === 'de' ? 'Reise starten' : 'Start travel')}
             </button>
           </div>

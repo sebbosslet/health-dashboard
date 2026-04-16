@@ -196,7 +196,13 @@ function Container({ type, userId, date, lang }) {
   const [showAdd, setShowAdd] = useState(false)
   const [loading, setLoading] = useState(true)
 
-  const dailyItems = allItems.filter(i => i.active) // pre-suggested items
+  const today = format(new Date(), 'yyyy-MM-dd')
+  const dailyItems = allItems.filter(i => {
+    if (!i.active) return false
+    // Hide if effective_from is in the future (medications only)
+    if (i.effective_from && i.effective_from > today) return false
+    return true
+  })
 
   async function fetchAll() {
     const [{ data: items }, { data: logData }] = await Promise.all([

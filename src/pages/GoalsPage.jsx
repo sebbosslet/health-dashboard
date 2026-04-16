@@ -32,6 +32,7 @@ const DEFAULT_GOALS = [
 function GoalRow({ goal, onEdit }) {
   return (
     <div onClick={() => onEdit(goal)} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px', borderBottom: '0.5px solid var(--border)', cursor: 'pointer' }}>
+      {goal.emoji && <span style={{ fontSize: 18, flexShrink: 0 }}>{goal.emoji}</span>}
       <div style={{ flex: 1 }}>
         <div style={{ fontSize: 13, fontWeight: 600 }}>{goal.name}</div>
         <div style={{ fontSize: 11, color: 'var(--text2)', marginTop: 1 }}>
@@ -63,7 +64,9 @@ export default function GoalsPage({ session }) {
   const [editValue, setEditValue] = useState('')
   const [editTimeframe, setEditTimeframe] = useState('week')
   const [editEffective, setEditEffective] = useState(format(new Date(), 'yyyy-MM-dd'))
+  const [editEmoji, setEditEmoji] = useState('')
   const [newCategoryName, setNewCategoryName] = useState('')
+  const [editingCategoryName, setEditingCategoryName] = useState(null) // category being renamed
 
   async function fetchGoals() {
     const { data } = await supabase.from('goals').select('*').eq('user_id', session.user.id).order('category').order('name')
@@ -85,6 +88,7 @@ export default function GoalsPage({ session }) {
     setEditValue(String(goal.target_value))
     setEditTimeframe(goal.timeframe)
     setEditEffective(goal.effective_from || format(new Date(), 'yyyy-MM-dd'))
+    setEditEmoji(goal.emoji || '')
     setShowDeleteConfirm(false)
   }
 
@@ -98,6 +102,7 @@ export default function GoalsPage({ session }) {
     setEditTimeframe('week')
     setEditEffective(format(new Date(), 'yyyy-MM-dd'))
     setNewCategoryName('')
+    setEditEmoji('')
     setShowDeleteConfirm(false)
   }
 
@@ -116,6 +121,7 @@ export default function GoalsPage({ session }) {
       target_value: parseFloat(editValue),
       timeframe: editTimeframe,
       effective_from: editEffective,
+      emoji: editEmoji || null,
     }
     if (isNew) {
       const { error } = await supabase.from('goals').insert(payload)
@@ -179,7 +185,29 @@ export default function GoalsPage({ session }) {
         {Object.entries(grouped).map(([cat, catGoals]) => (
           <div key={cat} className="card">
             <div className="card-header">
-              <span className="card-title">{cat}</span>
+              {editingCategoryName === cat ? (
+                <input
+                  className="field-input" autoFocus
+                  defaultValue={cat}
+                  onBlur={async e => {
+                    const newName = e.target.value.trim()
+                    if (newName && newName !== cat) {
+                      await Promise.all(catGoals.map(g =>
+                        supabase.from('goals').update({ category: newName }).eq('id', g.id)
+                      ))
+                      fetchGoals()
+                      showToast('Category renamed')
+                    }
+                    setEditingCategoryName(null)
+                  }}
+                  onKeyDown={e => e.key === 'Escape' && setEditingCategoryName(null)}
+                  style={{ fontSize: 13, fontWeight: 700, width: '60%' }}
+                />
+              ) : (
+                <span className="card-title" onClick={() => setEditingCategoryName(cat)} style={{ cursor: 'pointer' }} title="Tap to rename">
+                  {cat} ✏️
+                </span>
+              )}
               <span className="badge" style={{ background: 'var(--surface2)', color: 'var(--text2)', border: '0.5px solid var(--border)' }}>{catGoals.length}</span>
             </div>
             {catGoals.map(g => <GoalRow key={g.id} goal={g} onEdit={openEdit} />)}
@@ -224,9 +252,17 @@ export default function GoalsPage({ session }) {
               ) : (
                 // Goal creation/edit mode
                 <>
-                  <div className="field">
-                    <label className="field-label">{t('goals_name')}</label>
-                    <input className="field-input" value={editName} onChange={e => setEditName(e.target.value)} placeholder={lang === 'de' ? 'z.B. Laufen' : 'e.g. Running'} />
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 48px', gap: 8 }}>
+                    <div className="field">
+                      <label className="field-label">{t('goals_name')}</label>
+                      <input className="field-input" value={editName} onChange={e => setEditName(e.target.value)} placeholder={lang === 'de' ? 'z.B. Laufen' : 'e.g. Running'} />
+                    </div>
+                    {(editCategory === 'Activity' || editCategory === 'Evening habits') && (
+                      <div className="field">
+                        <label className="field-label">Icon</label>
+                        <input className="field-input" value={editEmoji} onChange={e => setEditEmoji(e.target.value)} placeholder="🏋️" style={{ textAlign: 'center', fontSize: 18, padding: '6px 4px' }} maxLength={4} />
+                      </div>
+                    )}
                   </div>
 
                   <div className="field">
