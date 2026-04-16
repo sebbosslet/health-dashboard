@@ -165,7 +165,7 @@ ${context}`
 
 // ─── Proactive nudges ─────────────────────────────────────────────────────────
 
-function computeNudges(todayLog, yesterdayLog, history, settings, lang) {
+function computeNudges(todayLog, yesterdayLog, history, settings, lang, gymGoalPerWeek = 3) {
   const nudges = []
   const hour = new Date().getHours()
   const dayOfWeek = new Date().getDay() // 0=Sun, 1=Mon...
@@ -190,7 +190,6 @@ function computeNudges(todayLog, yesterdayLog, history, settings, lang) {
 
   // Weekly gym goal nudge
   if (hour >= 9 && dayOfWeek >= 4) { // Thu, Fri, Sat
-    const gymGoalPerWeek = 3 // TODO: read from goals
     if (patterns.gymThisWeek < gymGoalPerWeek) {
       const remaining = gymGoalPerWeek - patterns.gymThisWeek
       const daysLeft = 7 - dayOfWeek
@@ -350,11 +349,13 @@ export function ProactiveNudges({ session, todayLog, settings }) {
     async function load() {
       const thirtyDaysAgo = format(subDays(new Date(), 30), 'yyyy-MM-dd')
       const yesterday = format(subDays(new Date(), 1), 'yyyy-MM-dd')
-      const [{ data: history }, { data: yesterdayLog }] = await Promise.all([
+      const [{ data: history }, { data: yesterdayLog }, { data: gymGoal }] = await Promise.all([
         supabase.from('daily_logs').select('*').eq('user_id', session.user.id).gte('date', thirtyDaysAgo).order('date'),
         supabase.from('daily_logs').select('*').eq('user_id', session.user.id).eq('date', yesterday).maybeSingle(),
+        supabase.from('goals').select('target_value').eq('user_id', session.user.id).ilike('name', '%gym%').eq('timeframe', 'week').maybeSingle(),
       ])
-      const computed = computeNudges(todayLog, yesterdayLog, history || [], settings, lang)
+      const gymGoalPerWeek = gymGoal?.target_value || 3
+      const computed = computeNudges(todayLog, yesterdayLog, history || [], settings, lang, gymGoalPerWeek)
       setNudges(computed)
       setLoaded(true)
     }
