@@ -585,10 +585,23 @@ function WhoopTab({ log, yesterdayLog, session, lang, onRefresh }) {
 
 // ─── AI Insight ───────────────────────────────────────────────────────────────
 
+// Anomaly prompts shown when sleep fragmentation detected
+const ANOMALY_PROMPTS = [
+  { id: 'bathroom', label: '🚽 Left bed to use bathroom', emoji: '🚽' },
+  { id: 'dreams', label: '😨 Bad dreams / nightmares', emoji: '😨' },
+  { id: 'thoughts', label: '🧠 Thoughts kept me awake', emoji: '🧠' },
+  { id: 'couldnt_sleep', label: "😶 Woke up, couldn't go back to sleep", emoji: '😶' },
+  { id: 'noise', label: '🔊 Noise / disturbance', emoji: '🔊' },
+  { id: 'temperature', label: '🥵 Too hot / too cold', emoji: '🥵' },
+  { id: 'none', label: '🤷 Nothing I can identify', emoji: '🤷' },
+]
+
 function InsightCard({ log, userId, lang }) {
   const [insight, setInsight] = useState(log?.ai_insight || '')
   const [loading, setLoading] = useState(false)
   const [hrAnalysis, setHrAnalysis] = useState(null)
+  const [anomalyAnswers, setAnomalyAnswers] = useState([])
+  const [showAnomalyPrompt, setShowAnomalyPrompt] = useState(false)
   const today = format(new Date(), 'yyyy-MM-dd')
   const yesterday = format(subDays(new Date(), 1), 'yyyy-MM-dd')
 
@@ -597,10 +610,17 @@ function InsightCard({ log, userId, lang }) {
   useEffect(() => {
     supabase.from('sleep_hr_analysis').select('*').eq('user_id', userId)
       .gte('date', yesterday).order('date', { ascending: false }).limit(2)
-      .then(({ data }) => setHrAnalysis(data?.[0] || null))
+      .then(({ data }) => {
+        const hr = data?.[0] || null
+        setHrAnalysis(hr)
+        // Auto-show anomaly prompt if fragmentation detected and no insight yet
+        if (hr && (hr.micro_arousals_likely || (hr.awake_pct && hr.awake_pct > 15) || (hr.spike_count && hr.spike_count > 5)) && !log?.ai_insight) {
+          setShowAnomalyPrompt(true)
+        }
+      })
   }, [userId, today])
 
-  async function generateInsight() {
+  async function generateInsight(extraContext = '') {
     setLoading(true)
     try {
       const thirtyDaysAgo = format(subDays(new Date(), 30), 'yyyy-MM-dd')
@@ -627,7 +647,10 @@ SLEEP HR ANALYSIS (from WHOOP screenshot):
 - Cause reasoning: ${hrData.cause_reasoning || 'n/a'}
 - Recommendation: ${hrData.recommendation || 'n/a'}` : ''
 
-      const text = await generateDailyInsight(log, yesterdayLog, history || [], lang, yesterdayEvents || [], [], travelState, caffeineMeals || [], hrContext)
+      const fullHrContext = hrContext + (extraContext ? `
+
+ADDITIONAL CONTEXT FROM SEBASTIAN about why sleep was fragmented: ${extraContext}` : '')
+      const text = await generateDailyInsight(log, yesterdayLog, history || [], lang, yesterdayEvents || [], [], travelState, caffeineMeals || [], fullHrContext)
       setInsight(text)
 
       await supabase.from('daily_logs').upsert({
@@ -656,24 +679,71 @@ SLEEP HR ANALYSIS (from WHOOP screenshot):
         </span>
       </div>
 
+      {/* Anomaly prompt — shown when fragmentation detected */}
+      {showAnomalyPrompt && !insight && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+          <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--amber)' }}>
+            ⚠️ {lang === 'de' ? 'Schlafunterbrechungen erkannt — was ist passiert?' : 'Sleep disruption detected — anything happen last night?'}
+          </div>
+          <div style={{ fontSize: 11, color: 'var(--text2)' }}>
+            {lang === 'de' ? 'Wähle alles Zutreffende aus — wird in die Analyse einbezogen' : 'Select all that apply — this will be folded into the analysis'}
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+            {ANOMALY_PROMPTS.map(p => (
+              <button key={p.id} onClick={() => setAnomalyAnswers(prev =>
+                prev.includes(p.id) ? prev.filter(x => x !== p.id) : [...prev.filter(x => x !== 'none'), p.id]
+              )} style={{
+                display: 'flex', alignItems: 'center', gap: 10, padding: '9px 12px',
+                borderRadius: 8, border: `1.5px solid ${anomalyAnswers.includes(p.id) ? 'var(--amber)' : 'var(--border)'}`,
+                background: anomalyAnswers.includes(p.id) ? 'rgba(186,117,23,0.08)' : 'var(--surface2)',
+                cursor: 'pointer', fontFamily: 'inherit', textAlign: 'left',
+              }}>
+                <span style={{ fontSize: 16, flexShrink: 0 }}>{p.emoji}</span>
+                <span style={{ fontSize: 12, color: anomalyAnswers.includes(p.id) ? 'var(--amber)' : 'var(--text)' }}>{p.label}</span>
+                {anomalyAnswers.includes(p.id) && <span style={{ marginLeft: 'auto', color: 'var(--amber)', fontSize: 14 }}>✓</span>}
+              </button>
+            ))}
+          </div>
+          <div style={{ display: 'flex', gap: 8 }}>
+            <button onClick={() => setShowAnomalyPrompt(false)} className="btn-secondary" style={{ flex: 1 }}>
+              {lang === 'de' ? 'Überspringen' : 'Skip'}
+            </button>
+            <button onClick={() => {
+              const ctx = anomalyAnswers.length > 0
+                ? anomalyAnswers.map(id => ANOMALY_PROMPTS.find(p => p.id === id)?.label).join(', ')
+                : ''
+              setShowAnomalyPrompt(false)
+              generateInsight(ctx)
+            }} className="btn-primary" style={{ flex: 2 }} disabled={loading}>
+              {loading ? (lang === 'de' ? 'Analysiere...' : 'Analysing...') : (lang === 'de' ? '✨ Analyse generieren' : '✨ Generate analysis')}
+            </button>
+          </div>
+        </div>
+      )}
+
       {insight ? (
         <>
           <div style={{ fontSize: 13, color: 'var(--text)', lineHeight: 1.7 }}>{insight}</div>
-          <button onClick={generateInsight} disabled={loading} style={{ padding: '6px 12px', borderRadius: 20, border: '0.5px solid var(--border)', background: 'none', color: 'var(--text2)', fontSize: 11, cursor: 'pointer', fontFamily: 'inherit', alignSelf: 'flex-start' }}>
-            {loading ? '...' : (lang === 'de' ? '↺ Neu analysieren' : '↺ Re-analyse')}
-          </button>
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+            <button onClick={() => generateInsight()} disabled={loading} style={{ padding: '6px 12px', borderRadius: 20, border: '0.5px solid var(--border)', background: 'none', color: 'var(--text2)', fontSize: 11, cursor: 'pointer', fontFamily: 'inherit' }}>
+              {loading ? '...' : '↺ Re-analyse'}
+            </button>
+            {hrAnalysis && (hrAnalysis.micro_arousals_likely || (hrAnalysis.awake_pct > 15)) && (
+              <button onClick={() => { setShowAnomalyPrompt(true); setInsight('') }} style={{ padding: '6px 12px', borderRadius: 20, border: '0.5px solid var(--amber)', background: 'rgba(186,117,23,0.08)', color: 'var(--amber)', fontSize: 11, cursor: 'pointer', fontFamily: 'inherit' }}>
+                ⚠️ {lang === 'de' ? 'Ursache angeben' : 'Add context'}
+              </button>
+            )}
+          </div>
         </>
-      ) : (
+      ) : !showAnomalyPrompt && (
         <>
           <div style={{ fontSize: 12, color: 'var(--text2)', lineHeight: 1.6 }}>
             {lang === 'de'
-              ? `Verbindet deinen Abend vom ${yesterdayDate} mit deinen WHOOP-Daten von heute. Generiere es wenn du alles eingegeben hast.`
-              : `Connects your evening of ${yesterdayDate} with today's WHOOP data. Generate when you've entered everything and synced WHOOP.`}
+              ? `Verbindet deinen Abend vom ${yesterdayDate} mit deinen WHOOP-Daten von heute.`
+              : `Connects your evening of ${yesterdayDate} with today's WHOOP data. Generate when you've logged everything.`}
           </div>
-          <button className="btn-primary" onClick={generateInsight} disabled={loading}>
-            {loading
-              ? (lang === 'de' ? 'Analysiere...' : 'Analysing...')
-              : (lang === 'de' ? '✨ Analyse generieren' : '✨ Generate analysis')}
+          <button className="btn-primary" onClick={() => generateInsight()} disabled={loading}>
+            {loading ? (lang === 'de' ? 'Analysiere...' : 'Analysing...') : (lang === 'de' ? '✨ Analyse generieren' : '✨ Generate analysis')}
           </button>
         </>
       )}
