@@ -253,7 +253,7 @@ function EveningLog({ log, onSave, lang, habitGoals, activeHabits, onToggleHabit
         </div>
       )}
 
-      {/* Phone & bed time */}
+      {/* Evening time fields - 2x2 grid */}
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
         <div className="field">
           <label className="field-label">📵 {labels.phone}</label>
@@ -268,7 +268,7 @@ function EveningLog({ log, onSave, lang, habitGoals, activeHabits, onToggleHabit
           <input className="field-input" type="time" value={dinnerTime} onChange={e => setDinnerTime(e.target.value)} />
         </div>
         <div className="field">
-          <label className="field-label">❄️ {labels.ac}</label>
+          <label className="field-label">❄ {labels.ac}</label>
           <input className="field-input" type="number" step="1" value={acTemp} onChange={e => setAcTemp(e.target.value)} placeholder="68" inputMode="numeric" />
         </div>
       </div>
