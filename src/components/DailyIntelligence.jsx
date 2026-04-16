@@ -179,7 +179,13 @@ Sleep onset is typically 22:xx-23:xx or 00:xx-02:xx. Wake time is typically 06:x
 
       // Save bed_time to daily_logs
       if (result.sleep_onset) {
-        await supabase.from('daily_logs').upsert({ user_id: session.user.id, date, bed_time: result.sleep_onset, updated_at: new Date().toISOString() }, { onConflict: 'user_id,date' })
+        // Correct common 12h→24h mistake: "12:03" from "12:03 AM" should be "00:03"
+        // Sleep onset is never noon — if it's 12:xx, it's almost certainly midnight (00:xx)
+        let correctedOnset = result.sleep_onset
+        const [h] = correctedOnset.split(':').map(Number)
+        if (h === 12) correctedOnset = '00:' + correctedOnset.slice(3)
+        await supabase.from('daily_logs').upsert({ user_id: session.user.id, date, bed_time: correctedOnset, updated_at: new Date().toISOString() }, { onConflict: 'user_id,date' })
+        result.sleep_onset = correctedOnset
       }
 
       setDone(true)
@@ -447,6 +453,18 @@ export function EveningLog({ log, onSave, lang, habitGoals, activeHabits, onTogg
 
 function WhoopTab({ log, yesterdayLog, session, lang, onRefresh }) {
   const date = format(new Date(), 'yyyy-MM-dd')
+  const yesterday = format(subDays(new Date(), 1), 'yyyy-MM-dd')
+  const [hrAnalysis, setHrAnalysis] = useState(null)
+
+  useEffect(() => {
+    // Load HR analysis for today or yesterday (whichever has data)
+    Promise.all([
+      supabase.from('sleep_hr_analysis').select('*').eq('user_id', session.user.id).eq('date', date).maybeSingle(),
+      supabase.from('sleep_hr_analysis').select('*').eq('user_id', session.user.id).eq('date', yesterday).maybeSingle(),
+    ]).then(([{ data: today }, { data: yest }]) => {
+      setHrAnalysis(today || yest || null)
+    })
+  }, [session.user.id, date])
 
   // bed_time can be on today's log (uploaded today) or yesterday's log (uploaded via old Trends flow)
   const bedTime = log?.bed_time || yesterdayLog?.bed_time
@@ -521,6 +539,53 @@ function WhoopTab({ log, yesterdayLog, session, lang, onRefresh }) {
         </div>
       )}
 
+      {/* HR Analysis — shown if data extracted from screenshot */}
+      {hrAnalysis && (hrAnalysis.hr_baseline || hrAnalysis.spike_count != null || hrAnalysis.analysis) && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+          <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+            {lang === 'de' ? 'Herzfrequenz-Analyse' : 'Heart rate analysis'}
+          </div>
+
+          {/* HR metrics row */}
+          {hrAnalysis.hr_baseline && (
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 6 }}>
+              {[
+                { label: lang === 'de' ? 'Baseline' : 'Baseline', value: `${hrAnalysis.hr_baseline}`, unit: 'bpm', color: 'var(--blue)' },
+                { label: lang === 'de' ? 'Spikes' : 'Spikes', value: hrAnalysis.spike_count != null ? String(hrAnalysis.spike_count) : '—', unit: hrAnalysis.spike_max_magnitude ? `max ${hrAnalysis.spike_max_magnitude}bpm` : '', color: hrAnalysis.spike_count > 6 ? 'var(--red)' : 'var(--amber)' },
+                { label: lang === 'de' ? 'Stabilität' : 'Stability', value: hrAnalysis.stability_score != null ? `${hrAnalysis.stability_score}/10` : '—', unit: '', color: hrAnalysis.stability_score >= 7 ? 'var(--green)' : hrAnalysis.stability_score >= 4 ? 'var(--amber)' : 'var(--red)' },
+              ].map(m => (
+                <div key={m.label} style={{ background: 'var(--surface2)', borderRadius: 8, padding: '7px 6px', textAlign: 'center' }}>
+                  <div style={{ fontSize: 9, color: 'var(--text3)', textTransform: 'uppercase', marginBottom: 2 }}>{m.label}</div>
+                  <div style={{ fontSize: 14, fontWeight: 700, fontFamily: 'var(--font-mono)', color: m.color }}>{m.value}</div>
+                  {m.unit && <div style={{ fontSize: 9, color: 'var(--text3)' }}>{m.unit}</div>}
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* Cause badge */}
+          {hrAnalysis.likely_cause && hrAnalysis.likely_cause !== 'unclear' && (
+            <div style={{ fontSize: 11, color: 'var(--text2)', background: 'var(--surface2)', borderRadius: 8, padding: '7px 10px' }}>
+              <strong>{lang === 'de' ? 'Wahrscheinliche Ursache:' : 'Likely cause:'}</strong>{' '}
+              <span style={{ textTransform: 'capitalize' }}>{hrAnalysis.likely_cause}</span>
+              {hrAnalysis.cause_confidence && <span style={{ color: 'var(--text3)' }}> ({hrAnalysis.cause_confidence})</span>}
+              {hrAnalysis.cause_reasoning && <span> — {hrAnalysis.cause_reasoning}</span>}
+            </div>
+          )}
+
+          {/* Analysis text */}
+          {hrAnalysis.analysis && (
+            <div style={{ fontSize: 12, color: 'var(--text)', lineHeight: 1.6 }}>{hrAnalysis.analysis}</div>
+          )}
+
+          {/* Recommendation */}
+          {hrAnalysis.recommendation && (
+            <div style={{ fontSize: 11, color: 'var(--green)', background: 'var(--green-light)', borderRadius: 8, padding: '7px 10px' }}>
+              💡 {hrAnalysis.recommendation}
+            </div>
+          )}
+        </div>
+      )}
 
     </div>
   )
