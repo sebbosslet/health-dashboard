@@ -26,13 +26,11 @@ export function useDailyLog(userId, date) {
 
   async function save(updates) {
     const payload = { ...updates, user_id: userId, date: dateStr, updated_at: new Date().toISOString() }
-    console.log('[save] writing to daily_logs:', payload)
     const { data, error } = await supabase
       .from('daily_logs')
       .upsert(payload, { onConflict: 'user_id,date' })
       .select()
       .single()
-    console.log('[save] result:', { data, error })
     if (!error) setLog(data)
     return { data, error }
   }
