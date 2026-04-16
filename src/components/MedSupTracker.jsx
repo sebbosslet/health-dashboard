@@ -99,7 +99,8 @@ function LogRow({ item, log, onToggle, onSaveTime, type, lang }) {
 
 function AddFromMaster({ type, userId, date, allItems, loggedIds, onAdded, onCancel, lang }) {
   const isMed = type === 'medication'
-  const available = allItems.filter(i => !loggedIds.has(i.id))
+  // Show: non-daily items not yet logged today (active daily items are already in main list)
+  const available = allItems.filter(i => !i.active && !loggedIds.has(i.id))
   const [selectedId, setSelectedId] = useState(null)
   const [takenTime, setTakenTime] = useState(format(new Date(), 'HH:mm'))
   const [saving, setSaving] = useState(false)
@@ -110,10 +111,11 @@ function AddFromMaster({ type, userId, date, allItems, loggedIds, onAdded, onCan
   async function handleAdd() {
     if (!selectedId) return
     setSaving(true)
-    await supabase.from(logTable).upsert({
+    const { error } = await supabase.from(logTable).insert({
       user_id: userId, date, [idField]: selectedId,
       taken: true, taken_time: takenTime || null,
-    }, { onConflict: `user_id,${idField},date` })
+    })
+    if (error) console.error('Log error:', error)
     setSaving(false)
     onAdded()
     showToast(lang === 'de' ? 'Geloggt' : 'Logged')
