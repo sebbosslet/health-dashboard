@@ -260,6 +260,7 @@ function EveningLog({ log, onSave, lang, habitGoals, activeHabits, onToggleHabit
     : { habits: 'Evening habits', phone: 'Phone away at', wind: 'Wind-down quality', note: 'Anything affect your evening?', save: 'Save evening', saving: 'Saving...', good: 'Good', ok: 'OK', poor: 'Poor', dinner: 'Dinner at', ac: 'AC temp (°F)' }
 
   async function handleSave() {
+    console.log('[evening] handleSave called, dinnerTime:', dinnerTime, 'acTemp:', acTemp, 'phoneAway:', phoneAway)
     setSaving(true)
     await onSave({
       phone_away_time: phoneAway || null,
