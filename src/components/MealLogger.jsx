@@ -54,10 +54,25 @@ If you cannot identify food in the image, return:
 
 function fileToBase64(file) {
   return new Promise((resolve, reject) => {
-    const reader = new FileReader()
-    reader.onload = () => resolve(reader.result.split(',')[1])
-    reader.onerror = reject
-    reader.readAsDataURL(file)
+    const img = new Image()
+    const url = URL.createObjectURL(file)
+    img.onload = () => {
+      // Resize to max 1024px and compress to jpeg 0.85
+      const MAX = 1024
+      let w = img.width, h = img.height
+      if (w > MAX || h > MAX) {
+        if (w > h) { h = Math.round(h * MAX / w); w = MAX }
+        else { w = Math.round(w * MAX / h); h = MAX }
+      }
+      const canvas = document.createElement('canvas')
+      canvas.width = w; canvas.height = h
+      canvas.getContext('2d').drawImage(img, 0, 0, w, h)
+      URL.revokeObjectURL(url)
+      const dataUrl = canvas.toDataURL('image/jpeg', 0.85)
+      resolve(dataUrl.split(',')[1])
+    }
+    img.onerror = reject
+    img.src = url
   })
 }
 
@@ -111,7 +126,7 @@ export default function MealLogger({ session, date, onCaloriesUpdated }) {
     setPreview(null)
 
     try {
-      const mimeType = file.type || 'image/jpeg'
+      const mimeType = 'image/jpeg' // always jpeg after canvas compression
       const base64 = await fileToBase64(file)
       const objectUrl = URL.createObjectURL(file)
 
