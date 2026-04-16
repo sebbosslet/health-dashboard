@@ -139,14 +139,14 @@ function MorningCheckin({ log, onSave, lang, yesterdayLog }) {
   const [bedTime, setBedTime] = useState(log?.bed_time?.slice(0,5) || '')
   const [saving, setSaving] = useState(false)
 
-  // Re-sync when log updates after save
+  // Re-sync when log fields change
   useEffect(() => {
     setEnergy(log?.morning_energy || 0)
     setMood(log?.morning_mood || 0)
     setSoreness(log?.morning_soreness || 0)
     setNote(log?.morning_note || '')
     setBedTime(log?.bed_time?.slice(0,5) || '')
-  }, [log?.updated_at])
+  }, [log?.morning_energy, log?.morning_mood, log?.morning_soreness, log?.morning_note, log?.bed_time])
 
   const emojis = {
     energy: ['', '😴', '😑', '😐', '🙂', '⚡'],
@@ -246,14 +246,14 @@ function EveningLog({ log, onSave, lang, habitGoals, activeHabits, onToggleHabit
   const [acTemp, setAcTemp] = useState(log?.ac_temp || '')
   const [saving, setSaving] = useState(false)
 
-  // Re-sync when log updates after save (use updated_at as single trigger)
+  // Re-sync when log fields change
   useEffect(() => {
     setPhoneAway(log?.phone_away_time?.slice(0,5) || '')
     setWindDown(log?.wind_down || '')
     setNote(log?.evening_note || '')
     setDinnerTime(log?.dinner_time?.slice(0,5) || '')
-    setAcTemp(log?.ac_temp || '')
-  }, [log?.updated_at])
+    setAcTemp(log?.ac_temp != null ? String(log.ac_temp) : '')
+  }, [log?.phone_away_time, log?.wind_down, log?.evening_note, log?.dinner_time, log?.ac_temp])
 
   const labels = lang === 'de'
     ? { habits: 'Abendgewohnheiten', phone: 'Handy weggelegt um', wind: 'Abend-Qualität', note: 'Etwas Besonderes?', save: 'Abend speichern', saving: 'Speichern...', good: 'Gut', ok: 'OK', poor: 'Schlecht', dinner: 'Abendessen um', ac: 'AC-Temp (°F)' }
@@ -479,10 +479,11 @@ export default function DailyIntelligence({ session, log, onSave, habitGoals, ac
       </div>
 
       {section === 'morning' && (
-        <MorningCheckin log={log} onSave={onSave} lang={lang} yesterdayLog={yesterdayLog} />
+        <MorningCheckin key={log?.updated_at || 'morning'} log={log} onSave={onSave} lang={lang} yesterdayLog={yesterdayLog} />
       )}
       {section === 'evening' && (
         <EveningLog
+          key={log?.updated_at || 'evening'}
           log={log} onSave={onSave} lang={lang}
           habitGoals={habitGoals} activeHabits={activeHabits} onToggleHabit={onToggleHabit}
         />
