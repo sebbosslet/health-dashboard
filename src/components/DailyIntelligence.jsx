@@ -267,8 +267,11 @@ function EveningLog({ log, onSave, lang, habitGoals, activeHabits, onToggleHabit
     : { habits: 'Evening habits', phone: 'Phone away at', wind: 'Wind-down quality', note: 'Anything affect your evening?', save: 'Save evening', saving: 'Saving...', good: 'Good', ok: 'OK', poor: 'Poor', dinner: 'Dinner at', ac: 'AC temp (°F)' }
 
   async function handleSave() {
-    const dinnerVal = dinnerRef.current?.value || dinnerTime || null
+    const dinnerRawRef = dinnerRef.current?.value
+    const dinnerRawState = dinnerTime
+    const dinnerVal = dinnerRawRef || dinnerRawState || null
     const phoneVal = phoneRef.current?.value || phoneAway || null
+    console.log('[evening] ref:', dinnerRawRef, 'state:', dinnerRawState, 'final:', dinnerVal)
     setSaving(true)
     await onSave({
       phone_away_time: phoneVal || null,
