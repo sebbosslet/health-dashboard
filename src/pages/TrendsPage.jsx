@@ -40,7 +40,6 @@ function BarChart({ data, color, height = 52, target }) {
 }
 
 function LineChart({ data, color, height = 52 }) {
-function LineChart({ data, color, height = 52 }) {
   if (!data?.length) return <div style={{ height, background: 'var(--surface2)', borderRadius: 4 }} />
   const values = data.map(d => d.value).filter(Boolean)
   if (values.length < 1) return <div style={{ height, background: 'var(--surface2)', borderRadius: 4 }} />
