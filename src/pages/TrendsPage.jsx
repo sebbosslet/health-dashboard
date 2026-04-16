@@ -40,9 +40,10 @@ function BarChart({ data, color, height = 52, target }) {
 }
 
 function LineChart({ data, color, height = 52 }) {
+function LineChart({ data, color, height = 52 }) {
   if (!data?.length) return <div style={{ height, background: 'var(--surface2)', borderRadius: 4 }} />
   const values = data.map(d => d.value).filter(Boolean)
-  if (values.length < 2) return <div style={{ height, background: 'var(--surface2)', borderRadius: 4 }} />
+  if (values.length < 1) return <div style={{ height, background: 'var(--surface2)', borderRadius: 4 }} />
   const min = Math.min(...values) * 0.97
   const max = Math.max(...values) * 1.03
   const range = max - min || 1
@@ -51,16 +52,26 @@ function LineChart({ data, color, height = 52 }) {
   const points = data.map((d, i) => ({
     x: i * w + w / 2,
     y: d.value ? 100 - ((d.value - min) / range) * 80 - 10 : null,
+    index: i,
   }))
 
-  const pathPoints = points.filter(p => p.y !== null)
-  const path = pathPoints.map((p, i) => `${i === 0 ? 'M' : 'L'} ${p.x} ${p.y}`).join(' ')
+  // Build path with M (move) on gap, L (line) when consecutive
+  let path = ''
+  for (let i = 0; i < points.length; i++) {
+    const p = points[i]
+    if (p.y === null) continue
+    const prev = points.slice(0, i).reverse().find(q => q.y !== null)
+    const isGap = !prev || (i - prev.index) > 1
+    path += `${isGap ? 'M' : 'L'} ${p.x} ${p.y} `
+  }
+
+  const dotPoints = points.filter(p => p.y !== null)
 
   return (
     <div style={{ position: 'relative', height }}>
       <svg width="100%" height={height - 14} style={{ overflow: 'visible' }}>
         <path d={path} fill="none" stroke={color} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
-        {pathPoints.map((p, i) => (
+        {dotPoints.map((p, i) => (
           <circle key={i} cx={`${p.x}%`} cy={p.y} r="2.5" fill={color} />
         ))}
       </svg>
@@ -211,7 +222,7 @@ export default function TrendsPage({ session }) {
   const avgRhr = avgInt(withRhr, 'rhr')
   const avgSteps = avgInt(withSteps, 'steps')
   const avgCalories = avgInt(withCalories, 'calories')
-  const latestWeight = withWeight.slice(-1)[0]?.weight
+  const latestWeight = withWeight[withWeight.length - 1]?.weight
   const earliestWeight = withWeight[0]?.weight
 
   // Dynamic habits from logs
