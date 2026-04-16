@@ -97,10 +97,8 @@ function LogRow({ item, log, onToggle, onSaveTime, type, lang }) {
 
 // ─── Add from master (picker) ─────────────────────────────────────────────────
 
-function AddFromMaster({ type, userId, date, allItems, loggedIds, onAdded, onCancel, lang }) {
+function AddFromMaster({ type, userId, date, allItems, onAdded, onCancel, lang }) {
   const isMed = type === 'medication'
-  // Picker shows all items not yet logged today (both active and inactive)
-  const available = allItems.filter(i => !loggedIds.has(i.id))
   const [selectedId, setSelectedId] = useState(null)
   const [takenTime, setTakenTime] = useState(format(new Date(), 'HH:mm'))
   const [saving, setSaving] = useState(false)
@@ -108,17 +106,19 @@ function AddFromMaster({ type, userId, date, allItems, loggedIds, onAdded, onCan
   const logTable = isMed ? 'medication_logs' : 'supplement_logs'
   const idField = isMed ? 'medication_id' : 'supplement_id'
 
+  // Show all items — upsert handles duplicates
+  const available = allItems
+
   async function handleAdd() {
     if (!selectedId) return
     setSaving(true)
-    // Use upsert in case a row already exists for this item+date
-    const { error } = await supabase.from(logTable).upsert({
+    // Try insert first, fall back to update if row already exists
+    const { error } = await supabase.from(logTable).insert({
       user_id: userId, date, [idField]: selectedId,
       taken: true, taken_time: takenTime || null,
-    }, { onConflict: `${idField},date` })
+    })
     if (error) {
-      console.error('Log error:', error)
-      // Fallback: try update if insert fails
+      // Row exists — update it
       await supabase.from(logTable)
         .update({ taken: true, taken_time: takenTime || null })
         .eq('user_id', userId).eq('date', date).eq(idField, selectedId)
@@ -273,7 +273,6 @@ function Container({ type, userId, date, lang }) {
           userId={userId}
           date={date}
           allItems={allItems}
-          loggedIds={loggedIds}
           lang={lang}
           onAdded={() => { setShowAdd(false); fetchAll() }}
           onCancel={() => setShowAdd(false)}
