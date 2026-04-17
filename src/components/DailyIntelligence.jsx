@@ -554,211 +554,229 @@ export function EveningLog({ log, onSave, lang, habitGoals, activeHabits, onTogg
 
 // ─── WHOOP Tab (upload + last night summary) ──────────────────────────────────
 
-// ─── Sleep Stats Summary ──────────────────────────────────────────────────────
 
-const CAUSE_LABELS = {
-  thyroid: 'Thyroid medication',
-  stress: 'Stress / cortisol',
-  apnea: 'Sleep apnea',
-  temperature: 'Temperature',
-  food: 'Late food / digestion',
-  caffeine: 'Caffeine',
-  alcohol: 'Alcohol',
-  mixed: 'Multiple factors',
-  unclear: 'Unclear',
-}
-
-const CAUSE_COLORS = {
-  thyroid: 'var(--blue)',
-  stress: 'var(--amber)',
-  apnea: 'var(--red)',
-  temperature: 'var(--purple)',
-  food: 'var(--amber)',
-  caffeine: 'var(--amber)',
-  alcohol: 'var(--purple)',
-  mixed: 'var(--text2)',
-  unclear: 'var(--text3)',
-}
+// ─── Sleep Patterns & Correlations ──────────────────────────────────────────
 
 function SleepStatsCard({ userId, lang }) {
-  const [stats, setStats] = useState(null)
+  const [patterns, setPatterns] = useState(null)
   const [loading, setLoading] = useState(true)
-  const [expanded, setExpanded] = useState(true)
 
   useEffect(() => {
     if (!userId) { setLoading(false); return }
-    supabase.from('sleep_hr_analysis').select('*').eq('user_id', userId)
-      .order('date', { ascending: false })
-      .then(({ data, error }) => {
-        if (error) { console.error('[SleepStats] fetch error:', error.message); setLoading(false); return }
-        if (!data?.length) { setLoading(false); return }
-        const total = data.length
-        const withSpikes = data.filter(d => d.spike_count > 0).length
-        const avgStability = data.filter(d => d.stability_score != null).length
-          ? +(data.filter(d => d.stability_score != null).reduce((a, d) => a + d.stability_score, 0) / data.filter(d => d.stability_score != null).length).toFixed(1)
-          : null
-        const avgDeep = data.filter(d => d.deep_pct != null).length
-          ? +(data.filter(d => d.deep_pct != null).reduce((a, d) => a + d.deep_pct, 0) / data.filter(d => d.deep_pct != null).length).toFixed(1)
-          : null
-        const avgRem = data.filter(d => d.rem_pct != null).length
-          ? +(data.filter(d => d.rem_pct != null).reduce((a, d) => a + d.rem_pct, 0) / data.filter(d => d.rem_pct != null).length).toFixed(1)
-          : null
-        const avgAwake = data.filter(d => d.awake_pct != null).length
-          ? +(data.filter(d => d.awake_pct != null).reduce((a, d) => a + d.awake_pct, 0) / data.filter(d => d.awake_pct != null).length).toFixed(1)
-          : null
-        const avgSpikes = data.filter(d => d.spike_count != null).length
-          ? +(data.filter(d => d.spike_count != null).reduce((a, d) => a + d.spike_count, 0) / data.filter(d => d.spike_count != null).length).toFixed(1)
-          : null
 
-        // Count causes
-        const causeCounts = {}
-        data.forEach(d => {
-          if (d.likely_cause) causeCounts[d.likely_cause] = (causeCounts[d.likely_cause] || 0) + 1
-        })
-        const causes = Object.entries(causeCounts).sort((a, b) => b[1] - a[1])
+    Promise.all([
+      supabase.from('daily_logs').select('*').eq('user_id', userId)
+        .not('recovery_score', 'is', null).order('date', { ascending: false }).limit(60),
+      supabase.from('sleep_hr_analysis').select('*').eq('user_id', userId)
+        .order('date', { ascending: false }).limit(60),
+    ]).then(([{ data: logs }, { data: hrData }]) => {
+      if (!logs?.length || logs.length < 5) { setLoading(false); return }
 
-        // Trend: last 7 vs previous 7
-        const last7 = data.slice(0, 7)
-        const prev7 = data.slice(7, 14)
-        const stabTrend = last7.filter(d => d.stability_score).length && prev7.filter(d => d.stability_score).length
-          ? +(last7.filter(d => d.stability_score).reduce((a, d) => a + d.stability_score, 0) / last7.filter(d => d.stability_score).length).toFixed(1) -
-            +(prev7.filter(d => d.stability_score).reduce((a, d) => a + d.stability_score, 0) / prev7.filter(d => d.stability_score).length).toFixed(1)
-          : null
+      // Helper: avg of array
+      const avg = arr => arr.length ? +(arr.reduce((a, b) => a + b, 0) / arr.length).toFixed(1) : null
+      const diff = (a, b) => a != null && b != null ? +(a - b).toFixed(1) : null
 
-        // Recent pattern
-        const recentCause = data[0]?.likely_cause
-        const recentRepeated = causes.find(([c]) => c === recentCause)?.[1] > 2
+      // Build hr lookup by date
+      const hrByDate = {}
+      hrData?.forEach(d => { hrByDate[d.date] = d })
 
-        setStats({ total, withSpikes, avgStability, avgDeep, avgRem, avgAwake, avgSpikes, causes, stabTrend, recentCause, recentRepeated, rawData: data })
-        setLoading(false)
-      })
+      // ── Correlations using daily_logs ──
+
+      // 1. Late phone (>23:00) vs early phone (<22:30) → recovery
+      const latePhone = logs.filter(l => l.phone_away_time && l.phone_away_time >= '23:00')
+      const earlyPhone = logs.filter(l => l.phone_away_time && l.phone_away_time < '22:30')
+      const phoneEffect = {
+        late: avg(latePhone.map(l => l.recovery_score).filter(Boolean)),
+        early: avg(earlyPhone.map(l => l.recovery_score).filter(Boolean)),
+        n: latePhone.length + earlyPhone.length,
+      }
+
+      // 2. Gym days → next day recovery
+      const gymDays = logs.filter(l => l.activity?.some(a => a.includes('gym')))
+      const gymNextDay = gymDays.map(l => {
+        const next = logs.find(n => n.date > l.date)
+        return next?.recovery_score
+      }).filter(Boolean)
+      const noGymNextDay = logs.filter(l => !l.activity?.some(a => a.includes('gym')))
+        .map(l => l.recovery_score).filter(Boolean)
+      const gymEffect = {
+        with: avg(gymNextDay),
+        without: avg(noGymNextDay),
+        n: gymNextDay.length,
+      }
+
+      // 3. AC temp bands → stability score
+      const coolNights = logs.filter(l => l.ac_temp && l.ac_temp <= 67)
+        .map(l => hrByDate[l.date]?.stability_score).filter(Boolean)
+      const warmNights = logs.filter(l => l.ac_temp && l.ac_temp >= 70)
+        .map(l => hrByDate[l.date]?.stability_score).filter(Boolean)
+      const tempEffect = coolNights.length >= 2 && warmNights.length >= 2 ? {
+        cool: avg(coolNights), warm: avg(warmNights), n: coolNights.length + warmNights.length
+      } : null
+
+      // 4. Wind-down quality → recovery
+      const goodWindDown = logs.filter(l => l.wind_down === 'good').map(l => l.recovery_score).filter(Boolean)
+      const poorWindDown = logs.filter(l => l.wind_down === 'poor').map(l => l.recovery_score).filter(Boolean)
+      const windDownEffect = goodWindDown.length >= 2 && poorWindDown.length >= 2 ? {
+        good: avg(goodWindDown), poor: avg(poorWindDown), n: goodWindDown.length + poorWindDown.length
+      } : null
+
+      // 5. Late dinner (>20:00) → stability
+      const lateDinner = logs.filter(l => l.dinner_time && l.dinner_time >= '20:00')
+        .map(l => hrByDate[l.date]?.stability_score).filter(Boolean)
+      const earlyDinner = logs.filter(l => l.dinner_time && l.dinner_time < '19:00')
+        .map(l => hrByDate[l.date]?.stability_score).filter(Boolean)
+      const dinnerEffect = lateDinner.length >= 2 && earlyDinner.length >= 2 ? {
+        late: avg(lateDinner), early: avg(earlyDinner), n: lateDinner.length + earlyDinner.length
+      } : null
+
+      // 6. Sauna → next day recovery
+      const saunaDays = logs.filter(l => l.activity?.some(a => a.includes('sauna')))
+      const saunaNextDay = saunaDays.map(l => {
+        const next = logs.find(n => n.date > l.date)
+        return next?.recovery_score
+      }).filter(Boolean)
+      const saunaEffect = saunaNextDay.length >= 2 ? {
+        with: avg(saunaNextDay),
+        without: avg(noGymNextDay),
+        n: saunaNextDay.length,
+      } : null
+
+      // 7. HR spike causes frequency
+      const causes = {}
+      hrData?.forEach(d => { if (d.likely_cause && d.likely_cause !== 'unclear') causes[d.likely_cause] = (causes[d.likely_cause] || 0) + 1 })
+      const topCauses = Object.entries(causes).sort((a, b) => b[1] - a[1]).slice(0, 4)
+
+      // 8. Trend: stability last 14 vs prior 14
+      const hrWithStab = hrData?.filter(d => d.stability_score != null) || []
+      const recent14 = avg(hrWithStab.slice(0, 14).map(d => d.stability_score))
+      const prior14 = avg(hrWithStab.slice(14, 28).map(d => d.stability_score))
+      const stabilityTrend = diff(recent14, prior14)
+
+      setPatterns({ phoneEffect, gymEffect, tempEffect, windDownEffect, dinnerEffect, saunaEffect, topCauses, stabilityTrend, recent14, total: hrData?.length || 0 })
+      setLoading(false)
+    })
   }, [userId])
 
-  if (loading) return (
-    <div style={{ padding: '10px 14px 4px', fontSize: 11, color: 'var(--text3)' }}>
-      Loading sleep stats...
-    </div>
-  )
-  if (!stats || stats.total === 0) return (
-    <div style={{ padding: '10px 14px 12px', fontSize: 11, color: 'var(--text3)' }}>
-      📊 {lang === 'de' ? 'Noch keine Schlafanalysen — lade einen WHOOP Screenshot hoch.' : 'No sleep analyses yet — upload a WHOOP screenshot to start tracking.'}
+  if (loading) return <div style={{ padding: '12px 14px 4px', fontSize: 11, color: 'var(--text3)' }}>Analysing patterns...</div>
+  if (!patterns) return <div style={{ padding: '12px 14px', fontSize: 11, color: 'var(--text3)' }}>Upload WHOOP screenshots to unlock pattern analysis.</div>
+
+  // Build insight cards from computed correlations
+  const insights = []
+
+  const { phoneEffect, gymEffect, tempEffect, windDownEffect, dinnerEffect, saunaEffect, topCauses, stabilityTrend, recent14, total } = patterns
+
+  if (phoneEffect.early != null && phoneEffect.late != null && phoneEffect.n >= 4) {
+    const delta = +(phoneEffect.early - phoneEffect.late).toFixed(0)
+    insights.push({
+      icon: '📵',
+      label: 'Phone away early vs late',
+      finding: delta > 0
+        ? `Putting phone away before 22:30 → ${delta}% higher recovery (${phoneEffect.early}% vs ${phoneEffect.late}%)`
+        : `No clear recovery difference yet between early/late phone cutoff`,
+      signal: delta > 5 ? 'positive' : 'neutral',
+    })
+  }
+
+  if (gymEffect.with != null && gymEffect.n >= 3) {
+    const delta = +(gymEffect.with - (gymEffect.without || gymEffect.with)).toFixed(0)
+    insights.push({
+      icon: '🏋️',
+      label: 'Day after gym',
+      finding: `Next-day recovery after gym: ${gymEffect.with}%${gymEffect.without ? ' vs ' + gymEffect.without + '% on rest days' : ''}`,
+      signal: gymEffect.with >= (gymEffect.without || 0) ? 'positive' : 'negative',
+    })
+  }
+
+  if (saunaEffect?.with != null) {
+    insights.push({
+      icon: '🧖',
+      label: 'Day after sauna',
+      finding: `Next-day recovery after sauna: ${saunaEffect.with}%`,
+      signal: saunaEffect.with >= 65 ? 'positive' : 'neutral',
+    })
+  }
+
+  if (windDownEffect) {
+    const delta = +(windDownEffect.good - windDownEffect.poor).toFixed(0)
+    insights.push({
+      icon: '😌',
+      label: 'Wind-down quality',
+      finding: `Good wind-down → ${windDownEffect.good}% recovery vs poor wind-down → ${windDownEffect.poor}% (${delta > 0 ? '+' : ''}${delta}%)`,
+      signal: delta > 3 ? 'positive' : 'neutral',
+    })
+  }
+
+  if (tempEffect) {
+    const delta = +(tempEffect.cool - tempEffect.warm).toFixed(1)
+    insights.push({
+      icon: '❄',
+      label: 'Room temperature',
+      finding: `≤67°F → stability ${tempEffect.cool}/10 vs ≥70°F → ${tempEffect.warm}/10`,
+      signal: delta > 0.5 ? 'positive' : 'neutral',
+    })
+  }
+
+  if (dinnerEffect) {
+    const delta = +(dinnerEffect.early - dinnerEffect.late).toFixed(1)
+    insights.push({
+      icon: '🍽',
+      label: 'Dinner timing',
+      finding: delta > 0.5
+        ? `Eating before 19:00 → stability ${dinnerEffect.early}/10 vs after 20:00 → ${dinnerEffect.late}/10`
+        : `No clear effect of dinner timing on sleep stability yet`,
+      signal: delta > 0.5 ? 'positive' : 'neutral',
+    })
+  }
+
+  if (topCauses.length > 0) {
+    insights.push({
+      icon: '⚡',
+      label: 'Recurring disruption causes',
+      finding: topCauses.map(([c, n]) => {
+        const labels = { thyroid: 'Thyroid', stress: 'Stress', apnea: 'Apnea', temperature: 'Temperature', food: 'Food', caffeine: 'Caffeine', alcohol: 'Alcohol', mixed: 'Mixed' }
+        return (labels[c] || c) + ' (' + n + 'x)'
+      }).join(' · '),
+      signal: topCauses[0]?.[0] === 'thyroid' ? 'info' : 'warning',
+    })
+  }
+
+  if (stabilityTrend != null) {
+    insights.push({
+      icon: stabilityTrend >= 0 ? '📈' : '📉',
+      label: 'Stability trend',
+      finding: stabilityTrend >= 0
+        ? `Sleep stability improved +${stabilityTrend} pts in last 14 nights vs prior 14`
+        : `Sleep stability down ${Math.abs(stabilityTrend)} pts vs prior 14 nights`,
+      signal: stabilityTrend >= 0 ? 'positive' : 'warning',
+    })
+  }
+
+  if (!insights.length) return (
+    <div style={{ padding: '12px 14px', fontSize: 11, color: 'var(--text3)' }}>
+      Keep logging — patterns will appear after a few more nights of data.
     </div>
   )
 
-  const stabColor = stats.avgStability >= 7 ? 'var(--green)' : stats.avgStability >= 4 ? 'var(--amber)' : 'var(--red)'
+  const signalColor = { positive: 'var(--green)', negative: 'var(--red)', warning: 'var(--amber)', neutral: 'var(--text3)', info: 'var(--blue)' }
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-      <button onClick={() => setExpanded(v => !v)} style={{
-        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-        background: 'none', border: 'none', cursor: 'pointer', padding: 0, fontFamily: 'inherit', width: '100%'
-      }}>
-        <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
-          📊 {lang === 'de' ? 'Schlafanalyse — Übersicht' : 'Sleep analysis — stats'}
-        </span>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-          <span style={{ fontSize: 11, color: 'var(--text3)' }}>{stats.total} {lang === 'de' ? 'Nächte' : 'nights'}</span>
-          <svg width="12" height="12" viewBox="0 0 12 12" fill="none" style={{ transform: expanded ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s' }}>
-            <path d="M2 4l4 4 4-4" stroke="var(--text3)" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round"/>
-          </svg>
-        </div>
-      </button>
-
-      {expanded && (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-
-          {/* Key metrics grid */}
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 6 }}>
-            {[
-              { label: lang === 'de' ? 'Analysiert' : 'Analysed', value: stats.total + '', unit: lang === 'de' ? 'Nächte' : 'nights', color: 'var(--green)' },
-              { label: lang === 'de' ? 'Stabilität' : 'Stability', value: stats.avgStability != null ? stats.avgStability + '/10' : '—', unit: stats.stabTrend != null ? (stats.stabTrend >= 0 ? '↑ trending' : '↓ trending') : '', color: stabColor },
-              { label: lang === 'de' ? 'Störungen' : 'Disturbed', value: stats.withSpikes + '', unit: lang === 'de' ? 'Nächte' : 'nights', color: stats.withSpikes > stats.total * 0.5 ? 'var(--red)' : 'var(--amber)' },
-            ].map(m => (
-              <div key={m.label} style={{ background: 'var(--surface2)', borderRadius: 8, padding: '7px 6px', textAlign: 'center' }}>
-                <div style={{ fontSize: 9, color: 'var(--text3)', textTransform: 'uppercase', marginBottom: 2 }}>{m.label}</div>
-                <div style={{ fontSize: 14, fontWeight: 700, fontFamily: 'var(--font-mono)', color: m.color }}>{m.value}</div>
-                {m.unit && <div style={{ fontSize: 9, color: 'var(--text3)' }}>{m.unit}</div>}
-              </div>
-            ))}
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+      <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+        🔬 {lang === 'de' ? 'Muster & Korrelationen' : 'Patterns & correlations'} · {total} {lang === 'de' ? 'Nächte' : 'nights'}
+      </div>
+      {insights.map((ins, i) => (
+        <div key={i} style={{ display: 'flex', gap: 10, padding: '8px 10px', background: 'var(--surface2)', borderRadius: 8, borderLeft: '3px solid ' + (signalColor[ins.signal] || 'var(--border)') }}>
+          <span style={{ fontSize: 16, flexShrink: 0 }}>{ins.icon}</span>
+          <div style={{ flex: 1 }}>
+            <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text2)', marginBottom: 2 }}>{ins.label}</div>
+            <div style={{ fontSize: 12, color: 'var(--text)', lineHeight: 1.5 }}>{ins.finding}</div>
           </div>
-
-          {/* Stage averages */}
-          {(stats.avgDeep != null || stats.avgRem != null) && (
-            <div>
-              <div style={{ fontSize: 10, color: 'var(--text3)', fontWeight: 600, textTransform: 'uppercase', marginBottom: 6 }}>
-                {lang === 'de' ? 'Schlafphasen (Durchschnitt)' : 'Sleep stages (average)'}
-              </div>
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 6 }}>
-                {[
-                  { label: 'Awake', value: stats.avgAwake, color: 'var(--text3)' },
-                  { label: 'Light', value: null, color: 'var(--blue)' },
-                  { label: 'Deep', value: stats.avgDeep, color: 'var(--purple)' },
-                  { label: 'REM', value: stats.avgRem, color: 'var(--green)' },
-                ].filter(s => s.value != null).map(s => (
-                  <div key={s.label} style={{ background: 'var(--surface2)', borderRadius: 8, padding: '6px 4px', textAlign: 'center' }}>
-                    <div style={{ fontSize: 9, color: 'var(--text3)', textTransform: 'uppercase', marginBottom: 2 }}>{s.label}</div>
-                    <div style={{ fontSize: 13, fontWeight: 700, fontFamily: 'var(--font-mono)', color: s.color }}>{s.value}%</div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* Spike average */}
-          {stats.avgSpikes != null && (
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'var(--surface2)', borderRadius: 8, padding: '7px 10px' }}>
-              <span style={{ fontSize: 12, color: 'var(--text2)' }}>{lang === 'de' ? 'Durchschn. HR-Spikes pro Nacht' : 'Avg HR spikes per night'}</span>
-              <span style={{ fontSize: 13, fontWeight: 700, fontFamily: 'var(--font-mono)', color: stats.avgSpikes > 5 ? 'var(--red)' : 'var(--amber)' }}>{stats.avgSpikes}</span>
-            </div>
-          )}
-
-          {/* Cause breakdown */}
-          {stats.causes.length > 0 && (
-            <div>
-              <div style={{ fontSize: 10, color: 'var(--text3)', fontWeight: 600, textTransform: 'uppercase', marginBottom: 6 }}>
-                {lang === 'de' ? 'Ursachen-Häufigkeit' : 'Disruption causes'}
-              </div>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
-                {stats.causes.filter(([c]) => c !== 'unclear').map(([cause, count]) => (
-                  <div key={cause} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                    <div style={{ flex: 1 }}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 2 }}>
-                        <span style={{ fontSize: 11, color: 'var(--text)', fontWeight: cause === stats.recentCause ? 600 : 400 }}>
-                          {CAUSE_LABELS[cause] || cause}
-                          {cause === stats.recentCause && stats.recentRepeated && <span style={{ color: 'var(--amber)', marginLeft: 4 }}>↑ recurring</span>}
-                        </span>
-                        <span style={{ fontSize: 11, fontFamily: 'var(--font-mono)', color: 'var(--text3)' }}>{count}×</span>
-                      </div>
-                      <div style={{ height: 4, background: 'var(--border)', borderRadius: 2 }}>
-                        <div style={{ height: 4, borderRadius: 2, background: CAUSE_COLORS[cause] || 'var(--text3)', width: (count / stats.total * 100) + '%' }} />
-                      </div>
-                    </div>
-                  </div>
-                ))}
-                {stats.causes.find(([c]) => c === 'unclear') && (
-                  <div style={{ fontSize: 11, color: 'var(--text3)', textAlign: 'right' }}>
-                    + {stats.causes.find(([c]) => c === 'unclear')[1]}× unclear
-                  </div>
-                )}
-              </div>
-            </div>
-          )}
-
-          {/* Trend note */}
-          {stats.stabTrend != null && (
-            <div style={{ fontSize: 11, color: stats.stabTrend >= 0 ? 'var(--green)' : 'var(--amber)', background: 'var(--surface2)', borderRadius: 8, padding: '7px 10px' }}>
-              {stats.stabTrend >= 0
-                ? (lang === 'de' ? `↑ Stabilität +${stats.stabTrend.toFixed(1)} vs letzte 7 Nächte` : `↑ Stability up ${stats.stabTrend.toFixed(1)} pts vs previous 7 nights`)
-                : (lang === 'de' ? `↓ Stabilität ${stats.stabTrend.toFixed(1)} vs letzte 7 Nächte` : `↓ Stability down ${Math.abs(stats.stabTrend).toFixed(1)} pts vs previous 7 nights`)}
-            </div>
-          )}
         </div>
-      )}
-
+      ))}
     </div>
   )
 }
-
 
 
 function WhoopTab({ log, yesterdayLog, session, lang, onRefresh }) {
