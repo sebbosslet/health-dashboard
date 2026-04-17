@@ -659,6 +659,202 @@ function WhoopTab({ log, yesterdayLog, session, lang, onRefresh }) {
   )
 }
 
+
+// ─── Sleep Stats Summary ──────────────────────────────────────────────────────
+
+const CAUSE_LABELS = {
+  thyroid: 'Thyroid medication',
+  stress: 'Stress / cortisol',
+  apnea: 'Sleep apnea',
+  temperature: 'Temperature',
+  food: 'Late food / digestion',
+  caffeine: 'Caffeine',
+  alcohol: 'Alcohol',
+  mixed: 'Multiple factors',
+  unclear: 'Unclear',
+}
+
+const CAUSE_COLORS = {
+  thyroid: 'var(--blue)',
+  stress: 'var(--amber)',
+  apnea: 'var(--red)',
+  temperature: 'var(--purple)',
+  food: 'var(--amber)',
+  caffeine: 'var(--amber)',
+  alcohol: 'var(--purple)',
+  mixed: 'var(--text2)',
+  unclear: 'var(--text3)',
+}
+
+function SleepStatsCard({ userId, lang }) {
+  const [stats, setStats] = useState(null)
+  const [loading, setLoading] = useState(true)
+  const [expanded, setExpanded] = useState(false)
+
+  useEffect(() => {
+    supabase.from('sleep_hr_analysis').select('*').eq('user_id', userId)
+      .order('date', { ascending: false })
+      .then(({ data }) => {
+        if (!data?.length) { setLoading(false); return }
+        const total = data.length
+        const withSpikes = data.filter(d => d.spike_count > 0).length
+        const avgStability = data.filter(d => d.stability_score != null).length
+          ? +(data.filter(d => d.stability_score != null).reduce((a, d) => a + d.stability_score, 0) / data.filter(d => d.stability_score != null).length).toFixed(1)
+          : null
+        const avgDeep = data.filter(d => d.deep_pct != null).length
+          ? +(data.filter(d => d.deep_pct != null).reduce((a, d) => a + d.deep_pct, 0) / data.filter(d => d.deep_pct != null).length).toFixed(1)
+          : null
+        const avgRem = data.filter(d => d.rem_pct != null).length
+          ? +(data.filter(d => d.rem_pct != null).reduce((a, d) => a + d.rem_pct, 0) / data.filter(d => d.rem_pct != null).length).toFixed(1)
+          : null
+        const avgAwake = data.filter(d => d.awake_pct != null).length
+          ? +(data.filter(d => d.awake_pct != null).reduce((a, d) => a + d.awake_pct, 0) / data.filter(d => d.awake_pct != null).length).toFixed(1)
+          : null
+        const avgSpikes = data.filter(d => d.spike_count != null).length
+          ? +(data.filter(d => d.spike_count != null).reduce((a, d) => a + d.spike_count, 0) / data.filter(d => d.spike_count != null).length).toFixed(1)
+          : null
+
+        // Count causes
+        const causeCounts = {}
+        data.forEach(d => {
+          if (d.likely_cause) causeCounts[d.likely_cause] = (causeCounts[d.likely_cause] || 0) + 1
+        })
+        const causes = Object.entries(causeCounts).sort((a, b) => b[1] - a[1])
+
+        // Trend: last 7 vs previous 7
+        const last7 = data.slice(0, 7)
+        const prev7 = data.slice(7, 14)
+        const stabTrend = last7.filter(d => d.stability_score).length && prev7.filter(d => d.stability_score).length
+          ? +(last7.filter(d => d.stability_score).reduce((a, d) => a + d.stability_score, 0) / last7.filter(d => d.stability_score).length).toFixed(1) -
+            +(prev7.filter(d => d.stability_score).reduce((a, d) => a + d.stability_score, 0) / prev7.filter(d => d.stability_score).length).toFixed(1)
+          : null
+
+        // Recent pattern
+        const recentCause = data[0]?.likely_cause
+        const recentRepeated = causes.find(([c]) => c === recentCause)?.[1] > 2
+
+        setStats({ total, withSpikes, avgStability, avgDeep, avgRem, avgAwake, avgSpikes, causes, stabTrend, recentCause, recentRepeated, rawData: data })
+        setLoading(false)
+      })
+  }, [userId])
+
+  if (loading) return null
+  if (!stats || stats.total === 0) return null
+
+  const stabColor = stats.avgStability >= 7 ? 'var(--green)' : stats.avgStability >= 4 ? 'var(--amber)' : 'var(--red)'
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+      <button onClick={() => setExpanded(v => !v)} style={{
+        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+        background: 'none', border: 'none', cursor: 'pointer', padding: 0, fontFamily: 'inherit', width: '100%'
+      }}>
+        <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+          📊 {lang === 'de' ? 'Schlafanalyse — Übersicht' : 'Sleep analysis — stats'}
+        </span>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+          <span style={{ fontSize: 11, color: 'var(--text3)' }}>{stats.total} {lang === 'de' ? 'Nächte' : 'nights'}</span>
+          <svg width="12" height="12" viewBox="0 0 12 12" fill="none" style={{ transform: expanded ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s' }}>
+            <path d="M2 4l4 4 4-4" stroke="var(--text3)" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round"/>
+          </svg>
+        </div>
+      </button>
+
+      {expanded && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+
+          {/* Key metrics grid */}
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 6 }}>
+            {[
+              { label: lang === 'de' ? 'Analysiert' : 'Analysed', value: stats.total + '', unit: lang === 'de' ? 'Nächte' : 'nights', color: 'var(--green)' },
+              { label: lang === 'de' ? 'Stabilität' : 'Stability', value: stats.avgStability != null ? stats.avgStability + '/10' : '—', unit: stats.stabTrend != null ? (stats.stabTrend >= 0 ? '↑ trending' : '↓ trending') : '', color: stabColor },
+              { label: lang === 'de' ? 'Störungen' : 'Disturbed', value: stats.withSpikes + '', unit: lang === 'de' ? 'Nächte' : 'nights', color: stats.withSpikes > stats.total * 0.5 ? 'var(--red)' : 'var(--amber)' },
+            ].map(m => (
+              <div key={m.label} style={{ background: 'var(--surface2)', borderRadius: 8, padding: '7px 6px', textAlign: 'center' }}>
+                <div style={{ fontSize: 9, color: 'var(--text3)', textTransform: 'uppercase', marginBottom: 2 }}>{m.label}</div>
+                <div style={{ fontSize: 14, fontWeight: 700, fontFamily: 'var(--font-mono)', color: m.color }}>{m.value}</div>
+                {m.unit && <div style={{ fontSize: 9, color: 'var(--text3)' }}>{m.unit}</div>}
+              </div>
+            ))}
+          </div>
+
+          {/* Stage averages */}
+          {(stats.avgDeep != null || stats.avgRem != null) && (
+            <div>
+              <div style={{ fontSize: 10, color: 'var(--text3)', fontWeight: 600, textTransform: 'uppercase', marginBottom: 6 }}>
+                {lang === 'de' ? 'Schlafphasen (Durchschnitt)' : 'Sleep stages (average)'}
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 6 }}>
+                {[
+                  { label: 'Awake', value: stats.avgAwake, color: 'var(--text3)' },
+                  { label: 'Light', value: null, color: 'var(--blue)' },
+                  { label: 'Deep', value: stats.avgDeep, color: 'var(--purple)' },
+                  { label: 'REM', value: stats.avgRem, color: 'var(--green)' },
+                ].filter(s => s.value != null).map(s => (
+                  <div key={s.label} style={{ background: 'var(--surface2)', borderRadius: 8, padding: '6px 4px', textAlign: 'center' }}>
+                    <div style={{ fontSize: 9, color: 'var(--text3)', textTransform: 'uppercase', marginBottom: 2 }}>{s.label}</div>
+                    <div style={{ fontSize: 13, fontWeight: 700, fontFamily: 'var(--font-mono)', color: s.color }}>{s.value}%</div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Spike average */}
+          {stats.avgSpikes != null && (
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'var(--surface2)', borderRadius: 8, padding: '7px 10px' }}>
+              <span style={{ fontSize: 12, color: 'var(--text2)' }}>{lang === 'de' ? 'Durchschn. HR-Spikes pro Nacht' : 'Avg HR spikes per night'}</span>
+              <span style={{ fontSize: 13, fontWeight: 700, fontFamily: 'var(--font-mono)', color: stats.avgSpikes > 5 ? 'var(--red)' : 'var(--amber)' }}>{stats.avgSpikes}</span>
+            </div>
+          )}
+
+          {/* Cause breakdown */}
+          {stats.causes.length > 0 && (
+            <div>
+              <div style={{ fontSize: 10, color: 'var(--text3)', fontWeight: 600, textTransform: 'uppercase', marginBottom: 6 }}>
+                {lang === 'de' ? 'Ursachen-Häufigkeit' : 'Disruption causes'}
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
+                {stats.causes.filter(([c]) => c !== 'unclear').map(([cause, count]) => (
+                  <div key={cause} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <div style={{ flex: 1 }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 2 }}>
+                        <span style={{ fontSize: 11, color: 'var(--text)', fontWeight: cause === stats.recentCause ? 600 : 400 }}>
+                          {CAUSE_LABELS[cause] || cause}
+                          {cause === stats.recentCause && stats.recentRepeated && <span style={{ color: 'var(--amber)', marginLeft: 4 }}>↑ recurring</span>}
+                        </span>
+                        <span style={{ fontSize: 11, fontFamily: 'var(--font-mono)', color: 'var(--text3)' }}>{count}×</span>
+                      </div>
+                      <div style={{ height: 4, background: 'var(--border)', borderRadius: 2 }}>
+                        <div style={{ height: 4, borderRadius: 2, background: CAUSE_COLORS[cause] || 'var(--text3)', width: (count / stats.total * 100) + '%' }} />
+                      </div>
+                    </div>
+                  </div>
+                ))}
+                {stats.causes.find(([c]) => c === 'unclear') && (
+                  <div style={{ fontSize: 11, color: 'var(--text3)', textAlign: 'right' }}>
+                    + {stats.causes.find(([c]) => c === 'unclear')[1]}× unclear
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* Trend note */}
+          {stats.stabTrend != null && (
+            <div style={{ fontSize: 11, color: stats.stabTrend >= 0 ? 'var(--green)' : 'var(--amber)', background: 'var(--surface2)', borderRadius: 8, padding: '7px 10px' }}>
+              {stats.stabTrend >= 0
+                ? (lang === 'de' ? `↑ Stabilität +${stats.stabTrend.toFixed(1)} vs letzte 7 Nächte` : `↑ Stability up ${stats.stabTrend.toFixed(1)} pts vs previous 7 nights`)
+                : (lang === 'de' ? `↓ Stabilität ${stats.stabTrend.toFixed(1)} vs letzte 7 Nächte` : `↓ Stability down ${Math.abs(stats.stabTrend).toFixed(1)} pts vs previous 7 nights`)}
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  )
+}
+
+
 // ─── AI Insight ───────────────────────────────────────────────────────────────
 
 // Anomaly prompts shown when sleep fragmentation detected
@@ -718,6 +914,7 @@ function InsightCard({ log, userId, lang }) {
         supabase.from('poop_logs').select('bristol_type,logged_at,assessment,flags,color').eq('user_id', userId).eq('date', yesterday),
         supabase.from('goals').select('name,category,target_value,timeframe').eq('user_id', userId),
         supabase.from('sleep_hr_analysis').select('*').eq('user_id', userId).gte('date', yesterday).order('date', { ascending: false }).limit(1).maybeSingle(),
+        supabase.from('sleep_hr_analysis').select('likely_cause,stability_score,spike_count,awake_pct,deep_pct,rem_pct').eq('user_id', userId).order('date', { ascending: false }).limit(30),
       ])
 
       if (hrData) setHrAnalysis(hrData)
@@ -746,7 +943,20 @@ SLEEP HR ANALYSIS:
         ? '\nPERSONAL TARGETS: ' + goals.filter(g => g.target_value).map(g => g.name + ' ' + g.target_value + '/' + g.timeframe).join(' · ')
         : ''
 
-      const fullHrContext = hrContext + suppContext + medContext + poopContext + goalsContext +
+      // Historical sleep pattern summary for Claude
+      const hrHistoryContext = hrHistory?.length >= 3 ? (() => {
+        const causes = {}
+        hrHistory.forEach(d => { if (d.likely_cause) causes[d.likely_cause] = (causes[d.likely_cause] || 0) + 1 })
+        const topCauses = Object.entries(causes).sort((a, b) => b[1] - a[1]).slice(0, 3)
+        const avgStab = hrHistory.filter(d => d.stability_score).length
+          ? (hrHistory.filter(d => d.stability_score).reduce((a, d) => a + d.stability_score, 0) / hrHistory.filter(d => d.stability_score).length).toFixed(1)
+          : null
+        return '\nHISTORICAL SLEEP PATTERNS (' + hrHistory.length + ' nights analysed):' +
+          (avgStab ? '\n- Avg stability score: ' + avgStab + '/10' : '') +
+          (topCauses.length ? '\n- Most common disruption causes: ' + topCauses.map(([c, n]) => c + ' (' + n + 'x)').join(', ') : '')
+      })() : ''
+
+      const fullHrContext = hrContext + hrHistoryContext + suppContext + medContext + poopContext + goalsContext +
         (extraContext ? `
 
 ADDITIONAL CONTEXT FROM SEBASTIAN: ${extraContext}` : '')
@@ -769,6 +979,9 @@ ADDITIONAL CONTEXT FROM SEBASTIAN: ${extraContext}` : '')
 
   return (
     <div style={{ padding: '12px 14px', display: 'flex', flexDirection: 'column', gap: 12 }}>
+      {/* Sleep stats */}
+      <SleepStatsCard userId={userId} lang={lang} />
+
       {/* Context banner */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11, color: 'var(--text3)' }}>
         <span style={{ padding: '2px 8px', background: 'var(--surface2)', borderRadius: 10 }}>
