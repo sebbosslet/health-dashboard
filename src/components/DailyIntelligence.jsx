@@ -762,10 +762,6 @@ function SleepStatsCard({ userId, lang }) {
         </div>
       )}
 
-      {/* Historical sleep stats */}
-      <div style={{ padding: '0 14px 14px', borderTop: '0.5px solid var(--border)', paddingTop: 12 }}>
-        <SleepStatsCard userId={session.user.id} lang={lang} />
-      </div>
     </div>
   )
 }
@@ -871,6 +867,11 @@ function WhoopTab({ log, yesterdayLog, session, lang, onRefresh }) {
         </div>
       )}
 
+
+      {/* Sleep stats history */}
+      <div style={{ borderTop: '0.5px solid var(--border)', paddingTop: 12 }}>
+        <SleepStatsCard userId={session.user.id} lang={lang} />
+      </div>
 
     </div>
   )
