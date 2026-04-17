@@ -5,6 +5,7 @@ import { format, subDays } from 'date-fns'
 import { supabase } from '../lib/supabase'
 import { useLang } from '../lib/LangContext'
 import { showToast } from './Toast'
+import SleepPatterns from './SleepPatterns'
 
 // ─── AI Analysis Engine ───────────────────────────────────────────────────────
 
@@ -916,6 +917,11 @@ function WhoopTab({ log, yesterdayLog, session, lang, onRefresh }) {
         </div>
       )}
 
+
+      {/* Patterns & correlations */}
+      <div style={{ borderTop: '0.5px solid var(--border)' }}>
+        <SleepPatterns userId={session.user.id} />
+      </div>
 
     </div>
   )
