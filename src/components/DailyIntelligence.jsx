@@ -77,21 +77,31 @@ SEBASTIAN'S PERSONAL PATTERNS (${historicalLogs.length} days of data):
 EVENING OF ${yesterdayDate} (what happened before this sleep):
 - Activities: ${yesterdayLog.activity?.join(', ') || 'none logged'}
 - Evening habits completed: ${yesterdayLog.habits?.join(', ') || 'none logged'}
+- Got home at: ${yesterdayLog.home_time?.slice(0,5) || 'not logged'}
+- Dinner finished at: ${yesterdayLog.dinner_time?.slice(0,5) || 'not logged'}
 - Phone away at: ${yesterdayLog.phone_away_time?.slice(0,5) || 'not logged'}
 - Sleep onset: ${yesterdayLog.bed_time?.slice(0,5) || 'not logged'}${yesterdayLog.bed_time && parseInt(yesterdayLog.bed_time.split(':')[0]) < 6 ? ' (after midnight — next calendar day)' : ''}
 - Phone-to-sleep gap: ${yesterdayLog.phone_away_time && yesterdayLog.bed_time
     ? (() => {
         const pm = parseInt(yesterdayLog.phone_away_time.split(':')[0])*60 + parseInt(yesterdayLog.phone_away_time.split(':')[1])
         let bm = parseInt(yesterdayLog.bed_time.split(':')[0])*60 + parseInt(yesterdayLog.bed_time.split(':')[1])
-        if (bm < 360) bm += 1440 // after midnight — add 24h before calculating
+        if (bm < 360) bm += 1440
         const gap = bm - pm
-        return `${gap} minutes (DO NOT recalculate this — midnight crossover already accounted for)`
+        return gap + ' minutes (DO NOT recalculate — midnight crossover already handled)'
+      })()
+    : 'not calculable'}
+- Home-to-phone gap: ${yesterdayLog.home_time && yesterdayLog.phone_away_time
+    ? (() => {
+        const hm = parseInt(yesterdayLog.home_time.split(':')[0])*60 + parseInt(yesterdayLog.home_time.split(':')[1])
+        const pm = parseInt(yesterdayLog.phone_away_time.split(':')[0])*60 + parseInt(yesterdayLog.phone_away_time.split(':')[1])
+        return (pm - hm) + ' minutes between arriving home and putting phone away'
       })()
     : 'not calculable'}
 - Wind-down quality: ${yesterdayLog.wind_down || 'not logged'}
-- Dinner time: ${yesterdayLog.dinner_time?.slice(0,5) || 'not logged'}
 - AC temperature: ${yesterdayLog.ac_temp ? yesterdayLog.ac_temp + '°F' : 'not logged'}
 - Calories: ${yesterdayLog.calories ? yesterdayLog.calories + ' kcal' : 'not logged'}
+- Water: ${yesterdayLog.water ? yesterdayLog.water + 'ml' : 'not logged'}
+- Steps: ${yesterdayLog.steps ? yesterdayLog.steps.toLocaleString() : 'not logged'}
 - Evening note: ${yesterdayLog.evening_note || 'none'}${eventsContext}${caffeineContext}${alcoholContext}${travelContext}
 ` : 'No evening log for yesterday'
 
@@ -130,7 +140,7 @@ Write a holistic 4-5 sentence narrative synthesising everything. Weave together:
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
       model: CLAUDE_MODEL,
-      max_tokens: 400,
+      max_tokens: 700,
       messages: [{ role: 'user', content: prompt }]
     })
   })
@@ -691,32 +701,59 @@ function InsightCard({ log, userId, lang }) {
     try {
       const thirtyDaysAgo = format(subDays(new Date(), 30), 'yyyy-MM-dd')
 
-      const [{ data: yesterdayLog }, { data: history }, { data: yesterdayEvents }, { data: travelState }, { data: caffeineMeals }, { data: alcoholMeals }] = await Promise.all([
+      const [
+        { data: yesterdayLog }, { data: history }, { data: yesterdayEvents },
+        { data: travelState }, { data: caffeineMeals }, { data: alcoholMeals },
+        { data: suppLogs }, { data: medLogs }, { data: poopLogs },
+        { data: goals }, { data: hrData },
+      ] = await Promise.all([
         supabase.from('daily_logs').select('*').eq('user_id', userId).eq('date', yesterday).maybeSingle(),
         supabase.from('daily_logs').select('*').eq('user_id', userId).gte('date', thirtyDaysAgo).lt('date', today).order('date', { ascending: true }),
         supabase.from('daily_events').select('*').eq('user_id', userId).eq('date', yesterday),
         supabase.from('travel_state').select('*').eq('user_id', userId).eq('active', true).maybeSingle(),
         supabase.from('meal_logs').select('meal_name,consumed_at').eq('user_id', userId).eq('date', yesterday).eq('is_caffeinated', true),
         supabase.from('meal_logs').select('meal_name,consumed_at').eq('user_id', userId).eq('date', yesterday).eq('is_alcohol', true),
+        supabase.from('supplement_logs').select('taken,taken_time,quantity').eq('user_id', userId).eq('date', yesterday).eq('taken', true),
+        supabase.from('medication_logs').select('taken,taken_time').eq('user_id', userId).eq('date', yesterday).eq('taken', true),
+        supabase.from('poop_logs').select('bristol_type,logged_at,assessment,flags,color').eq('user_id', userId).eq('date', yesterday),
+        supabase.from('goals').select('name,category,target_value,timeframe').eq('user_id', userId),
+        supabase.from('sleep_hr_analysis').select('*').eq('user_id', userId).gte('date', yesterday).order('date', { ascending: false }).limit(1).maybeSingle(),
       ])
 
-      // Fetch latest HR analysis
-      const { data: hrData } = await supabase.from('sleep_hr_analysis').select('*').eq('user_id', userId)
-        .gte('date', yesterday).order('date', { ascending: false }).limit(1).maybeSingle()
       if (hrData) setHrAnalysis(hrData)
 
       const hrContext = hrData ? `
-SLEEP HR ANALYSIS (from WHOOP screenshot):
-- Sleep stages: Awake ${hrData.awake_pct || '—'}%, Light ${hrData.light_pct || '—'}%, Deep ${hrData.deep_pct || '—'}%, REM ${hrData.rem_pct || '—'}%
-- HR baseline: ${hrData.hr_baseline || '—'} bpm, Spikes: ${hrData.spike_count ?? '—'} (max ${hrData.spike_max_magnitude || '—'} bpm)
-- Stability score: ${hrData.stability_score || '—'}/10
-- Likely cause of disruption: ${hrData.likely_cause || 'unclear'} (${hrData.cause_confidence || '—'} confidence)
-- Cause reasoning: ${hrData.cause_reasoning || 'n/a'}
+SLEEP HR ANALYSIS:
+- Stages: Awake ${hrData.awake_pct || '—'}%, Light ${hrData.light_pct || '—'}%, Deep ${hrData.deep_pct || '—'}%, REM ${hrData.rem_pct || '—'}%
+- HR: baseline ${hrData.hr_baseline || '—'}bpm, spikes ${hrData.spike_count ?? '—'} (max ${hrData.spike_max_magnitude || '—'}bpm), stability ${hrData.stability_score || '—'}/10
+- Likely cause: ${hrData.likely_cause || 'unclear'} (${hrData.cause_confidence || '—'}) — ${hrData.cause_reasoning || 'n/a'}
 - Recommendation: ${hrData.recommendation || 'n/a'}` : ''
 
-      const fullHrContext = hrContext + (extraContext ? `
+      const suppContext = suppLogs?.length
+        ? `
+- Supplements taken: ${suppLogs.length} item(s)${suppLogs[0]?.taken_time ? `, last at ${suppLogs[suppLogs.length-1]?.taken_time?.slice(0,5)}` : ''}`
+        : '
+- Supplements: none logged'
 
-ADDITIONAL CONTEXT FROM SEBASTIAN about why sleep was fragmented: ${extraContext}` : '')
+      const medContext = medLogs?.length
+        ? `
+- Medications taken: ${medLogs.length} item(s)${medLogs[0]?.taken_time ? `, last at ${medLogs[medLogs.length-1]?.taken_time?.slice(0,5)}` : ''}` : ''
+
+      const poopContext = poopLogs?.length
+        ? `
+- Bowel movements yesterday: ${poopLogs.length}x — ${poopLogs.map(p => `Type ${p.bristol_type}${p.color && p.color !== 'brown' ? ` (${p.color})` : ''}${p.flags?.length ? ` ⚠️ ${p.flags.join(', ')}` : ''}`).join(', ')}${poopLogs[0]?.assessment ? '. ' + poopLogs[0].assessment : ''}`
+        : ''
+
+      const goalsContext = goals?.length
+        ? `
+PERSONAL TARGETS: ${goals.filter(g => g.target_value).map(g => `${g.name} ${g.target_value}/${g.timeframe}`).join(' · ')}`
+        : ''
+
+      const fullHrContext = hrContext + suppContext + medContext + poopContext + goalsContext +
+        (extraContext ? `
+
+ADDITIONAL CONTEXT FROM SEBASTIAN: ${extraContext}` : '')
+
       const text = await generateDailyInsight(log, yesterdayLog, history || [], lang, yesterdayEvents || [], [], travelState, caffeineMeals || [], fullHrContext, alcoholMeals || [])
       setInsight(text)
 
