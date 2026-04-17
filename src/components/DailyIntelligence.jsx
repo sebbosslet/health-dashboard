@@ -856,6 +856,9 @@ function SleepStatsCard({ userId, lang }) {
           )}
         </div>
       )}
+
+      {/* Historical sleep stats */}
+      <SleepStatsCard userId={session.user.id} lang={lang} />
     </div>
   )
 }
@@ -985,9 +988,6 @@ ADDITIONAL CONTEXT FROM SEBASTIAN: ${extraContext}` : '')
 
   return (
     <div style={{ padding: '12px 14px', display: 'flex', flexDirection: 'column', gap: 12 }}>
-      {/* Sleep stats */}
-      <SleepStatsCard userId={userId} lang={lang} />
-
       {/* Context banner */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11, color: 'var(--text3)' }}>
         <span style={{ padding: '2px 8px', background: 'var(--surface2)', borderRadius: 10 }}>
