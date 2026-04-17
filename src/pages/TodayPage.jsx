@@ -258,9 +258,9 @@ export default function TodayPage({ session }) {
           <div className="card-header" onClick={() => setNutritionExpanded(v => !v)} style={{ cursor: 'pointer' }}>
             <span className="card-title">{t('today_nutrition')}</span>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-              {!nutritionExpanded && (
+              {!nutritionExpanded && mealCalories > 0 && (
                 <span style={{ fontSize: 11, color: 'var(--green)', fontWeight: 600 }}>
-                  ✅ {mealCalories > 0 ? `${mealCalories} kcal` : lang === 'de' ? 'Fertig' : 'Done'}
+                  ✅ {mealCalories} kcal
                 </span>
               )}
               {nutritionExpanded
@@ -284,14 +284,20 @@ export default function TodayPage({ session }) {
                 </div>
               </div>
               <MealLogger session={session} date={today} onCaloriesUpdated={setMealCalories} onDoneEating={() => setNutritionExpanded(false)} />
-              <div style={{ padding: '10px 14px 12px', borderTop: '0.5px solid var(--border)' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-                  <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--text2)' }}>{t('metric_water')}</span>
-                  <span style={{ fontSize: 12, fontWeight: 700, color: parseInt(water) >= waterTarget ? 'var(--green)' : 'var(--blue)' }}>
-                    {water || 0} / {waterTarget} ml
-                  </span>
-                </div>
-            <div className="bar-wrap" style={{ marginBottom: 10 }}>
+            </>
+          )}
+        </div>
+
+        {/* 5b. Hydration */}
+        <div className="card">
+          <div className="card-header">
+            <span className="card-title">💧 {lang === 'de' ? 'Hydration' : 'Hydration'}</span>
+            <span style={{ fontSize: 12, fontWeight: 700, color: parseInt(water) >= waterTarget ? 'var(--green)' : 'var(--blue)' }}>
+              {water || 0} / {waterTarget} ml
+            </span>
+          </div>
+          <div style={{ padding: '10px 14px 12px' }}>
+            <div className="bar-wrap-lg" style={{ marginBottom: 10 }}>
               <div className="bar bar-blue" style={{ width: `${waterPct}%` }} />
             </div>
             <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
@@ -305,8 +311,6 @@ export default function TodayPage({ session }) {
               )}
             </div>
           </div>
-            </>
-          )}
         </div>
 
         {/* 6. Steps */}
