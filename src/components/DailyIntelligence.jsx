@@ -896,59 +896,10 @@ function WhoopTab({ log, yesterdayLog, session, lang, onRefresh }) {
   const bedTime = correctBedTime(log?.bed_time) || correctBedTime(yesterdayLog?.bed_time)
   const uploaded = !!bedTime
 
-  // Evening fields can be on today's log OR yesterday's
-  const eveningSource = log?.phone_away_time ? log : yesterdayLog
 
-  // Compute wind-down duration: phone away → asleep
-  let windDownMins = null
-  if (eveningSource?.phone_away_time && bedTime) {
-    const pm = parseInt(eveningSource.phone_away_time.split(':')[0])*60 + parseInt(eveningSource.phone_away_time.split(':')[1])
-    let bm = parseInt(bedTime.split(':')[0])*60 + parseInt(bedTime.split(':')[1])
-    if (bm < 360) bm += 1440  // after midnight
-    const gap = bm - pm
-    if (gap > 0 && gap < 600) windDownMins = gap  // sanity check: 0-10h range only
-  }
-
-  // Last night summary grid
-  const summary = []
-  if (eveningSource?.dinner_time) summary.push({ icon: '🍽', label: lang === 'de' ? 'Abendessen' : 'Dinner', value: eveningSource.dinner_time.slice(0,5) })
-  if (eveningSource?.home_time) summary.push({ icon: '🏠', label: lang === 'de' ? 'Zuhause' : 'Home', value: eveningSource.home_time.slice(0,5) })
-  if (eveningSource?.phone_away_time) summary.push({ icon: '📵', label: lang === 'de' ? 'Handy weg' : 'Phone away', value: eveningSource.phone_away_time.slice(0,5) })
-  const hasEveningData = !!(eveningSource?.phone_away_time || eveningSource?.wind_down)
-  summary.push({ icon: '🛏', label: lang === 'de' ? 'Eingeschlafen' : 'Asleep', value: bedTime ? bedTime.slice(0,5) : '—', pending: !bedTime && hasEveningData })
-  summary.push({ icon: '⏱', label: lang === 'de' ? 'Wind-down' : 'Wind-down', value: windDownMins !== null ? `${windDownMins}min` : '—', pending: windDownMins === null && hasEveningData })
-  if (log?.sleep_efficiency) summary.push({ icon: '📊', label: lang === 'de' ? 'Effizienz' : 'Efficiency', value: `${Math.round(log.sleep_efficiency)}%` })
-  if (eveningSource?.wind_down) summary.push({ icon: eveningSource.wind_down === 'good' ? '😌' : eveningSource.wind_down === 'ok' ? '😐' : '😣', label: lang === 'de' ? 'Qualität' : 'Quality', value: eveningSource.wind_down })
-  // Show actual measured temp if available, fall back to manual AC entry
-  const tempDisplay = hrAnalysis?.temp_avg_f || eveningSource?.ac_temp
-  const tempLabel = hrAnalysis?.temp_avg_f ? 'Avg temp' : 'AC'
-  const tempDetail = hrAnalysis?.temp_min_f && hrAnalysis?.temp_max_f
-    ? `${hrAnalysis.temp_min_f}–${hrAnalysis.temp_max_f}°F`
-    : null
-  if (tempDisplay) summary.push({ icon: '🌡', label: tempLabel, value: `${tempDisplay}°F`, sub: tempDetail })
 
   return (
     <div style={{ padding: '12px 14px', display: 'flex', flexDirection: 'column', gap: 12 }}>
-
-      {/* Last night summary */}
-      {summary.length > 0 && (
-        <div>
-          <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 8 }}>
-            {lang === 'de' ? 'Letzte Nacht' : 'Last night'}
-          </div>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 6 }}>
-            {summary.map((s, i) => (
-              <div key={i} style={{ background: s.pending ? 'transparent' : 'var(--surface2)', borderRadius: 8, padding: '7px 8px', textAlign: 'center', border: s.pending ? '1.5px dashed var(--border)' : 'none', opacity: s.pending ? 0.5 : 1 }}>
-                <div style={{ fontSize: 14, marginBottom: 2 }}>{s.icon}</div>
-                <div style={{ fontSize: 13, fontWeight: 700, fontFamily: 'var(--font-mono)', color: s.pending ? 'var(--text3)' : 'var(--text)' }}>{s.value}</div>
-                {s.sub && <div style={{ fontSize: 9, color: 'var(--blue)', marginTop: 0 }}>{s.sub}</div>}
-                <div style={{ fontSize: 9, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.04em', marginTop: 1 }}>{s.label}</div>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
 
       {/* Temperature curve — shown if SwitchBot data was captured */}
       {hrAnalysis?.temp_curve && (() => {
