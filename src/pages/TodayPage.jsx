@@ -12,14 +12,6 @@ import { MedTracker, SupTracker } from '../components/MedSupTracker'
 import { ProactiveNudges } from '../components/Briefing'
 import DailyContext from '../components/DailyContext'
 
-function fmtHours(h) {
-  if (!h || h <= 0) return '—'
-  const hrs = Math.floor(h)
-  const mins = Math.round((h - hrs) * 60)
-  if (hrs === 0) return `${mins}m`
-  if (mins === 0) return `${hrs}h`
-  return `${hrs}h ${mins}m`
-}
 
 
 // Emoji map for known activity/habit names
@@ -184,64 +176,7 @@ export default function TodayPage({ session }) {
         {/* Proactive nudges */}
         <ProactiveNudges session={session} todayLog={log} settings={settings} />
 
-        {/* 1. WHOOP Sleep */}
-        {!!log?.sleep_duration && (
-          <div className="card">
-            <div className="card-header">
-              <span className="card-title">{t('today_sleep')}</span>
-              <span className="source-pill source-whoop">WHOOP</span>
-            </div>
-            <div className="metric-grid">
-              <div className="metric-cell">
-                <div className="metric-label">{t('metric_duration')}</div>
-                <div className="metric-value" style={{ color: 'var(--blue)' }}>{fmtHours(log.sleep_duration)}</div>
-                <div className="bar-wrap"><div className="bar bar-blue" style={{ width: `${Math.min(100, (log.sleep_duration / 9) * 100)}%` }} /></div>
-              </div>
-              <div className="metric-cell">
-                <div className="metric-label">{t('metric_efficiency')}</div>
-                <div className="metric-value" style={{ color: 'var(--green)' }}>{Math.round(log.sleep_efficiency || 0)}<span className="metric-unit">%</span></div>
-                <div className="bar-wrap"><div className="bar bar-green" style={{ width: `${log.sleep_efficiency || 0}%` }} /></div>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* 2. WHOOP Recovery */}
-        <div className="card">
-          <div className="card-header">
-            <span className="card-title">{t('today_recovery')}</span>
-            <span className="badge" style={{ background: 'rgba(194,48,48,0.08)', color: '#8b1f1f' }}>{t('today_auto_sync')}</span>
-          </div>
-          {log?.recovery_score ? (
-            <div className="metric-grid">
-              <div className="metric-cell">
-                <div className="metric-label">{t('metric_recovery')}</div>
-                <div className="metric-value" style={{ color: log.recovery_score >= 67 ? 'var(--green)' : log.recovery_score >= 34 ? 'var(--amber)' : 'var(--red)' }}>
-                  {Math.round(log.recovery_score)}<span className="metric-unit">%</span>
-                </div>
-              </div>
-              <div className="metric-cell">
-                <div className="metric-label">{t('metric_hrv')}</div>
-                <div className="metric-value" style={{ color: 'var(--purple)' }}>{Math.round(log.hrv || 0)}<span className="metric-unit">ms</span></div>
-              </div>
-              <div className="metric-cell">
-                <div className="metric-label">{t('metric_rhr')}</div>
-                <div className="metric-value">{Math.round(log.rhr || 0)}<span className="metric-unit">bpm</span></div>
-              </div>
-              <div className="metric-cell">
-                <div className="metric-label">{t('metric_restorative')}</div>
-                <div className="metric-value" style={{ color: 'var(--purple)' }}>{fmtHours(log.sleep_restorative)}</div>
-              </div>
-            </div>
-          ) : (
-            <div style={{ padding: '16px 14px', color: 'var(--text2)', fontSize: 13, textAlign: 'center' }}>
-              {t('today_no_whoop')}
-              <div style={{ fontSize: 11, marginTop: 4, color: 'var(--text3)' }}>{t('today_no_whoop_sub')}</div>
-            </div>
-          )}
-        </div>
-
-        {/* 3. Daily Intelligence — WHOOP upload, morning check-in, insight */}
+        {/* Daily Intelligence — Check-in, Sleep, Insight */}
         <DailyIntelligence
           session={session}
           log={log}

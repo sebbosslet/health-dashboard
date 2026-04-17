@@ -422,7 +422,6 @@ export function EveningLog({ log, onSave, lang, habitGoals, activeHabits, onTogg
   const [windDown, setWindDown] = useState(log?.wind_down || '')
   const [note, setNote] = useState(log?.evening_note || '')
   const phoneRef = useRef(null)
-  const [acTemp, setAcTemp] = useState(log?.ac_temp || '')
   const [saving, setSaving] = useState(false)
 
   // Re-sync when log fields change
@@ -433,14 +432,13 @@ export function EveningLog({ log, onSave, lang, habitGoals, activeHabits, onTogg
     setHomeTime(home)
     setWindDown(log?.wind_down || '')
     setNote(log?.evening_note || '')
-    setAcTemp(log?.ac_temp != null ? String(log.ac_temp) : '')
     if (phoneRef.current) phoneRef.current.value = phone
     if (homeRef.current) homeRef.current.value = home
-  }, [log?.phone_away_time, log?.home_time, log?.wind_down, log?.evening_note, log?.ac_temp])
+  }, [log?.phone_away_time, log?.home_time, log?.wind_down, log?.evening_note])
 
   const labels = lang === 'de'
-    ? { habits: 'Abendgewohnheiten', phone: 'Handy weggelegt um', wind: 'Abend-Qualität', note: 'Etwas Besonderes?', save: 'Abend speichern', saving: 'Speichern...', good: 'Gut', ok: 'OK', poor: 'Schlecht', ac: 'AC-Temp (°F)' }
-    : { habits: 'Evening habits', phone: 'Phone away at', wind: 'Wind-down quality', note: 'Anything affect your evening?', save: 'Save evening', saving: 'Saving...', good: 'Good', ok: 'OK', poor: 'Poor', ac: 'AC temp (°F)' }
+    ? { habits: 'Abendgewohnheiten', phone: 'Handy weggelegt um', wind: 'Abend-Qualität', note: 'Etwas Besonderes?', save: 'Abend speichern', saving: 'Speichern...', good: 'Gut', ok: 'OK', poor: 'Schlecht' }
+    : { habits: 'Evening habits', phone: 'Phone away at', wind: 'Wind-down quality', note: 'Anything affect your evening?', save: 'Save evening', saving: 'Saving...', good: 'Good', ok: 'OK', poor: 'Poor' }
 
   async function handleSave() {
     // Capture current input values from both ref (DOM) and state (onBlur)
@@ -451,7 +449,6 @@ export function EveningLog({ log, onSave, lang, habitGoals, activeHabits, onTogg
       home_time: homeRef.current?.value || homeTime || null,
       wind_down: windDown || null,
       evening_note: note || null,
-      ac_temp: acTemp ? parseFloat(acTemp) : null,
     })
     setSaving(false)
     showToast(lang === 'de' ? 'Abend gespeichert' : 'Evening saved')
@@ -551,21 +548,6 @@ export function EveningLog({ log, onSave, lang, habitGoals, activeHabits, onTogg
               style={{ fontSize: 13, fontWeight: 700, fontFamily: 'var(--font-mono)', color: 'var(--green)', background: 'none', border: 'none', outline: 'none', width: 80, textAlign: 'right', cursor: 'pointer' }}
             />
           )}
-        </div>
-
-        {/* AC temp */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-          <div style={{ width: 28, height: 28, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16, flexShrink: 0 }}>❄</div>
-          <span style={{ fontSize: 13, fontWeight: 600, flex: 1, color: 'var(--text2)' }}>{labels.ac}</span>
-          <input
-            className="field-input"
-            type="number" step="1"
-            value={acTemp}
-            onChange={e => setAcTemp(e.target.value)}
-            placeholder="68"
-            inputMode="numeric"
-            style={{ width: 80, textAlign: 'right', fontSize: 13, fontWeight: 700, fontFamily: 'var(--font-mono)' }}
-          />
         </div>
 
       </div>
