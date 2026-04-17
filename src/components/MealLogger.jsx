@@ -84,7 +84,6 @@ export default function MealLogger({ session, date, onCaloriesUpdated }) {
   const [isAlcohol, setIsAlcohol] = useState(false)
   const [showReassess, setShowReassess] = useState(false)
   const [dinnerTime, setDinnerTime] = useState('')
-  const dinnerRef = useRef()
   const [reassessText, setReassessText] = useState('')
   const [reassessing, setReassessing] = useState(false)
 
@@ -310,43 +309,32 @@ Respond ONLY with valid JSON, no markdown:
       )}
 
             {/* Dinner time */}
-      <div style={{ padding: '8px 14px 10px', borderTop: '0.5px solid var(--border)', display: 'flex', alignItems: 'center', gap: 10 }}>
+      <div style={{ padding: '10px 14px 12px', borderTop: '0.5px solid var(--border)' }}>
         <button onClick={() => {
-          if (!dinnerTime) {
-            const now = format(new Date(), 'HH:mm')
-            setDinnerTime(now)
-            if (dinnerRef.current) dinnerRef.current.value = now
-            supabase.from('daily_logs').upsert({ user_id: session.user.id, date: dateStr, dinner_time: now, updated_at: new Date().toISOString() }, { onConflict: 'user_id,date' })
-          } else {
-            setDinnerTime('')
-            supabase.from('daily_logs').upsert({ user_id: session.user.id, date: dateStr, dinner_time: null, updated_at: new Date().toISOString() }, { onConflict: 'user_id,date' })
-          }
+          const now = format(new Date(), 'HH:mm')
+          setDinnerTime(now)
+          supabase.from('daily_logs').upsert({ user_id: session.user.id, date: dateStr, dinner_time: now, updated_at: new Date().toISOString() }, { onConflict: 'user_id,date' })
+          if (onDoneEating) onDoneEating()
         }} style={{
-          width: 26, height: 26, borderRadius: 7, flexShrink: 0,
-          border: `1.5px solid ${dinnerTime ? 'var(--green)' : 'var(--border)'}`,
-          background: dinnerTime ? 'var(--green)' : 'var(--surface2)',
-          display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', padding: 0,
+          width: '100%', padding: '11px 14px', borderRadius: 10,
+          background: 'var(--green-light)', border: '0.5px solid var(--green-border)',
+          color: 'var(--green)', fontSize: 13, fontWeight: 700,
+          cursor: 'pointer', fontFamily: 'inherit',
+          display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
         }}>
-          {dinnerTime && <svg width="13" height="13" viewBox="0 0 13 13" fill="none"><path d="M2.5 6.5l3 3 5-5" stroke="white" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/></svg>}
+          ✅ {lang === 'de' ? 'Fertig mit Essen für heute' : "Done eating for today"}
         </button>
-        <span style={{ fontSize: 12, fontWeight: 600, flex: 1, color: dinnerTime ? 'var(--text)' : 'var(--text2)' }}>
-          🍽 {lang === 'de' ? 'Abendessen um' : 'Dinner at'}
-        </span>
         {dinnerTime && (
-          <input
-            ref={dinnerRef}
-            type="time"
-            defaultValue={dinnerTime}
-            onChange={e => {
-              const v = e.target.value
-              if (v) { setDinnerTime(v); supabase.from('daily_logs').upsert({ user_id: session.user.id, date: dateStr, dinner_time: v, updated_at: new Date().toISOString() }, { onConflict: 'user_id,date' }) }
-            }}
-            onBlur={() => {
-              const v = dinnerRef.current?.value
-              if (v && v !== dinnerTime) { setDinnerTime(v); supabase.from('daily_logs').upsert({ user_id: session.user.id, date: dateStr, dinner_time: v, updated_at: new Date().toISOString() }, { onConflict: 'user_id,date' }) }
-            }}
-            style={{ fontSize: 13, fontWeight: 700, fontFamily: 'var(--font-mono)', color: 'var(--green)', background: 'none', border: 'none', outline: 'none', width: 80, textAlign: 'right', cursor: 'pointer' }}
-          />
+          <div style={{ fontSize: 11, color: 'var(--text3)', textAlign: 'center', marginTop: 6 }}>
+            {lang === 'de' ? `Letztes Essen: ${dinnerTime}` : `Last food at ${dinnerTime}`}
+            {' · '}
+            <button onClick={() => {
+              setDinnerTime('')
+              supabase.from('daily_logs').upsert({ user_id: session.user.id, date: dateStr, dinner_time: null, updated_at: new Date().toISOString() }, { onConflict: 'user_id,date' })
+            }} style={{ background: 'none', border: 'none', color: 'var(--text3)', cursor: 'pointer', fontFamily: 'inherit', fontSize: 11, textDecoration: 'underline' }}>
+              undo
+            </button>
+          </div>
         )}
       </div>
 

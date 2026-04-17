@@ -107,6 +107,7 @@ export default function TodayPage({ session }) {
   }, [session.user.id])
 
   const [activeActivity, setActiveActivity] = useState(new Set())
+  const [nutritionExpanded, setNutritionExpanded] = useState(true)
   const [activeHabits, setActiveHabits] = useState(new Set())
   const [mealCalories, setMealCalories] = useState(0)
   const [water, setWater] = useState('')
@@ -117,6 +118,7 @@ export default function TodayPage({ session }) {
       setActiveActivity(new Set(log.activity || []))
       setActiveHabits(new Set(log.habits || []))
       setWater(log.water ? String(log.water) : '0')
+      if (log.dinner_time) setNutritionExpanded(false)
     }
   }, [log])
 
@@ -253,29 +255,42 @@ export default function TodayPage({ session }) {
 
         {/* 5. Nutrition */}
         <div className="card">
-          <div className="card-header">
+          <div className="card-header" onClick={() => setNutritionExpanded(v => !v)} style={{ cursor: 'pointer' }}>
             <span className="card-title">{t('today_nutrition')}</span>
-            <span className="badge badge-green">{t('today_ai_photo')}</span>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              {!nutritionExpanded && (
+                <span style={{ fontSize: 11, color: 'var(--green)', fontWeight: 600 }}>
+                  ✅ {mealCalories > 0 ? `${mealCalories} kcal` : lang === 'de' ? 'Fertig' : 'Done'}
+                </span>
+              )}
+              {nutritionExpanded
+                ? <span className="badge badge-green">{t('today_ai_photo')}</span>
+                : <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M3 5l4 4 4-4" stroke="var(--text3)" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round"/></svg>
+              }
+            </div>
           </div>
-          <div style={{ padding: '10px 14px 0' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, color: 'var(--text2)', marginBottom: 5 }}>
-              <span>{t('metric_calories')}</span>
-              <span style={{ fontWeight: 600, color: mealCalories > calorieTarget ? 'var(--red)' : 'var(--amber)' }}>
-                {mealCalories.toLocaleString()} / {calorieTarget.toLocaleString()} kcal
-              </span>
-            </div>
-            <div className="bar-wrap-lg">
-              <div className="bar" style={{ width: `${calPct}%`, background: mealCalories > calorieTarget ? 'var(--red)' : 'var(--amber)' }} />
-            </div>
-          </div>
-          <MealLogger session={session} date={today} onCaloriesUpdated={setMealCalories} />
-          <div style={{ padding: '10px 14px 12px', borderTop: '0.5px solid var(--border)' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-              <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--text2)' }}>{t('metric_water')}</span>
-              <span style={{ fontSize: 12, fontWeight: 700, color: parseInt(water) >= waterTarget ? 'var(--green)' : 'var(--blue)' }}>
-                {water || 0} / {waterTarget} ml
-              </span>
-            </div>
+
+          {nutritionExpanded && (
+            <>
+              <div style={{ padding: '10px 14px 0' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, color: 'var(--text2)', marginBottom: 5 }}>
+                  <span>{t('metric_calories')}</span>
+                  <span style={{ fontWeight: 600, color: mealCalories > calorieTarget ? 'var(--red)' : 'var(--amber)' }}>
+                    {mealCalories.toLocaleString()} / {calorieTarget.toLocaleString()} kcal
+                  </span>
+                </div>
+                <div className="bar-wrap-lg">
+                  <div className="bar" style={{ width: `${calPct}%`, background: mealCalories > calorieTarget ? 'var(--red)' : 'var(--amber)' }} />
+                </div>
+              </div>
+              <MealLogger session={session} date={today} onCaloriesUpdated={setMealCalories} onDoneEating={() => setNutritionExpanded(false)} />
+              <div style={{ padding: '10px 14px 12px', borderTop: '0.5px solid var(--border)' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+                  <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--text2)' }}>{t('metric_water')}</span>
+                  <span style={{ fontSize: 12, fontWeight: 700, color: parseInt(water) >= waterTarget ? 'var(--green)' : 'var(--blue)' }}>
+                    {water || 0} / {waterTarget} ml
+                  </span>
+                </div>
             <div className="bar-wrap" style={{ marginBottom: 10 }}>
               <div className="bar bar-blue" style={{ width: `${waterPct}%` }} />
             </div>
@@ -290,6 +305,8 @@ export default function TodayPage({ session }) {
               )}
             </div>
           </div>
+            </>
+          )}
         </div>
 
         {/* 6. Steps */}
