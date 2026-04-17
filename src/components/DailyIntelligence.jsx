@@ -744,8 +744,16 @@ function SleepStatsCard({ userId, lang }) {
       })
   }, [userId])
 
-  if (loading) return null
-  if (!stats || stats.total === 0) return null
+  if (loading) return (
+    <div style={{ padding: '10px 14px 4px', fontSize: 11, color: 'var(--text3)' }}>
+      Loading sleep stats...
+    </div>
+  )
+  if (!stats || stats.total === 0) return (
+    <div style={{ padding: '10px 14px 12px', fontSize: 11, color: 'var(--text3)' }}>
+      📊 {lang === 'de' ? 'Noch keine Schlafanalysen — lade einen WHOOP Screenshot hoch.' : 'No sleep analyses yet — upload a WHOOP screenshot to start tracking.'}
+    </div>
+  )
 
   const stabColor = stats.avgStability >= 7 ? 'var(--green)' : stats.avgStability >= 4 ? 'var(--amber)' : 'var(--red)'
 
@@ -858,7 +866,9 @@ function SleepStatsCard({ userId, lang }) {
       )}
 
       {/* Historical sleep stats */}
-      <SleepStatsCard userId={session.user.id} lang={lang} />
+      <div style={{ padding: '0 14px 14px', borderTop: '0.5px solid var(--border)', paddingTop: 12 }}>
+        <SleepStatsCard userId={session.user.id} lang={lang} />
+      </div>
     </div>
   )
 }
