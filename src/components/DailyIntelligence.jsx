@@ -287,7 +287,7 @@ Sleep onset is typically 22:xx-23:xx or 00:xx-02:xx. Wake time is typically 06:x
 
 // ─── Morning Check-in ─────────────────────────────────────────────────────────
 
-function MorningCheckin({ log, onSave, lang, yesterdayLog, session }) {
+function MorningCheckin({ log, onSave, lang, yesterdayLog, session, date }) {
   const [energy, setEnergy] = useState(log?.morning_energy || 0)
   const [mood, setMood] = useState(log?.morning_mood || 0)
   const [soreness, setSoreness] = useState(log?.morning_soreness || 0)
@@ -322,27 +322,20 @@ function MorningCheckin({ log, onSave, lang, yesterdayLog, session }) {
   return (
     <div style={{ padding: '12px 14px', display: 'flex', flexDirection: 'column', gap: 14 }}>
 
-      {/* Yesterday evening context */}
-      {!!yesterdayLog && !!(yesterdayLog.phone_away_time || yesterdayLog.wind_down || yesterdayLog.home_time || (yesterdayLog.habits?.length > 0)) && (
-        <div style={{ background: 'var(--surface2)', borderRadius: 8, padding: '8px 12px', fontSize: 11, color: 'var(--text2)', lineHeight: 1.8 }}>
-          <div style={{ fontWeight: 700, color: 'var(--text)', marginBottom: 2 }}>
-            {lang === 'de' ? 'Gestern Abend' : 'Last evening'}
-          </div>
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '2px 10px' }}>
-            {[
-              yesterdayLog.home_time ? '🏠 ' + yesterdayLog.home_time.slice(0,5) : null,
-              yesterdayLog.dinner_time ? '🍽 ' + yesterdayLog.dinner_time.slice(0,5) : null,
-              yesterdayLog.phone_away_time ? '📵 ' + yesterdayLog.phone_away_time.slice(0,5) : null,
-              yesterdayLog.bed_time ? '🛏 ' + yesterdayLog.bed_time.slice(0,5) : null,
-              yesterdayLog.wind_down ? (yesterdayLog.wind_down === 'good' ? '😌' : yesterdayLog.wind_down === 'ok' ? '😐' : '😣') + ' ' + yesterdayLog.wind_down : null,
-              yesterdayLog.ac_temp ? '❄ ' + yesterdayLog.ac_temp + '°F' : null,
-              yesterdayLog.habits?.length > 0 ? '✓ ' + yesterdayLog.habits.length + ' ' + (lang === 'de' ? 'Gewohnheiten' : 'habits') : null,
-            ].filter(Boolean).map((item, i) => (
-              <span key={i} style={{ color: 'var(--text2)' }}>{item}</span>
-            ))}
-          </div>
+      {/* WHOOP screenshot upload — data collection */}
+      <div>
+        <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 8 }}>
+          {lang === 'de' ? '📸 WHOOP Screenshot' : '📸 WHOOP screenshot'}
         </div>
-      )}
+        <WhoopUpload session={session} date={date} lang={lang} bedTime={log?.bed_time || ''} onRefetchHr={() => {}} onDone={onSave} />
+      </div>
+
+      <div style={{ height: 0, borderTop: '0.5px solid var(--border)' }} />
+
+      {/* Morning subjective check-in */}
+      <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+        {lang === 'de' ? '🌅 Morgen-Check-in' : '🌅 Morning check-in'}
+      </div>
 
       {[
         { label: labels.energy, val: energy, set: setEnergy, key: 'energy' },
@@ -825,31 +818,7 @@ function WhoopTab({ log, yesterdayLog, session, lang, onRefresh }) {
   return (
     <div style={{ padding: '12px 14px', display: 'flex', flexDirection: 'column', gap: 12 }}>
 
-      {/* Success state or upload widget */}
-      {uploaded && !forceUpload ? (
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 12px', background: 'var(--green-light)', borderRadius: 10, border: '0.5px solid var(--green-border)' }}>
-          <span style={{ fontSize: 18 }}>✅</span>
-          <div style={{ flex: 1 }}>
-            <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--green)' }}>
-              {lang === 'de' ? 'Screenshot analysiert' : 'Screenshot analysed'}
-              {windDownMins !== null && (
-                <span style={{ fontWeight: 400, marginLeft: 6 }}>
-                  · {windDownMins}min wind-down
-                </span>
-              )}
-            </div>
-            <div style={{ fontSize: 10, color: 'var(--green)', opacity: 0.75, marginTop: 1 }}>
-              🛏 {bedTime.slice(0,5)} · <button onClick={() => setForceUpload(true)} style={{ fontSize: 10, color: 'var(--green)', background: 'none', border: 'none', cursor: 'pointer', padding: 0, fontFamily: 'inherit', opacity: 0.7, textDecoration: 'underline' }}>
-                re-upload
-              </button>
-            </div>
-          </div>
-        </div>
-      ) : (
-        <WhoopUpload session={session} date={date} lang={lang} bedTime='' onRefetchHr={fetchHrAnalysis} onDone={(fields) => { setForceUpload(false); if (onRefresh) onRefresh(fields) }} />
-      )}
-
-      {/* Last night summary — always shown if there's data */}
+      {/* Last night summary */}
       {summary.length > 0 && (
         <div>
           <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 8 }}>
@@ -1002,17 +971,6 @@ ADDITIONAL CONTEXT FROM SEBASTIAN: ${extraContext}` : '')
 
   return (
     <div style={{ padding: '12px 14px', display: 'flex', flexDirection: 'column', gap: 12 }}>
-      {/* Context banner */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11, color: 'var(--text3)' }}>
-        <span style={{ padding: '2px 8px', background: 'var(--surface2)', borderRadius: 10 }}>
-          {lang === 'de' ? `Abend ${yesterdayDate}` : `Evening ${yesterdayDate}`}
-        </span>
-        <svg width="16" height="8" viewBox="0 0 16 8" fill="none"><path d="M0 4h14M10 1l4 3-4 3" stroke="var(--text3)" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round"/></svg>
-        <span style={{ padding: '2px 8px', background: 'var(--green-light)', borderRadius: 10, color: 'var(--green)', fontWeight: 600 }}>
-          {lang === 'de' ? `WHOOP ${todayDate}` : `WHOOP ${todayDate}`}
-        </span>
-      </div>
-
       {/* Anomaly prompt — shown when fragmentation detected */}
       {showAnomalyPrompt && !insight && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
@@ -1093,13 +1051,15 @@ export default function DailyIntelligence({ session, log, onSave, habitGoals, ac
   const hasMorning = log?.morning_energy > 0
   const hasWhoop = !!(log?.bed_time || yesterdayLog?.bed_time)
   const hasInsight = !!log?.ai_insight
+  // Check-in is complete when both WHOOP uploaded AND morning scores logged
+  const hasCheckin = hasMorning && hasWhoop
 
   // Smart default: guide user through the flow in order
-  const defaultSection = !hasMorning ? 'checkin' : !hasWhoop ? 'sleep' : 'insight'
+  const defaultSection = !hasCheckin ? 'checkin' : !hasInsight ? 'sleep' : 'insight'
   const [section, setSection] = useState(defaultSection)
 
   const sections = [
-    { key: 'checkin', label: lang === 'de' ? '🌅 Check-in' : '🌅 Check-in', done: hasMorning },
+    { key: 'checkin', label: lang === 'de' ? '🌅 Check-in' : '🌅 Check-in', done: hasCheckin },
     { key: 'sleep',   label: lang === 'de' ? '😴 Schlaf'   : '😴 Sleep',    done: hasWhoop },
     { key: 'insight', label: lang === 'de' ? '✨ Analyse'  : '✨ Insight',   done: hasInsight },
   ]
@@ -1132,7 +1092,7 @@ export default function DailyIntelligence({ session, log, onSave, habitGoals, ac
 
       {/* 1. Check-in — morning subjective + last evening summary */}
       {section === 'checkin' && (
-        <MorningCheckin log={log} onSave={onSave} lang={lang} yesterdayLog={yesterdayLog} session={session} />
+        <MorningCheckin log={log} onSave={onSave} lang={lang} yesterdayLog={yesterdayLog} session={session} date={format(new Date(), 'yyyy-MM-dd')} />
       )}
 
       {/* 2. Sleep — WHOOP upload + last night data + HR analysis */}
