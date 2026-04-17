@@ -37,6 +37,32 @@ export default function SleepPatterns({ userId }) {
   useEffect(() => {
     if (!userId) { setStatus('empty'); return }
 
+    // Check cache first — only recompute if new sleep_hr_analysis exists since last cache
+    supabase.from('user_settings').select('sleep_patterns_cache, sleep_patterns_date').eq('user_id', userId).maybeSingle()
+      .then(({ data: settings }) => {
+        // Get latest sleep_hr_analysis date to detect new data
+        supabase.from('sleep_hr_analysis').select('date').eq('user_id', userId).order('date', { ascending: false }).limit(1).maybeSingle()
+          .then(({ data: latest }) => {
+            const latestDate = latest?.date || null
+            const cacheDate = settings?.sleep_patterns_date || null
+            const cacheData = settings?.sleep_patterns_cache
+
+            // Use cache if it's current (same latest date) and valid
+            if (cacheData && cacheDate && latestDate && cacheDate >= latestDate) {
+              try {
+                setData(typeof cacheData === 'string' ? JSON.parse(cacheData) : cacheData)
+                setStatus('ready')
+                return
+              } catch(e) { /* cache corrupt, recompute */ }
+            }
+
+            // No valid cache — compute fresh
+            computePatterns(userId, latestDate)
+          })
+      })
+  }, [userId])
+
+  function computePatterns(userId, latestDate) {
     Promise.all([
       supabase.from('daily_logs').select('date,recovery_score,hrv,rhr,sleep_duration,sleep_efficiency,phone_away_time,wind_down,ac_temp,dinner_time,home_time,activity,habits,water,steps,bed_time').eq('user_id', userId).order('date', { ascending: true }).limit(90),
       supabase.from('sleep_hr_analysis').select('date,stability_score,deep_pct,rem_pct,awake_pct,spike_count,likely_cause').eq('user_id', userId).order('date', { ascending: true }).limit(90),
@@ -148,13 +174,21 @@ export default function SleepPatterns({ userId }) {
         homeEarlyStab: split(l => l.home_time < '19:00' && l.home_time, l => l.home_time >= '21:00' && l.home_time, 'stability'),
       }
 
-      setData({ baseline, causes, c, recoveryTrend })
+      const result = { baseline, causes, c, recoveryTrend }
+      setData(result)
       setStatus('ready')
+      // Save to cache so next tab open is instant
+      supabase.from('user_settings').upsert({
+        user_id: userId,
+        sleep_patterns_cache: JSON.stringify(result),
+        sleep_patterns_date: latestDate,
+        updated_at: new Date().toISOString(),
+      }, { onConflict: 'user_id' }).then(() => {})
     }).catch(err => {
       console.error('SleepPatterns error:', err)
       setStatus('error')
     })
-  }, [userId])
+  }
 
   if (status === 'loading') return <div style={{ padding: '16px 14px', fontSize: 11, color: 'var(--text3)' }}>Analysing patterns...</div>
   if (status === 'error') return <div style={{ padding: '16px 14px', fontSize: 11, color: 'var(--text3)' }}>Pattern analysis unavailable.</div>
