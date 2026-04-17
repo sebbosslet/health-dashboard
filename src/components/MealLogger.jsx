@@ -66,7 +66,7 @@ const CONFIDENCE_COLORS = {
   low: 'var(--red)',
 }
 
-export default function MealLogger({ session, date, onCaloriesUpdated }) {
+export default function MealLogger({ session, date, onCaloriesUpdated, onDoneEating, addTriggered, onAddHandled }) {
   const { t, lang } = useLang()
   const fileRef = useRef()
   const [meals, setMeals] = useState([])

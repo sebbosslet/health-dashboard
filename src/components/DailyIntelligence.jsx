@@ -59,11 +59,11 @@ SEBASTIAN'S PERSONAL PATTERNS (${historicalLogs.length} days of data):
 
   const yesterdayDate = yesterdayLog ? format(new Date(yesterdayLog.date), 'd MMM') : 'yesterday'
   const caffeineContext = caffeineMeals.length
-    ? `\n- Caffeine: ${caffeineMeals.map(m => `${m.meal_name}${m.consumed_at ? ` at ${m.consumed_at.slice(0,5)} (50% cleared ~${String((parseInt(m.consumed_at.split(':')[0])+5)%24).padStart(2,'0')}:${m.consumed_at.slice(3,5)})` : ''}`).join(', ')}`
+    ? '\n- Caffeine: ' + caffeineMeals.map(m => m.meal_name + (m.consumed_at ? ' at ' + m.consumed_at.slice(0,5) + ' (50% cleared ~' + String((parseInt(m.consumed_at.split(':')[0])+5)%24).padStart(2,'0') + ':' + m.consumed_at.slice(3,5) + ')' : '')).join(', ')
     : '\n- Caffeine: none logged'
 
   const alcoholContext = alcoholMeals.length
-    ? `\n- Alcohol: ${alcoholMeals.map(m => `${m.meal_name}${m.consumed_at ? ` at ${m.consumed_at.slice(0,5)}` : ''}`).join(', ')} — alcohol significantly fragments sleep, suppresses REM, raises RHR`
+    ? '\n- Alcohol: ' + alcoholMeals.map(m => m.meal_name + (m.consumed_at ? ' at ' + m.consumed_at.slice(0,5) : '')).join(', ') + ' — alcohol significantly fragments sleep, suppresses REM, raises RHR'
     : '\n- Alcohol: none logged'
 
   const eventsContext = yesterdayEvents?.length
@@ -233,7 +233,7 @@ Sleep onset is typically 22:xx-23:xx or 00:xx-02:xx. Wake time is typically 06:x
       setDone(true)
       if (onRefetchHr) onRefetchHr()
       if (onDone) await onDone({ bed_time: result.sleep_onset || null })
-      showToast(lang === 'de' ? `Analysiert${result.sleep_onset ? ` · Einschlafzeit ${result.sleep_onset}` : ''}` : `Analysed${result.sleep_onset ? ` · Sleep onset ${result.sleep_onset}` : ''}`)
+      showToast(lang === 'de' ? 'Analysiert' + (result.sleep_onset ? ' · Einschlafzeit ' + result.sleep_onset : '') : 'Analysed' + (result.sleep_onset ? ' · Sleep onset ' + result.sleep_onset : ''))
     } catch (err) {
       console.error(err)
       showToast(lang === 'de' ? 'Analyse fehlgeschlagen' : 'Analysis failed')
@@ -734,13 +734,16 @@ SLEEP HR ANALYSIS:
       const medContext = medLogs?.length ? '\n- Medications taken: ' + medLogs.length + ' item(s)' + (medLogs[0]?.taken_time ? ', last at ' + (medLogs[medLogs.length-1]?.taken_time?.slice(0,5) || '') : '') : ''
 
       const poopContext = poopLogs?.length
-        ? `
-- Bowel movements yesterday: ${poopLogs.length}x — ${poopLogs.map(p => `Type ${p.bristol_type}${p.color && p.color !== 'brown' ? ` (${p.color})` : ''}${p.flags?.length ? ` ⚠️ ${p.flags.join(', ')}` : ''}`).join(', ')}${poopLogs[0]?.assessment ? '. ' + poopLogs[0].assessment : ''}`
+        ? '\n- Bowel movements yesterday: ' + poopLogs.length + 'x — ' +
+          poopLogs.map(p => 'Type ' + p.bristol_type +
+            (p.color && p.color !== 'brown' ? ' (' + p.color + ')' : '') +
+            (p.flags?.length ? ' ⚠️ ' + p.flags.join(', ') : '')
+          ).join(', ') +
+          (poopLogs[0]?.assessment ? '. ' + poopLogs[0].assessment : '')
         : ''
 
       const goalsContext = goals?.length
-        ? `
-PERSONAL TARGETS: ${goals.filter(g => g.target_value).map(g => `${g.name} ${g.target_value}/${g.timeframe}`).join(' · ')}`
+        ? '\nPERSONAL TARGETS: ' + goals.filter(g => g.target_value).map(g => g.name + ' ' + g.target_value + '/' + g.timeframe).join(' · ')
         : ''
 
       const fullHrContext = hrContext + suppContext + medContext + poopContext + goalsContext +
