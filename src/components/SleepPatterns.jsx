@@ -2,6 +2,8 @@ import { useState, useEffect } from 'react'
 import { supabase } from '../lib/supabase'
 import { useLang } from '../lib/LangContext'
 
+const pct = (n, t) => t ? Math.round(n / t * 100) : 0
+
 function CorrRow({ icon, label, yesLabel, yesVal, noLabel, noVal, nYes, unit = '%', invert = false }) {
   if (yesVal == null || nYes < 2) return null
   const delta = noVal != null ? +(yesVal - noVal).toFixed(1) : null
