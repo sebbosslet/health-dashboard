@@ -233,6 +233,48 @@ Sleep onset is typically 22:xx-23:xx or 00:xx-02:xx. Wake time is typically 06:x
 
       setDone(true)
       if (onRefetchHr) onRefetchHr()
+
+      // Fetch overnight temperature readings from phone_away_time → now
+      try {
+        const yesterday = new Date(); yesterday.setDate(yesterday.getDate() - 1)
+        const yesterdayStr = yesterday.toISOString().slice(0, 10)
+        // Get phone_away_time from yesterday's log to anchor the window
+        const { data: yLog } = await supabase.from('daily_logs').select('phone_away_time,home_time').eq('user_id', session.user.id).eq('date', yesterdayStr).maybeSingle()
+        const phoneAway = yLog?.phone_away_time || yLog?.home_time
+        const windowStart = phoneAway
+          ? new Date(`${yesterdayStr}T${phoneAway}`).toISOString()
+          : new Date(yesterday.setHours(21, 0, 0, 0)).toISOString()
+
+        const { data: tempReadings } = await supabase.from('temperature_readings')
+          .select('recorded_at, temperature_c, temperature_f, humidity')
+          .gte('recorded_at', windowStart)
+          .lte('recorded_at', new Date().toISOString())
+          .order('recorded_at', { ascending: true })
+
+        if (tempReadings?.length >= 2) {
+          const temps = tempReadings.map(r => r.temperature_f)
+          const avgTempF = +(temps.reduce((a, b) => a + b, 0) / temps.length).toFixed(1)
+          const minTempF = +Math.min(...temps).toFixed(1)
+          const maxTempF = +Math.max(...temps).toFixed(1)
+          const avgHumidity = +(tempReadings.map(r => r.humidity).reduce((a, b) => a + b, 0) / tempReadings.length).toFixed(0)
+          // Store summary + full curve JSON in sleep_hr_analysis
+          await supabase.from('sleep_hr_analysis').upsert({
+            user_id: session.user.id,
+            date,
+            temp_avg_f: avgTempF,
+            temp_min_f: minTempF,
+            temp_max_f: maxTempF,
+            temp_avg_c: +((avgTempF - 32) * 5/9).toFixed(1),
+            humidity_avg: avgHumidity,
+            temp_curve: JSON.stringify(tempReadings.map(r => ({ t: r.recorded_at, f: r.temperature_f, c: r.temperature_c }))),
+          }, { onConflict: 'user_id,date' })
+          // Also update ac_temp in daily_logs with actual measured average
+          await supabase.from('daily_logs').upsert({ user_id: session.user.id, date, ac_temp: avgTempF, updated_at: new Date().toISOString() }, { onConflict: 'user_id,date' })
+        }
+      } catch (tempErr) {
+        console.warn('Temperature fetch failed (non-critical):', tempErr.message)
+      }
+
       if (onDone) await onDone({ bed_time: result.sleep_onset || null })
       showToast(lang === 'de' ? 'Analysiert' + (result.sleep_onset ? ' · Einschlafzeit ' + result.sleep_onset : '') : 'Analysed' + (result.sleep_onset ? ' · Sleep onset ' + result.sleep_onset : ''))
     } catch (err) {
@@ -894,7 +936,13 @@ function WhoopTab({ log, yesterdayLog, session, lang, onRefresh }) {
   summary.push({ icon: '⏱', label: lang === 'de' ? 'Wind-down' : 'Wind-down', value: windDownMins !== null ? `${windDownMins}min` : '—', pending: windDownMins === null && hasEveningData })
   if (log?.sleep_efficiency) summary.push({ icon: '📊', label: lang === 'de' ? 'Effizienz' : 'Efficiency', value: `${Math.round(log.sleep_efficiency)}%` })
   if (eveningSource?.wind_down) summary.push({ icon: eveningSource.wind_down === 'good' ? '😌' : eveningSource.wind_down === 'ok' ? '😐' : '😣', label: lang === 'de' ? 'Qualität' : 'Quality', value: eveningSource.wind_down })
-  if (eveningSource?.ac_temp) summary.push({ icon: '❄', label: 'AC', value: `${eveningSource.ac_temp}°F` })
+  // Show actual measured temp if available, fall back to manual AC entry
+  const tempDisplay = hrAnalysis?.temp_avg_f || eveningSource?.ac_temp
+  const tempLabel = hrAnalysis?.temp_avg_f ? 'Avg temp' : 'AC'
+  const tempDetail = hrAnalysis?.temp_min_f && hrAnalysis?.temp_max_f
+    ? `${hrAnalysis.temp_min_f}–${hrAnalysis.temp_max_f}°F`
+    : null
+  if (tempDisplay) summary.push({ icon: '🌡', label: tempLabel, value: `${tempDisplay}°F`, sub: tempDetail })
 
   return (
     <div style={{ padding: '12px 14px', display: 'flex', flexDirection: 'column', gap: 12 }}>
@@ -910,6 +958,7 @@ function WhoopTab({ log, yesterdayLog, session, lang, onRefresh }) {
               <div key={i} style={{ background: s.pending ? 'transparent' : 'var(--surface2)', borderRadius: 8, padding: '7px 8px', textAlign: 'center', border: s.pending ? '1.5px dashed var(--border)' : 'none', opacity: s.pending ? 0.5 : 1 }}>
                 <div style={{ fontSize: 14, marginBottom: 2 }}>{s.icon}</div>
                 <div style={{ fontSize: 13, fontWeight: 700, fontFamily: 'var(--font-mono)', color: s.pending ? 'var(--text3)' : 'var(--text)' }}>{s.value}</div>
+                {s.sub && <div style={{ fontSize: 9, color: 'var(--blue)', marginTop: 0 }}>{s.sub}</div>}
                 <div style={{ fontSize: 9, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.04em', marginTop: 1 }}>{s.label}</div>
               </div>
             ))}
@@ -917,6 +966,39 @@ function WhoopTab({ log, yesterdayLog, session, lang, onRefresh }) {
         </div>
       )}
 
+
+      {/* Temperature curve — shown if SwitchBot data was captured */}
+      {hrAnalysis?.temp_curve && (() => {
+        try {
+          const curve = JSON.parse(hrAnalysis.temp_curve)
+          if (!curve?.length) return null
+          const temps = curve.map(p => p.f)
+          const minT = Math.min(...temps), maxT = Math.max(...temps)
+          const range = maxT - minT || 1
+          return (
+            <div style={{ padding: '12px 14px', borderTop: '0.5px solid var(--border)' }}>
+              <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 8 }}>
+                🌡 Overnight temperature · avg {hrAnalysis.temp_avg_f}°F · {hrAnalysis.temp_min_f}–{hrAnalysis.temp_max_f}°F range
+                {hrAnalysis.humidity_avg ? ' · ' + hrAnalysis.humidity_avg + '% humidity' : ''}
+              </div>
+              <div style={{ position: 'relative', height: 52, background: 'var(--surface2)', borderRadius: 6, overflow: 'hidden' }}>
+                <svg width="100%" height="52" viewBox={'0 0 ' + curve.length + ' 52'} preserveAspectRatio="none" style={{ display: 'block' }}>
+                  <polyline
+                    points={curve.map((p, i) => (i + 0.5) + ',' + (52 - ((p.f - minT) / range) * 40 - 6)).join(' ')}
+                    fill="none" stroke="var(--blue)" strokeWidth="1.5" strokeLinejoin="round"
+                  />
+                </svg>
+                <div style={{ position: 'absolute', top: 3, left: 6, fontSize: 9, color: 'var(--blue)', fontFamily: 'var(--font-mono)' }}>{maxT}°F</div>
+                <div style={{ position: 'absolute', bottom: 3, left: 6, fontSize: 9, color: 'var(--text3)', fontFamily: 'var(--font-mono)' }}>{minT}°F</div>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 3, fontSize: 9, color: 'var(--text3)' }}>
+                <span>{new Date(curve[0].t).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                <span>{new Date(curve[curve.length-1].t).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+              </div>
+            </div>
+          )
+        } catch(e) { return null }
+      })()}
 
       {/* Patterns & correlations */}
       <div style={{ borderTop: '0.5px solid var(--border)' }}>
@@ -997,7 +1079,12 @@ SLEEP HR ANALYSIS:
 - Stages: Awake ${hrData.awake_pct || '—'}%, Light ${hrData.light_pct || '—'}%, Deep ${hrData.deep_pct || '—'}%, REM ${hrData.rem_pct || '—'}%
 - HR: baseline ${hrData.hr_baseline || '—'}bpm, spikes ${hrData.spike_count ?? '—'} (max ${hrData.spike_max_magnitude || '—'}bpm), stability ${hrData.stability_score || '—'}/10
 - Likely cause: ${hrData.likely_cause || 'unclear'} (${hrData.cause_confidence || '—'}) — ${hrData.cause_reasoning || 'n/a'}
-- Recommendation: ${hrData.recommendation || 'n/a'}` : ''
+- Recommendation: ${hrData.recommendation || 'n/a'}` + (hrData.temp_avg_f ? `
+BEDROOM TEMPERATURE (SwitchBot measured):
+- Average: ${hrData.temp_avg_f}°F / ${hrData.temp_avg_c}°C
+- Range: ${hrData.temp_min_f}–${hrData.temp_max_f}°F overnight
+- Humidity: ${hrData.humidity_avg || '—'}%
+- Note: optimal sleep temperature is 65–68°F (18–20°C)` : '') : ''
 
       const suppContext = suppLogs?.length ? '\n- Supplements taken: ' + suppLogs.length + ' item(s)' + (suppLogs[0]?.taken_time ? ', last at ' + (suppLogs[suppLogs.length-1]?.taken_time?.slice(0,5) || '') : '') : '\n- Supplements: none logged'
 
