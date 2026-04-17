@@ -61,11 +61,13 @@ export default function PoopTracker({ session, date }) {
   const [saving, setSaving] = useState(false)
   const fileRef = useRef()
 
-  useEffect(() => { fetchLogs() }, [date])
+  const dateStr = format(date || new Date(), 'yyyy-MM-dd')
+
+  useEffect(() => { fetchLogs() }, [dateStr])
 
   async function fetchLogs() {
     const { data } = await supabase.from('poop_logs')
-      .select('*').eq('user_id', session.user.id).eq('date', date)
+      .select('*').eq('user_id', session.user.id).eq('date', dateStr)
       .order('logged_at', { ascending: false })
     setLogs(data || [])
   }
@@ -94,7 +96,7 @@ export default function PoopTracker({ session, date }) {
     setSaving(true)
     const { error } = await supabase.from('poop_logs').insert({
       user_id: session.user.id,
-      date,
+      date: dateStr,
       bristol_type: selectedType,
       logged_at: time,
       note: note.trim() || null,

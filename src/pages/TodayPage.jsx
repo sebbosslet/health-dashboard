@@ -270,8 +270,7 @@ export default function TodayPage({ session }) {
             </div>
           </div>
 
-          {nutritionExpanded && (
-            <>
+          <div style={{ display: nutritionExpanded ? 'block' : 'none' }}>
               <div style={{ padding: '10px 14px 0' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, color: 'var(--text2)', marginBottom: 5 }}>
                   <span>{t('metric_calories')}</span>
@@ -284,8 +283,8 @@ export default function TodayPage({ session }) {
                 </div>
               </div>
               <MealLogger session={session} date={today} onCaloriesUpdated={setMealCalories} onDoneEating={() => setNutritionExpanded(false)} />
-            </>
-          )}
+            </div>
+            </div>
         </div>
 
         {/* 5b. Hydration */}
