@@ -284,7 +284,6 @@ export default function TodayPage({ session }) {
               </div>
               <MealLogger session={session} date={today} onCaloriesUpdated={setMealCalories} onDoneEating={() => setNutritionExpanded(false)} />
             </div>
-            </div>
         </div>
 
         {/* 5b. Hydration */}
