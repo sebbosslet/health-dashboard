@@ -278,14 +278,16 @@ Respond ONLY with valid JSON, no markdown:
       {meals.length > 0 && (
         <div style={{ borderBottom: '0.5px solid var(--border)' }}>
           {meals.map(meal => (
-            <div key={meal.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '9px 14px', borderBottom: '0.5px solid var(--border)' }}>
+            <div key={meal.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '9px 14px', borderBottom: '0.5px solid var(--border)', background: meal.is_alcohol ? 'rgba(107,63,160,0.06)' : meal.is_caffeinated ? 'rgba(186,117,23,0.06)' : 'transparent', borderLeft: meal.is_alcohol ? '3px solid var(--purple)' : meal.is_caffeinated ? '3px solid var(--amber)' : '3px solid transparent' }}>
               <div style={{ flex: 1 }}>
-                <div style={{ fontSize: 13, fontWeight: 600 }}>{meal.meal_name}</div>
-                <div style={{ fontSize: 11, color: 'var(--text2)', marginTop: 1, display: 'flex', gap: 6 }}>
+                <div style={{ fontSize: 13, fontWeight: 600 }}>{meal.is_alcohol ? '🍷 ' : meal.is_caffeinated ? '☕ ' : ''}{meal.meal_name}</div>
+                <div style={{ fontSize: 11, color: 'var(--text2)', marginTop: 1, display: 'flex', gap: 6, flexWrap: 'wrap' }}>
                   <span>{mealTypeLabel(meal.meal_type)}</span>
                   {meal.protein && <span>P {Math.round(meal.protein)}g</span>}
                   {meal.carbs && <span>C {Math.round(meal.carbs)}g</span>}
                   {meal.fat && <span>F {Math.round(meal.fat)}g</span>}
+                  {meal.is_caffeinated && meal.consumed_at && <span style={{ color: 'var(--amber)' }}>☕ {meal.consumed_at.slice(0,5)}</span>}
+                  {meal.is_alcohol && meal.consumed_at && <span style={{ color: 'var(--purple)' }}>🍷 {meal.consumed_at.slice(0,5)}</span>}
                   {meal.source === 'ai_photo' && (
                     <span style={{ color: 'var(--green)', display: 'flex', alignItems: 'center', gap: 2 }}>
                       <svg width="10" height="10" viewBox="0 0 10 10" fill="none"><path d="M5 1l1 2 2.5.4-1.8 1.7.4 2.5L5 6.5l-2.1 1.1.4-2.5L1.5 3.4 4 3 5 1z" stroke="var(--green)" strokeWidth="0.8" strokeLinejoin="round"/></svg>
@@ -331,9 +333,20 @@ Respond ONLY with valid JSON, no markdown:
               🍽 {lang === 'de' ? 'Abendessen um' : 'Dinner at'}
             </span>
             {dinnerTime && (
-              <input ref={dinnerRef} type="time" defaultValue={dinnerTime}
-                onChange={e => { setDinnerTime(e.target.value); supabase.from('daily_logs').upsert({ user_id: session.user.id, date: dateStr, dinner_time: e.target.value, updated_at: new Date().toISOString() }, { onConflict: 'user_id,date' }) }}
-                onBlur={e => { setDinnerTime(e.target.value); supabase.from('daily_logs').upsert({ user_id: session.user.id, date: dateStr, dinner_time: e.target.value, updated_at: new Date().toISOString() }, { onConflict: 'user_id,date' }) }}
+              <input
+                ref={dinnerRef}
+                type="time"
+                defaultValue={dinnerTime}
+                onChange={e => {
+                  const v = e.target.value
+                  setDinnerTime(v)
+                  if (v) supabase.from('daily_logs').upsert({ user_id: session.user.id, date: dateStr, dinner_time: v, updated_at: new Date().toISOString() }, { onConflict: 'user_id,date' })
+                }}
+                onBlur={e => {
+                  const v = dinnerRef.current?.value || e.target.value
+                  setDinnerTime(v)
+                  if (v) supabase.from('daily_logs').upsert({ user_id: session.user.id, date: dateStr, dinner_time: v, updated_at: new Date().toISOString() }, { onConflict: 'user_id,date' })
+                }}
                 style={{ fontSize: 13, fontWeight: 700, fontFamily: 'var(--font-mono)', color: 'var(--green)', background: 'none', border: 'none', outline: 'none', width: 80, textAlign: 'right', cursor: 'pointer' }}
               />
             )}

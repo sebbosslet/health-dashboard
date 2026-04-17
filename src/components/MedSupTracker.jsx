@@ -17,12 +17,13 @@ function timeDiff(scheduled, actual) {
 
 // ─── Single logged item row ───────────────────────────────────────────────────
 
-function LogRow({ item, log, onToggle, onSaveTime, type, lang }) {
+function LogRow({ item, log, onToggle, onSaveTime, onSetQuantity, type, lang }) {
   const isMed = type === 'medication'
   const taken = !!log?.taken
+  const quantity = log?.quantity || 1
+  const isMulti = item.multi_dose
   const [showEdit, setShowEdit] = useState(false)
   const [takenTime, setTakenTime] = useState(log?.taken_time?.slice(0,5) || format(new Date(), 'HH:mm'))
-  const diff = taken && log?.taken_time ? timeDiff(null, log.taken_time.slice(0,5)) : null
 
   async function handleCheck() {
     const now = format(new Date(), 'HH:mm')
@@ -69,8 +70,15 @@ function LogRow({ item, log, onToggle, onSaveTime, type, lang }) {
           )}
         </div>
 
-        {/* Timestamp */}
-        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 1, flexShrink: 0 }}>
+        {/* Timestamp + quantity */}
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 3, flexShrink: 0 }}>
+          {taken && isMulti && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+              <button onClick={() => onSetQuantity(item.id, Math.max(1, quantity - 1))} style={{ width: 22, height: 22, borderRadius: 6, border: '0.5px solid var(--border)', background: 'var(--surface2)', cursor: 'pointer', fontFamily: 'inherit', fontSize: 14, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>−</button>
+              <span style={{ fontSize: 12, fontWeight: 700, fontFamily: 'var(--font-mono)', minWidth: 16, textAlign: 'center' }}>{quantity}×</span>
+              <button onClick={() => onSetQuantity(item.id, quantity + 1)} style={{ width: 22, height: 22, borderRadius: 6, border: '0.5px solid var(--border)', background: 'var(--surface2)', cursor: 'pointer', fontFamily: 'inherit', fontSize: 14, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>+</button>
+            </div>
+          )}
           {taken && log?.taken_time && (
             <span style={{ fontSize: 12, fontFamily: 'var(--font-mono)', color: 'var(--green)', fontWeight: 600 }}>
               {log.taken_time.slice(0,5)}
@@ -228,6 +236,14 @@ function Container({ type, userId, date, lang }) {
     fetchAll()
   }
 
+  async function handleSetQuantity(itemId, quantity) {
+    const existing = logs[itemId]
+    if (existing) {
+      await supabase.from(logTable).update({ quantity }).eq('id', existing.id)
+      fetchAll()
+    }
+  }
+
   async function handleSaveTime(itemId, takenTime) {
     const existing = logs[itemId]
     if (existing) await supabase.from(logTable).update({ taken_time: takenTime }).eq('id', existing.id)
@@ -267,6 +283,7 @@ function Container({ type, userId, date, lang }) {
             log={logs[item.id]}
             onToggle={handleToggle}
             onSaveTime={handleSaveTime}
+            onSetQuantity={handleSetQuantity}
             type={type}
             lang={lang}
           />

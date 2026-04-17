@@ -365,6 +365,8 @@ function MorningCheckin({ log, onSave, lang, yesterdayLog, session }) {
 
 export function EveningLog({ log, onSave, lang, habitGoals, activeHabits, onToggleHabit }) {
   const [phoneAway, setPhoneAway] = useState(log?.phone_away_time?.slice(0,5) || '')
+  const [homeTime, setHomeTime] = useState(log?.home_time?.slice(0,5) || '')
+  const homeRef = useRef(null)
   const [windDown, setWindDown] = useState(log?.wind_down || '')
   const [note, setNote] = useState(log?.evening_note || '')
   const phoneRef = useRef(null)
@@ -380,7 +382,7 @@ export function EveningLog({ log, onSave, lang, habitGoals, activeHabits, onTogg
     setAcTemp(log?.ac_temp != null ? String(log.ac_temp) : '')
     // Also set DOM values directly for iOS time inputs
     if (phoneRef.current) phoneRef.current.value = phone
-  }, [log?.phone_away_time, log?.wind_down, log?.evening_note, log?.dinner_time, log?.ac_temp])
+  }, [log?.phone_away_time, log?.home_time, log?.wind_down, log?.evening_note, log?.dinner_time, log?.ac_temp])
 
   const labels = lang === 'de'
     ? { habits: 'Abendgewohnheiten', phone: 'Handy weggelegt um', wind: 'Abend-Qualität', note: 'Etwas Besonderes?', save: 'Abend speichern', saving: 'Speichern...', good: 'Gut', ok: 'OK', poor: 'Schlecht', ac: 'AC-Temp (°F)' }
@@ -392,6 +394,7 @@ export function EveningLog({ log, onSave, lang, habitGoals, activeHabits, onTogg
     setSaving(true)
     await onSave({
       phone_away_time: phoneVal || null,
+      home_time: homeRef.current?.value || homeTime || null,
       wind_down: windDown || null,
       evening_note: note || null,
       ac_temp: acTemp ? parseFloat(acTemp) : null,
@@ -422,7 +425,41 @@ export function EveningLog({ log, onSave, lang, habitGoals, activeHabits, onTogg
       )}
 
       {/* Evening time fields */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+
+        {/* Come home time */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          <button onClick={() => {
+            if (!homeTime) {
+              const now = format(new Date(), 'HH:mm')
+              setHomeTime(now)
+              if (homeRef.current) homeRef.current.value = now
+            } else {
+              setHomeTime('')
+              if (homeRef.current) homeRef.current.value = ''
+            }
+          }} style={{
+            width: 28, height: 28, borderRadius: 8, flexShrink: 0,
+            border: `1.5px solid ${homeTime ? 'var(--blue)' : 'var(--border)'}`,
+            background: homeTime ? 'rgba(26,92,158,0.12)' : 'var(--surface2)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', padding: 0,
+          }}>
+            {homeTime && <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M2.5 7l3.5 3.5 5.5-6" stroke="var(--blue)" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/></svg>}
+          </button>
+          <span style={{ fontSize: 13, fontWeight: 600, flex: 1, color: homeTime ? 'var(--text)' : 'var(--text2)' }}>
+            🏠 {lang === 'de' ? 'Zuhause angekommen' : 'Got home at'}
+          </span>
+          {homeTime && (
+            <input ref={homeRef} type="time" defaultValue={homeTime}
+              onChange={e => setHomeTime(e.target.value)}
+              onBlur={e => setHomeTime(homeRef.current?.value || e.target.value)}
+              style={{ fontSize: 13, fontWeight: 700, fontFamily: 'var(--font-mono)', color: 'var(--blue)', background: 'none', border: 'none', outline: 'none', width: 80, textAlign: 'right', cursor: 'pointer' }}
+            />
+          )}
+        </div>
+
+        {/* Phone away + AC in 2-col grid */}
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 0' }}>
           <button onClick={() => {
             if (!phoneAway) {
@@ -458,6 +495,7 @@ export function EveningLog({ log, onSave, lang, habitGoals, activeHabits, onTogg
           <label className="field-label">❄ {labels.ac}</label>
           <input className="field-input" type="number" step="1" value={acTemp} onChange={e => setAcTemp(e.target.value)} placeholder="68" inputMode="numeric" />
         </div>
+      </div>
       </div>
 
       {/* Wind-down quality */}
@@ -532,6 +570,7 @@ function WhoopTab({ log, yesterdayLog, session, lang, onRefresh }) {
   // Last night summary grid
   const summary = []
   if (eveningSource?.dinner_time) summary.push({ icon: '🍽', label: lang === 'de' ? 'Abendessen' : 'Dinner', value: eveningSource.dinner_time.slice(0,5) })
+  if (eveningSource?.home_time) summary.push({ icon: '🏠', label: lang === 'de' ? 'Zuhause' : 'Home', value: eveningSource.home_time.slice(0,5) })
   if (eveningSource?.phone_away_time) summary.push({ icon: '📵', label: lang === 'de' ? 'Handy weg' : 'Phone away', value: eveningSource.phone_away_time.slice(0,5) })
   const hasEveningData = !!(eveningSource?.phone_away_time || eveningSource?.wind_down)
   summary.push({ icon: '🛏', label: lang === 'de' ? 'Eingeschlafen' : 'Asleep', value: bedTime ? bedTime.slice(0,5) : '—', pending: !bedTime && hasEveningData })

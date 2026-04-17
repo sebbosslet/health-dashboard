@@ -17,6 +17,7 @@ function ItemForm({ type, userId, existing, onSaved, onCancel, lang }) {
   const [effectiveFrom, setEffectiveFrom] = useState(existing?.effective_from || '')
   const [multiDose, setMultiDose] = useState(existing?.multi_dose || false)
   const [withFood, setWithFood] = useState(existing?.with_food || false)
+  const [suppMultiDose, setSuppMultiDose] = useState(existing?.multi_dose || false)
   const [fasted, setFasted] = useState(existing?.fasted_flag || false)
   const [daily, setDaily] = useState(existing ? existing.active : true)
   const [multiIngredient, setMultiIngredient] = useState(!!(existing?.ingredients && parseIngredients(existing.ingredients).length > 0))
@@ -44,6 +45,7 @@ function ItemForm({ type, userId, existing, onSaved, onCancel, lang }) {
       payload.multi_dose = multiDose
     } else {
       payload.with_food = withFood
+      payload.multi_dose = suppMultiDose
       payload.ingredients = multiIngredient && ingredients.some(i => i.name.trim())
         ? JSON.stringify(ingredients.filter(i => i.name.trim()))
         : null
@@ -97,10 +99,16 @@ function ItemForm({ type, userId, existing, onSaved, onCancel, lang }) {
             ⚡ {lang === 'de' ? 'Nüchtern einnehmen' : 'Take fasted'}
           </label>
         ) : (
-          <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', fontSize: 12, color: 'var(--text2)' }}>
-            <input type="checkbox" checked={withFood} onChange={e => setWithFood(e.target.checked)} style={{ width: 16, height: 16, accentColor: 'var(--green)' }} />
-            🍽 {lang === 'de' ? 'Mit Essen einnehmen' : 'Take with food'}
-          </label>
+          <>
+            <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', fontSize: 12, color: 'var(--text2)' }}>
+              <input type="checkbox" checked={withFood} onChange={e => setWithFood(e.target.checked)} style={{ width: 16, height: 16, accentColor: 'var(--green)' }} />
+              🍽 {lang === 'de' ? 'Mit Essen einnehmen' : 'Take with food'}
+            </label>
+            <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', fontSize: 12, color: 'var(--text2)' }}>
+              <input type="checkbox" checked={suppMultiDose} onChange={e => setSuppMultiDose(e.target.checked)} style={{ width: 16, height: 16, accentColor: 'var(--blue)' }} />
+              🔄 {lang === 'de' ? 'Mehr als einmal täglich' : 'More than once a day'}
+            </label>
+          </>
         )}
       </div>
 
@@ -274,6 +282,80 @@ function Section({ type, userId, items, onReload, lang }) {
   )
 }
 
+function SupplementAdvisor({ userId, supplements, lang }) {
+  const [advice, setAdvice] = useState('')
+  const [loading, setLoading] = useState(false)
+
+  async function getAdvice() {
+    setLoading(true)
+    try {
+      const { data: recentMeals } = await supabase.from('meal_logs').select('meal_name, calories, protein, carbs, fat').eq('user_id', userId).gte('date', new Date(Date.now() - 7 * 86400000).toISOString().slice(0,10)).order('date', { ascending: false }).limit(30)
+
+      const suppList = supplements.filter(s => s.active).map(s => {
+        const ings = s.ingredients ? (() => { try { return JSON.parse(s.ingredients) } catch { return [] } })() : []
+        return ings.length > 0
+          ? `${s.name} (${ings.map(i => `${i.name} ${i.dose}`).join(', ')})`
+          : `${s.name}${s.dose ? ` ${s.dose}` : ''}`
+      }).join('\n')
+
+      const prompt = `You are a European nutritionist. Based on this person's current supplement stack and recent meals, give a brief personalised recommendation.
+
+CURRENT SUPPLEMENTS:
+${suppList || 'None logged yet'}
+
+RECENT MEALS (last 7 days sample):
+${(recentMeals || []).slice(0, 15).map(m => m.meal_name).join(', ') || 'No meals logged'}
+
+Based on European Food Safety Authority (EFSA) recommended daily intakes:
+1. Which of their current supplements are well-chosen given their diet?
+2. Are there any gaps — nutrients they might be missing based on their meals?
+3. Any dose concerns or timing suggestions?
+
+Keep it concise — 3-4 short paragraphs. Be direct and practical. Reference specific EU/EFSA guidelines where relevant.`
+
+      const res = await fetch('/.netlify/functions/claude-proxy', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ model: 'claude-sonnet-4-5-20250929', max_tokens: 600, messages: [{ role: 'user', content: prompt }] })
+      })
+      const data = await res.json()
+      setAdvice(data.content?.[0]?.text || '')
+    } catch (e) {
+      console.error(e)
+    }
+    setLoading(false)
+  }
+
+  return (
+    <div className="card">
+      <div className="card-header">
+        <span className="card-title">🧬 {lang === 'de' ? 'Supplement-Empfehlung' : 'Supplement advice'}</span>
+      </div>
+      <div style={{ padding: '12px 14px', display: 'flex', flexDirection: 'column', gap: 10 }}>
+        {advice ? (
+          <>
+            <div style={{ fontSize: 12, color: 'var(--text)', lineHeight: 1.7 }}>{advice}</div>
+            <button onClick={() => { setAdvice(''); getAdvice() }} disabled={loading} style={{ alignSelf: 'flex-start', fontSize: 11, color: 'var(--text3)', background: 'none', border: '0.5px solid var(--border)', borderRadius: 16, padding: '5px 12px', cursor: 'pointer', fontFamily: 'inherit' }}>
+              {loading ? '...' : '↺ ' + (lang === 'de' ? 'Neu laden' : 'Refresh')}
+            </button>
+          </>
+        ) : (
+          <>
+            <div style={{ fontSize: 12, color: 'var(--text2)', lineHeight: 1.5 }}>
+              {lang === 'de'
+                ? 'Analyse deines Supplement-Stacks gegen EFSA-Empfehlungen basierend auf deiner Ernährung.'
+                : 'Analyse your supplement stack against EFSA guidelines based on your recent nutrition.'}
+            </div>
+            <button className="btn-primary" onClick={getAdvice} disabled={loading}>
+              {loading ? (lang === 'de' ? 'Analysiere...' : 'Analysing...') : (lang === 'de' ? '✨ Empfehlung erhalten' : '✨ Get recommendation')}
+            </button>
+          </>
+        )}
+      </div>
+    </div>
+  )
+}
+
 export default function MedSupManager({ userId, medications, supplements, onReload, lang }) {
   return (
     <>
@@ -284,6 +366,7 @@ export default function MedSupManager({ userId, medications, supplements, onRelo
       </div>
       <Section type="medication" userId={userId} items={medications} onReload={onReload} lang={lang} />
       <Section type="supplement" userId={userId} items={supplements} onReload={onReload} lang={lang} />
+      <SupplementAdvisor userId={userId} supplements={supplements} lang={lang} />
     </>
   )
 }
