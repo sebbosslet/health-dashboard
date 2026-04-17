@@ -6,6 +6,7 @@ import { showToast } from '../components/Toast'
 import { Toast } from '../components/Toast'
 import { useLang } from '../lib/LangContext'
 import MealLogger from '../components/MealLogger'
+import PoopTracker from '../components/PoopTracker'
 import DailyIntelligence, { EveningLog } from '../components/DailyIntelligence'
 import { MedTracker, SupTracker } from '../components/MedSupTracker'
 import { ProactiveNudges } from '../components/Briefing'
@@ -322,7 +323,10 @@ export default function TodayPage({ session }) {
           </div>
         </div>
 
-        {/* 7. Activity */}
+        {/* 7. Bowel log */}
+        <PoopTracker session={session} date={today} />
+
+        {/* 8. Activity */}
         <div className="card">
           <div className="card-header"><span className="card-title">{t('today_activity')}</span></div>
           <div style={{ padding: '10px 14px 14px' }}>
@@ -340,7 +344,7 @@ export default function TodayPage({ session }) {
           </div>
         </div>
 
-        {/* 8. Supplements */}
+        {/* 9. Supplements */}
         <SupTracker session={session} date={today} />
 
         {/* 9. End of Day — evening log + day context */}
