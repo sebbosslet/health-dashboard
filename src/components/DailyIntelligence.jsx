@@ -585,6 +585,7 @@ function CorrRow({ icon, label, yesVal, noVal, nYes, noLabel, yesLabel, unit = '
 function SleepStatsCard({ userId, lang }) {
   const [patterns, setPatterns] = useState(null)
   const [loading, setLoading] = useState(true)
+  const [error, setError] = useState(null)
 
   useEffect(() => {
     if (!userId) { setLoading(false); return }
@@ -595,8 +596,10 @@ function SleepStatsCard({ userId, lang }) {
         .order('date', { ascending: true }).limit(90),
       supabase.from('meal_logs').select('date,is_caffeinated,is_alcohol,consumed_at').eq('user_id', userId)
         .order('date', { ascending: false }).limit(200),
-    ]).then(([{ data: logs }, { data: hr }, { data: meals }]) => {
+    ]).then(([{ data: logs, error: e1 }, { data: hr, error: e2 }, { data: meals, error: e3 }]) => {
+      if (e1 || e2 || e3) { console.error('SleepStats fetch error', e1||e2||e3); setLoading(false); return }
       if (!logs?.length || logs.length < 4) { setLoading(false); return }
+      try {
 
       const avg = arr => arr.length ? +(arr.reduce((a,b)=>a+b,0)/arr.length).toFixed(1) : null
       const pct = (n, total) => total ? Math.round(n/total*100) : 0
@@ -731,14 +734,18 @@ function SleepStatsCard({ userId, lang }) {
 
       setPatterns({ baseline, causes, corrs, recoveryTrend, stabilityTrend })
       setLoading(false)
-    })
+      } catch(err) { console.error('SleepStats compute error:', err); setError(err.message); setLoading(false) }
+    }).catch(err => { console.error('SleepStats promise error:', err); setLoading(false) })
   }, [userId])
 
   if (loading) return <div style={{ padding: '10px 0 4px', fontSize: 11, color: 'var(--text3)' }}>Analysing patterns...</div>
+  if (error) return <div style={{ padding: '10px 0', fontSize: 11, color: 'var(--text3)' }}>Pattern analysis unavailable.</div>
   if (!patterns) return <div style={{ padding: '10px 0', fontSize: 11, color: 'var(--text3)' }}>Upload WHOOP screenshots to unlock pattern analysis.</div>
 
   const { baseline, causes, corrs, recoveryTrend, stabilityTrend } = patterns
-  const c = corrs
+  const c = corrs || {}
+  // Guard all correlation objects against null
+  const safe = (obj) => obj || { yes: null, no: null, nYes: 0, nNo: 0 }
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
@@ -810,23 +817,23 @@ function SleepStatsCard({ userId, lang }) {
         <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 4 }}>
           🔬 Behaviour → sleep quality
         </div>
-        <CorrRow icon="📵" label="Phone away before 22:30 → recovery" yesLabel="Early" noLabel="Late/none" yesVal={c.phoneEarly.yes} noVal={c.phoneLate.yes} nYes={c.phoneEarly.nYes} />
-        <CorrRow icon="📵" label="Phone cutoff → stability score" yesLabel="Early" noLabel="Late" yesVal={c.phoneOnStability.yes} noVal={c.phoneOnStability.no} nYes={c.phoneOnStability.nYes} unit="/10" />
-        <CorrRow icon="😌" label="Good wind-down → recovery" yesLabel="Good" noLabel="Poor" yesVal={c.windGood.yes} noVal={c.windPoor.yes} nYes={c.windGood.nYes} />
-        <CorrRow icon="😌" label="Good wind-down → stability" yesLabel="Good" noLabel="No good" yesVal={c.windOnStability.yes} noVal={c.windOnStability.no} nYes={c.windOnStability.nYes} unit="/10" />
-        <CorrRow icon="🏋️" label="Gym day → next day recovery" yesLabel="After gym" noLabel="Rest day" yesVal={c.gymNextDay.yes} noVal={c.gymNextDay.no} nYes={c.gymNextDay.nYes} />
-        <CorrRow icon="🧖" label="Sauna day → next day recovery" yesLabel="After sauna" noLabel="No sauna" yesVal={c.saunaNextDay.yes} noVal={c.saunaNextDay.no} nYes={c.saunaNextDay.nYes} />
-        <CorrRow icon="🏃" label="Run day → next day recovery" yesLabel="After run" noLabel="No run" yesVal={c.runNextDay.yes} noVal={c.runNextDay.no} nYes={c.runNextDay.nYes} />
-        <CorrRow icon="❄" label="Cool room (≤67°F) → stability" yesLabel="≤67°F" noLabel="≥70°F" yesVal={c.tempCool.yes} noVal={c.tempWarm.yes} nYes={c.tempCool.nYes} unit="/10" />
-        <CorrRow icon="🍽" label="Early dinner (<19:00) → stability" yesLabel="<19:00" noLabel=">20:30" yesVal={c.dinnerEarly.yes} noVal={c.dinnerLate.yes} nYes={c.dinnerEarly.nYes} unit="/10" />
-        <CorrRow icon="🍷" label="Alcohol → recovery" yesLabel="Alcohol" noLabel="No alcohol" yesVal={c.alcoholOnRecovery.yes} noVal={c.alcoholOnRecovery.no} nYes={c.alcoholOnRecovery.nYes} />
-        <CorrRow icon="🍷" label="Alcohol → HR stability" yesLabel="Alcohol" noLabel="No alcohol" yesVal={c.alcoholOnStability.yes} noVal={c.alcoholOnStability.no} nYes={c.alcoholOnStability.nYes} unit="/10" />
-        <CorrRow icon="🍷" label="Alcohol → HR spikes" yesLabel="Alcohol" noLabel="No alcohol" yesVal={c.alcoholOnSpikes.yes} noVal={c.alcoholOnSpikes.no} nYes={c.alcoholOnSpikes.nYes} unit="" invert={true} />
-        <CorrRow icon="☕" label="Late caffeine (>17:00) → efficiency" yesLabel="Late caffeine" noLabel="No late caffeine" yesVal={c.caffeineOnEfficiency.yes} noVal={c.caffeineOnEfficiency.no} nYes={c.caffeineOnEfficiency.nYes} />
-        <CorrRow icon="☕" label="Late caffeine → stability" yesLabel="Late caffeine" noLabel="None" yesVal={c.caffeineOnStability.yes} noVal={c.caffeineOnStability.no} nYes={c.caffeineOnStability.nYes} unit="/10" />
-        <CorrRow icon="🧘" label="Meditation → next day recovery" yesLabel="With meditation" noLabel="Without" yesVal={c.meditationOnRecovery.yes} noVal={c.meditationOnRecovery.no} nYes={c.meditationOnRecovery.nYes} />
-        <CorrRow icon="💧" label="Good hydration (≥2L) → recovery" yesLabel="≥2L" noLabel="<1.2L" yesVal={c.hydratedOnRecovery.yes} noVal={c.dehyOnRecovery.yes} nYes={c.hydratedOnRecovery.nYes} />
-        <CorrRow icon="👟" label="Active day (≥8k steps) → next recovery" yesLabel="≥8k steps" noLabel="Less active" yesVal={c.activeOnRecovery.yes} noVal={c.activeOnRecovery.no} nYes={c.activeOnRecovery.nYes} />
+        <CorrRow icon="📵" label="Phone away before 22:30 → recovery" yesLabel="Early" noLabel="Late/none" yesVal={safe(c.phoneEarly).yes} noVal={safe(c.phoneLate).yes} nYes={safe(c.phoneEarly).nYes} />
+        <CorrRow icon="📵" label="Phone cutoff → stability score" yesLabel="Early" noLabel="Late" yesVal={safe(c.phoneOnStability).yes} noVal={safe(c.phoneOnStability).no} nYes={safe(c.phoneOnStability).nYes} unit="/10" />
+        <CorrRow icon="😌" label="Good wind-down → recovery" yesLabel="Good" noLabel="Poor" yesVal={safe(c.windGood).yes} noVal={safe(c.windPoor).yes} nYes={safe(c.windGood).nYes} />
+        <CorrRow icon="😌" label="Good wind-down → stability" yesLabel="Good" noLabel="No good" yesVal={safe(c.windOnStability).yes} noVal={safe(c.windOnStability).no} nYes={safe(c.windOnStability).nYes} unit="/10" />
+        <CorrRow icon="🏋️" label="Gym day → next day recovery" yesLabel="After gym" noLabel="Rest day" yesVal={safe(c.gymNextDay).yes} noVal={safe(c.gymNextDay).no} nYes={safe(c.gymNextDay).nYes} />
+        <CorrRow icon="🧖" label="Sauna day → next day recovery" yesLabel="After sauna" noLabel="No sauna" yesVal={safe(c.saunaNextDay).yes} noVal={safe(c.saunaNextDay).no} nYes={safe(c.saunaNextDay).nYes} />
+        <CorrRow icon="🏃" label="Run day → next day recovery" yesLabel="After run" noLabel="No run" yesVal={safe(c.runNextDay).yes} noVal={safe(c.runNextDay).no} nYes={safe(c.runNextDay).nYes} />
+        <CorrRow icon="❄" label="Cool room (≤67°F) → stability" yesLabel="≤67°F" noLabel="≥70°F" yesVal={safe(c.tempCool).yes} noVal={safe(c.tempWarm).yes} nYes={safe(c.tempCool).nYes} unit="/10" />
+        <CorrRow icon="🍽" label="Early dinner (<19:00) → stability" yesLabel="<19:00" noLabel=">20:30" yesVal={safe(c.dinnerEarly).yes} noVal={safe(c.dinnerLate).yes} nYes={safe(c.dinnerEarly).nYes} unit="/10" />
+        <CorrRow icon="🍷" label="Alcohol → recovery" yesLabel="Alcohol" noLabel="No alcohol" yesVal={safe(c.alcoholOnRecovery).yes} noVal={safe(c.alcoholOnRecovery).no} nYes={safe(c.alcoholOnRecovery).nYes} />
+        <CorrRow icon="🍷" label="Alcohol → HR stability" yesLabel="Alcohol" noLabel="No alcohol" yesVal={safe(c.alcoholOnStability).yes} noVal={safe(c.alcoholOnStability).no} nYes={safe(c.alcoholOnStability).nYes} unit="/10" />
+        <CorrRow icon="🍷" label="Alcohol → HR spikes" yesLabel="Alcohol" noLabel="No alcohol" yesVal={safe(c.alcoholOnSpikes).yes} noVal={safe(c.alcoholOnSpikes).no} nYes={safe(c.alcoholOnSpikes).nYes} unit="" invert={true} />
+        <CorrRow icon="☕" label="Late caffeine (>17:00) → efficiency" yesLabel="Late caffeine" noLabel="No late caffeine" yesVal={safe(c.caffeineOnEfficiency).yes} noVal={safe(c.caffeineOnEfficiency).no} nYes={safe(c.caffeineOnEfficiency).nYes} />
+        <CorrRow icon="☕" label="Late caffeine → stability" yesLabel="Late caffeine" noLabel="None" yesVal={safe(c.caffeineOnStability).yes} noVal={safe(c.caffeineOnStability).no} nYes={safe(c.caffeineOnStability).nYes} unit="/10" />
+        <CorrRow icon="🧘" label="Meditation → next day recovery" yesLabel="With meditation" noLabel="Without" yesVal={safe(c.meditationOnRecovery).yes} noVal={safe(c.meditationOnRecovery).no} nYes={safe(c.meditationOnRecovery).nYes} />
+        <CorrRow icon="💧" label="Good hydration (≥2L) → recovery" yesLabel="≥2L" noLabel="<1.2L" yesVal={safe(c.hydratedOnRecovery).yes} noVal={safe(c.dehyOnRecovery).yes} nYes={safe(c.hydratedOnRecovery).nYes} />
+        <CorrRow icon="👟" label="Active day (≥8k steps) → next recovery" yesLabel="≥8k steps" noLabel="Less active" yesVal={safe(c.activeOnRecovery).yes} noVal={safe(c.activeOnRecovery).no} nYes={safe(c.activeOnRecovery).nYes} />
       </div>
 
     </div>
