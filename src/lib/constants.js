@@ -11,3 +11,4 @@ export const IMG_MAX_PX = 800
 export const IMG_QUALITY = 0.75
 
 export const ALCOHOL_REGEX = /\bbeer\b|\blager\b|\bale\b|\bipa\b|\bstout\b|\bwine\b|\bchampagne\b|\bprosecco\b|\bwhisky\b|\bwhiskey\b|\bbourbon\b|\bscotch\b|\bvodka\b|\bgin\b|\brum\b|\btequila\b|\bmezcal\b|\bcognac\b|\bbrandy\b|\bcocktail\b|\bmargarita\b|\bmojito\b|\bnegroni\b|\bspritz\b|\bapertif\b|\bdigestif\b|\bliqueur\b|\bshots?\b|\bpint\b|\balcohol\b/i
+// force redeploy Fri Apr 17 13:57:13 UTC 2026
