@@ -1,0 +1,522 @@
+import { useState, useEffect } from 'react'
+import { supabase } from '../lib/supabase'
+import { format, subDays } from 'date-fns'
+
+// ── helpers ──────────────────────────────────────────────────────────────────
+const avg = arr => {
+  const v = arr.filter(x => x != null && !isNaN(x))
+  return v.length ? +(v.reduce((a, b) => a + b, 0) / v.length).toFixed(1) : null
+}
+const toMins = t => {
+  if (!t) return null
+  const [h, m] = t.split(':').map(Number)
+  return h * 60 + m
+}
+const fmtMins = m => {
+  if (m == null) return '—'
+  const h = Math.floor(Math.abs(m) / 60), min = Math.abs(m) % 60
+  return (m < 0 ? '-' : '') + (h > 0 ? h + 'h ' : '') + (min > 0 ? min + 'm' : (h > 0 ? '' : '0m'))
+}
+
+// ── Row component ─────────────────────────────────────────────────────────────
+function FactorRow({ icon, label, lastNight, vsBaseline, unit = '', signal, detail }) {
+  const color = signal === 'good' ? 'var(--green)' : signal === 'bad' ? 'var(--red)' : signal === 'warn' ? 'var(--amber)' : 'var(--text3)'
+  return (
+    <div style={{ display: 'grid', gridTemplateColumns: '22px 1fr auto', gap: 8, alignItems: 'start', padding: '8px 0', borderBottom: '0.5px solid var(--border)' }}>
+      <span style={{ fontSize: 15 }}>{icon}</span>
+      <div>
+        <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--text)' }}>{label}</div>
+        {detail && <div style={{ fontSize: 11, color: 'var(--text2)', marginTop: 1 }}>{detail}</div>}
+      </div>
+      <div style={{ textAlign: 'right' }}>
+        <div style={{ fontSize: 13, fontWeight: 700, fontFamily: 'var(--font-mono)', color }}>{lastNight}{unit}</div>
+        {vsBaseline != null && (
+          <div style={{ fontSize: 10, color: 'var(--text3)', marginTop: 1 }}>{vsBaseline > 0 ? '+' : ''}{vsBaseline}{unit} vs avg</div>
+        )}
+      </div>
+    </div>
+  )
+}
+
+// ── Sparkline ─────────────────────────────────────────────────────────────────
+function Sparkline({ values, highlight, color = 'var(--blue)' }) {
+  if (!values?.length) return null
+  const valid = values.map(v => v ?? 0)
+  const min = Math.min(...valid), max = Math.max(...valid)
+  const range = max - min || 1
+  const w = 6, gap = 3, h = 28
+  const total = values.length * (w + gap) - gap
+  return (
+    <svg width={total} height={h} style={{ display: 'block' }}>
+      {values.map((v, i) => {
+        const barH = v != null ? Math.max(3, ((v - min) / range) * (h - 4)) : 3
+        const isLast = i === highlight
+        return (
+          <rect key={i}
+            x={i * (w + gap)} y={h - barH}
+            width={w} height={barH}
+            rx={2}
+            fill={isLast ? 'var(--green)' : v != null ? color : 'var(--border)'}
+            opacity={isLast ? 1 : 0.45}
+          />
+        )
+      })}
+    </svg>
+  )
+}
+
+// ── Main component ────────────────────────────────────────────────────────────
+export default function SleepDeepDive({ log, hrAnalysis, session }) {
+  const [data, setData] = useState(null)
+  const [loading, setLoading] = useState(true)
+  const userId = session?.user?.id
+
+  const today = format(new Date(), 'yyyy-MM-dd')
+  const yesterday = format(subDays(new Date(), 1), 'yyyy-MM-dd')
+
+  useEffect(() => {
+    if (!userId) { setLoading(false); return }
+
+    const sevenDaysAgo = format(subDays(new Date(), 8), 'yyyy-MM-dd')
+
+    Promise.all([
+      // Last 8 nights of daily logs for context
+      supabase.from('daily_logs')
+        .select('date,recovery_score,sleep_duration,sleep_efficiency,phone_away_time,wind_down,ac_temp,dinner_time,home_time,activity,habits,water,steps,bed_time,hrv,rhr')
+        .eq('user_id', userId).gte('date', sevenDaysAgo).order('date', { ascending: true }),
+      // Last 8 nights of HR analysis
+      supabase.from('sleep_hr_analysis')
+        .select('date,stability_score,spike_count,deep_pct,rem_pct,awake_pct,likely_cause,temp_avg_f,temp_min_f,temp_max_f')
+        .eq('user_id', userId).gte('date', sevenDaysAgo).order('date', { ascending: true }),
+      // Yesterday's meals — caffeine, alcohol
+      supabase.from('meal_logs')
+        .select('meal_name,consumed_at,is_caffeinated,is_alcohol,calories')
+        .eq('user_id', userId).eq('date', yesterday).order('consumed_at', { ascending: true }),
+      // Yesterday's poop logs
+      supabase.from('poop_logs')
+        .select('bristol_type,logged_at,flags,color,assessment')
+        .eq('user_id', userId).eq('date', yesterday),
+      // Yesterday's medications
+      supabase.from('medication_logs')
+        .select('taken,taken_time,medication_id')
+        .eq('user_id', userId).eq('date', yesterday).eq('taken', true),
+      supabase.from('medications')
+        .select('id,name,fasted_flag')
+        .eq('user_id', userId),
+    ]).then(([r1, r2, r3, r4, r5, r6]) => {
+      const recentLogs = r1.data || []
+      const recentHr = r2.data || []
+      const meals = r3.data || []
+      const poops = r4.data || []
+      const medLogs = r5.data || []
+      const meds = r6.data || []
+
+      // Yesterday's log + today's log (today has WHOOP metrics)
+      const yLog = recentLogs.find(l => l.date === yesterday) || {}
+      const tLog = log || {}
+
+      // HR lookup
+      const hrMap = {}
+      recentHr.forEach(h => { hrMap[h.date] = h })
+      const lastHr = hrAnalysis || hrMap[yesterday] || null
+
+      // ── Baselines (exclude today/yesterday) ──
+      const prior = recentLogs.filter(l => l.date < yesterday)
+      const priorHr = recentHr.filter(h => h.date < yesterday)
+
+      const baseRecovery = avg(prior.map(l => l.recovery_score).filter(Boolean))
+      const baseStability = avg(priorHr.map(h => h.stability_score).filter(Boolean))
+      const baseEfficiency = avg(prior.map(l => l.sleep_efficiency).filter(Boolean))
+
+      // ── Verdict ──
+      const todayRecovery = tLog.recovery_score
+      const todayStability = lastHr?.stability_score
+      const recoveryDelta = todayRecovery && baseRecovery ? +(todayRecovery - baseRecovery).toFixed(0) : null
+      const stabilityDelta = todayStability && baseStability ? +(todayStability - baseStability).toFixed(1) : null
+
+      // Rank last night vs recent 7
+      const recoveries = recentLogs.filter(l => l.date < today && l.recovery_score).map(l => l.recovery_score).sort((a, b) => b - a)
+      const rank = todayRecovery ? recoveries.filter(r => r > todayRecovery).length + 1 : null
+      const rankOf = recoveries.length + (todayRecovery ? 1 : 0)
+
+      // ── Sparkline data (last 7 nights + last night) ──
+      const spark7 = [...recentLogs.filter(l => l.date <= yesterday)].slice(-7)
+      const sparkRecovery = spark7.map(l => l.recovery_score)
+      const sparkStability = spark7.map(l => hrMap[l.date]?.stability_score)
+
+      // ── Caffeine ──
+      const caffeineMeals = meals.filter(m => m.is_caffeinated)
+      const lastCaffeine = caffeineMeals.length ? caffeineMeals[caffeineMeals.length - 1] : null
+      const bedMins = toMins(tLog.bed_time || yLog.bed_time)
+      let caffeineHalfLivesAtSleep = null
+      if (lastCaffeine?.consumed_at && bedMins != null) {
+        let cafMins = toMins(lastCaffeine.consumed_at.slice(0, 5))
+        if (cafMins > bedMins && cafMins > 1200) cafMins -= 1440 // midnight crossover
+        const gapHours = (bedMins - cafMins) / 60
+        caffeineHalfLivesAtSleep = gapHours > 0 ? +(gapHours / 5).toFixed(1) : null
+      }
+      // Avg caffeine gap on non-disrupted nights
+      const avgCafBaseline = avg(
+        prior.filter(l => {
+          const hr = hrMap[l.date]
+          return hr?.stability_score >= (baseStability || 6)
+        }).map(l => {
+          const phoneMin = toMins(l.phone_away_time)
+          return phoneMin ? (phoneMin - 18 * 60) : null // rough proxy
+        }).filter(Boolean)
+      )
+
+      // ── Alcohol ──
+      const alcoholMeals = meals.filter(m => m.is_alcohol)
+
+      // ── Meds ──
+      const medDetails = medLogs.map(ml => {
+        const med = meds.find(m => m.id === ml.medication_id)
+        return { name: med?.name || 'Medication', fasted: med?.fasted_flag, takenTime: ml.taken_time }
+      })
+      const thyroxin = medDetails.find(m => m.name.toLowerCase().includes('thyrox') || m.name.toLowerCase().includes('thyroid') || m.name.toLowerCase().includes('levothyrox'))
+
+      // ── Timing factors ──
+      const phoneAwayMins = toMins(yLog.phone_away_time)
+      const homeMins = toMins(yLog.home_time)
+      const dinnerMins = toMins(yLog.dinner_time)
+      const bedTimeMins = bedMins
+
+      const avgPhoneAway = avg(prior.filter(l => l.phone_away_time).map(l => toMins(l.phone_away_time)))
+      const avgHome = avg(prior.filter(l => l.home_time).map(l => toMins(l.home_time)))
+      const avgDinner = avg(prior.filter(l => l.dinner_time).map(l => toMins(l.dinner_time)))
+      const avgBed = avg(prior.filter(l => l.bed_time).map(l => {
+        let m = toMins(l.bed_time); if (m < 360) m += 1440; return m
+      }))
+
+      const windDownGap = phoneAwayMins && bedTimeMins ? (() => {
+        let b = bedTimeMins; if (b < 360) b += 1440; return b - phoneAwayMins
+      })() : null
+      const avgWindDownGap = avgPhoneAway && avgBed ? avgBed - avgPhoneAway : null
+
+      // ── Temperature ──
+      const lastTemp = lastHr?.temp_avg_f || yLog.ac_temp
+      const priorTemps = priorHr.filter(h => h.temp_avg_f).map(h => ({
+        temp: h.temp_avg_f,
+        stability: h.stability_score,
+      }))
+      const optimalTempRange = priorTemps.length >= 3 ? (() => {
+        const good = priorTemps.filter(p => p.stability >= (baseStability || 6)).map(p => p.temp)
+        return good.length ? { min: Math.min(...good), max: Math.max(...good), avg: avg(good) } : null
+      })() : null
+
+      // ── Poop ──
+      const poopSummary = poops.length ? {
+        count: poops.length,
+        types: poops.map(p => p.bristol_type),
+        flags: poops.flatMap(p => p.flags || []),
+        hasFlags: poops.some(p => p.flags?.length > 0),
+      } : null
+
+      // ── Hydration ──
+      const water = yLog.water
+      const avgWater = avg(prior.filter(l => l.water).map(l => l.water))
+
+      // ── What was different vs recent nights ──
+      const comparisons = []
+      if (recoveryDelta != null) {
+        comparisons.push({
+          metric: 'recovery',
+          delta: recoveryDelta,
+          better: recoveryDelta > 0,
+          detail: `${todayRecovery}% vs ${baseRecovery}% avg`,
+        })
+      }
+      if (stabilityDelta != null) {
+        comparisons.push({
+          metric: 'stability',
+          delta: stabilityDelta,
+          better: stabilityDelta > 0,
+          detail: `${todayStability}/10 vs ${baseStability}/10 avg`,
+        })
+      }
+      if (lastTemp && optimalTempRange) {
+        const tempOk = lastTemp >= optimalTempRange.min - 1 && lastTemp <= optimalTempRange.max + 1
+        comparisons.push({
+          metric: 'temp',
+          better: tempOk,
+          detail: tempOk
+            ? `${lastTemp}°F — within your ${optimalTempRange.min}–${optimalTempRange.max}°F sweet spot`
+            : `${lastTemp}°F — outside your optimal ${optimalTempRange.min}–${optimalTempRange.max}°F range`,
+        })
+      }
+
+      setData({
+        yLog, tLog, lastHr,
+        baseRecovery, baseStability, baseEfficiency,
+        recoveryDelta, stabilityDelta, rank, rankOf,
+        sparkRecovery, sparkStability, spark7,
+        caffeineMeals, lastCaffeine, caffeineHalfLivesAtSleep,
+        alcoholMeals, medDetails, thyroxin,
+        phoneAwayMins, homeMins, dinnerMins, bedTimeMins,
+        avgPhoneAway, avgHome, avgDinner,
+        windDownGap, avgWindDownGap,
+        lastTemp, optimalTempRange,
+        poopSummary, water, avgWater,
+        comparisons,
+      })
+      setLoading(false)
+    }).catch(err => {
+      console.error('SleepDeepDive error:', err)
+      setLoading(false)
+    })
+  }, [userId, yesterday])
+
+  if (loading) return null
+  if (!data) return null
+
+  const {
+    yLog, tLog, lastHr,
+    baseRecovery, baseStability,
+    recoveryDelta, stabilityDelta, rank, rankOf,
+    sparkRecovery, sparkStability, spark7,
+    caffeineMeals, lastCaffeine, caffeineHalfLivesAtSleep,
+    alcoholMeals, medDetails, thyroxin,
+    phoneAwayMins, homeMins, dinnerMins, bedTimeMins,
+    avgPhoneAway, avgHome, avgDinner,
+    windDownGap, avgWindDownGap,
+    lastTemp, optimalTempRange,
+    poopSummary, water, avgWater,
+    comparisons,
+  } = data
+
+  const todayRecovery = tLog.recovery_score
+  const todayStability = lastHr?.stability_score
+
+  // ── Section header ──────────────────────────────────────────────────────────
+  const SectionLabel = ({ children }) => (
+    <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 6, marginTop: 4 }}>
+      {children}
+    </div>
+  )
+
+  // ── Verdict line ────────────────────────────────────────────────────────────
+  const verdictColor = recoveryDelta == null ? 'var(--text2)' : recoveryDelta >= 5 ? 'var(--green)' : recoveryDelta <= -5 ? 'var(--red)' : 'var(--amber)'
+  const verdictText = (() => {
+    if (!todayRecovery && !todayStability) return 'Upload your WHOOP screenshot to unlock analysis'
+    if (rank && rankOf) {
+      if (rank === 1) return `Best night in ${rankOf} days`
+      if (rank === rankOf) return `Worst night in ${rankOf} days`
+      return `#${rank} of last ${rankOf} nights`
+    }
+    if (recoveryDelta != null) return recoveryDelta >= 5 ? 'Better than your recent average' : recoveryDelta <= -5 ? 'Below your recent average' : 'About average'
+    return null
+  })()
+
+  return (
+    <div style={{ padding: '14px', display: 'flex', flexDirection: 'column', gap: 16 }}>
+
+      {/* ── 1. VERDICT ── */}
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
+        <div>
+          <div style={{ fontSize: 14, fontWeight: 700, color: verdictColor }}>{verdictText}</div>
+          {baseRecovery && <div style={{ fontSize: 11, color: 'var(--text3)', marginTop: 2 }}>
+            7-day avg: {baseRecovery}% recovery{baseStability ? ` · ${baseStability}/10 stability` : ''}
+          </div>}
+        </div>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 4, alignItems: 'flex-end' }}>
+          {sparkRecovery.some(Boolean) && (
+            <div>
+              <div style={{ fontSize: 8, color: 'var(--text3)', textAlign: 'right', marginBottom: 2 }}>RECOVERY</div>
+              <Sparkline values={sparkRecovery} highlight={sparkRecovery.length - 1} color="var(--green)" />
+            </div>
+          )}
+          {sparkStability.some(Boolean) && (
+            <div>
+              <div style={{ fontSize: 8, color: 'var(--text3)', textAlign: 'right', marginBottom: 2 }}>STABILITY</div>
+              <Sparkline values={sparkStability} highlight={sparkStability.length - 1} color="var(--purple)" />
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* ── 2. HR ANALYSIS ── */}
+      {lastHr && (
+        <div>
+          <SectionLabel>🫀 Heart rate analysis</SectionLabel>
+          <div style={{ background: 'var(--surface2)', borderRadius: 10, padding: '10px 12px', display: 'flex', flexDirection: 'column', gap: 8 }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8, textAlign: 'center' }}>
+              {[
+                { label: 'Stability', value: lastHr.stability_score, unit: '/10', color: lastHr.stability_score >= 7 ? 'var(--green)' : lastHr.stability_score >= 4 ? 'var(--amber)' : 'var(--red)', delta: stabilityDelta },
+                { label: 'Spikes', value: lastHr.spike_count, unit: '', color: lastHr.spike_count > 8 ? 'var(--red)' : lastHr.spike_count > 4 ? 'var(--amber)' : 'var(--green)' },
+                { label: 'Deep', value: lastHr.deep_pct, unit: '%', color: lastHr.deep_pct >= 20 ? 'var(--purple)' : 'var(--amber)' },
+              ].filter(m => m.value != null).map(m => (
+                <div key={m.label}>
+                  <div style={{ fontSize: 9, color: 'var(--text3)', textTransform: 'uppercase', marginBottom: 2 }}>{m.label}</div>
+                  <div style={{ fontSize: 15, fontWeight: 700, fontFamily: 'var(--font-mono)', color: m.color }}>{m.value}{m.unit}</div>
+                  {m.delta != null && <div style={{ fontSize: 9, color: m.delta >= 0 ? 'var(--green)' : 'var(--red)' }}>{m.delta >= 0 ? '+' : ''}{m.delta} vs avg</div>}
+                </div>
+              ))}
+            </div>
+            {lastHr.likely_cause && lastHr.likely_cause !== 'unclear' && (
+              <div style={{ borderTop: '0.5px solid var(--border)', paddingTop: 8 }}>
+                <div style={{ fontSize: 11, color: 'var(--text2)' }}>
+                  <strong style={{ color: 'var(--text)' }}>Likely cause: </strong>
+                  {lastHr.likely_cause.charAt(0).toUpperCase() + lastHr.likely_cause.slice(1)}
+                  {lastHr.cause_confidence && <span style={{ color: 'var(--text3)' }}> ({lastHr.cause_confidence} confidence)</span>}
+                </div>
+                {lastHr.cause_reasoning && (
+                  <div style={{ fontSize: 11, color: 'var(--text2)', marginTop: 3 }}>{lastHr.cause_reasoning}</div>
+                )}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* ── 3. ROOT CAUSE ANALYSIS ── */}
+      <div>
+        <SectionLabel>🔬 Last night — root cause analysis</SectionLabel>
+
+        {/* Thyroid medication */}
+        {thyroxin && (
+          <FactorRow
+            icon="💊"
+            label={thyroxin.name}
+            lastNight={thyroxin.takenTime ? thyroxin.takenTime.slice(0,5) : 'taken'}
+            unit=""
+            signal={thyroxin.fasted ? 'good' : 'warn'}
+            detail={thyroxin.fasted
+              ? 'Taken fasted — optimal absorption'
+              : 'Check: should be taken fasted for full effect'}
+          />
+        )}
+
+        {/* Caffeine */}
+        {lastCaffeine ? (
+          <FactorRow
+            icon="☕"
+            label="Last caffeine"
+            lastNight={lastCaffeine.consumed_at?.slice(0,5) || '—'}
+            unit=""
+            signal={caffeineHalfLivesAtSleep >= 2 ? 'good' : caffeineHalfLivesAtSleep >= 1 ? 'warn' : 'bad'}
+            detail={caffeineHalfLivesAtSleep != null
+              ? `${caffeineHalfLivesAtSleep} half-lives cleared by sleep onset — ${caffeineHalfLivesAtSleep >= 2 ? '~75% metabolised' : caffeineHalfLivesAtSleep >= 1 ? '~50% still active' : '>50% still active'}`
+              : lastCaffeine.meal_name}
+          />
+        ) : (
+          <FactorRow icon="☕" label="Caffeine" lastNight="none" unit="" signal="good" detail="No caffeine logged yesterday" />
+        )}
+
+        {/* Alcohol */}
+        {alcoholMeals.length > 0 && (
+          <FactorRow
+            icon="🍷"
+            label="Alcohol"
+            lastNight={alcoholMeals.map(m => m.meal_name).join(', ')}
+            unit=""
+            signal="bad"
+            detail={`Last drink: ${alcoholMeals[alcoholMeals.length-1].consumed_at?.slice(0,5) || '—'} · suppresses REM, raises RHR, fragments HR`}
+          />
+        )}
+
+        {/* Dinner timing */}
+        {dinnerMins && (
+          <FactorRow
+            icon="🍽"
+            label="Dinner"
+            lastNight={yLog.dinner_time?.slice(0,5)}
+            unit=""
+            vsBaseline={avgDinner ? Math.round(dinnerMins - avgDinner) : null}
+            signal={dinnerMins < 18 * 60 + 30 ? 'good' : dinnerMins > 20 * 60 ? 'warn' : 'neutral'}
+            detail={avgDinner
+              ? `Your avg dinner: ${Math.floor(avgDinner/60)}:${String(Math.round(avgDinner%60)).padStart(2,'0')}`
+              : null}
+          />
+        )}
+
+        {/* Home time */}
+        {homeMins && (
+          <FactorRow
+            icon="🏠"
+            label="Got home"
+            lastNight={yLog.home_time?.slice(0,5)}
+            unit=""
+            vsBaseline={avgHome ? Math.round(homeMins - avgHome) : null}
+            signal={homeMins <= 19 * 60 ? 'good' : homeMins >= 21 * 60 ? 'warn' : 'neutral'}
+            detail={windDownGap != null ? `${fmtMins(windDownGap)} home-to-phone window` : null}
+          />
+        )}
+
+        {/* Wind-down gap */}
+        {windDownGap != null && (
+          <FactorRow
+            icon="📵"
+            label="Wind-down time"
+            lastNight={fmtMins(windDownGap)}
+            unit=""
+            vsBaseline={avgWindDownGap ? Math.round(windDownGap - avgWindDownGap) : null}
+            signal={windDownGap >= 45 ? 'good' : windDownGap >= 20 ? 'warn' : 'bad'}
+            detail={`Phone away ${yLog.phone_away_time?.slice(0,5)} → asleep ${(tLog.bed_time || yLog.bed_time)?.slice(0,5)}`}
+          />
+        )}
+
+        {/* Temperature */}
+        {lastTemp && (
+          <FactorRow
+            icon="🌡"
+            label="Bedroom temperature"
+            lastNight={lastTemp + '°F'}
+            unit=""
+            signal={optimalTempRange
+              ? (lastTemp >= optimalTempRange.min - 1 && lastTemp <= optimalTempRange.max + 1 ? 'good' : 'warn')
+              : (lastTemp <= 68 ? 'good' : lastTemp <= 71 ? 'warn' : 'bad')}
+            detail={optimalTempRange
+              ? `Your sweet spot: ${optimalTempRange.min}–${optimalTempRange.max}°F (from ${Math.round(optimalTempRange.avg)}°F avg on good nights)`
+              : 'Optimal sleep: 65–68°F'}
+          />
+        )}
+
+        {/* Hydration */}
+        {water && (
+          <FactorRow
+            icon="💧"
+            label="Hydration"
+            lastNight={water >= 1000 ? (water / 1000).toFixed(1) + 'L' : water + 'ml'}
+            unit=""
+            vsBaseline={avgWater ? Math.round((water - avgWater) / 100) / 10 : null}
+            signal={water >= 2000 ? 'good' : water >= 1200 ? 'warn' : 'bad'}
+            detail={avgWater ? `Your avg: ${(avgWater/1000).toFixed(1)}L` : null}
+          />
+        )}
+
+        {/* Bowel */}
+        {poopSummary && (
+          <FactorRow
+            icon="💩"
+            label="Gut health yesterday"
+            lastNight={poopSummary.count + 'x · Type ' + poopSummary.types.join('/')}
+            unit=""
+            signal={poopSummary.hasFlags ? 'warn' : poopSummary.types.every(t => t >= 3 && t <= 5) ? 'good' : 'neutral'}
+            detail={poopSummary.hasFlags ? '⚠️ ' + poopSummary.flags.join(', ') : null}
+          />
+        )}
+      </div>
+
+      {/* ── 4. WHAT WAS DIFFERENT ── */}
+      {comparisons.length > 0 && (
+        <div>
+          <SectionLabel>📊 vs recent nights</SectionLabel>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+            {comparisons.map((c, i) => (
+              <div key={i} style={{
+                display: 'flex', alignItems: 'center', gap: 8,
+                padding: '7px 10px', borderRadius: 8, background: 'var(--surface2)',
+                borderLeft: '3px solid ' + (c.better ? 'var(--green)' : 'var(--red)')
+              }}>
+                <span style={{ fontSize: 14 }}>{c.better ? '↑' : '↓'}</span>
+                <span style={{ fontSize: 12, color: 'var(--text2)', flex: 1 }}>{c.detail}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+    </div>
+  )
+}

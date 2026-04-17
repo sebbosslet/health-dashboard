@@ -3,6 +3,7 @@ import { useState, useEffect } from 'react'
 import { format, subDays, startOfWeek, isMonday } from 'date-fns'
 import { supabase } from '../lib/supabase'
 import { useSettings } from '../hooks/useData'
+import SleepPatterns from '../components/SleepPatterns'
 
 // ─── Chart components ─────────────────────────────────────────────────────────
 
@@ -430,6 +431,16 @@ export default function TrendsPage({ session }) {
             </div>
           </div>
         )}
+
+        <div style={{ height: 8 }} />
+
+        {/* Behaviour correlations — historical patterns */}
+        <div className="card" style={{ overflow: 'hidden' }}>
+          <div className="card-header">
+            <span className="card-title">🔬 Behaviour correlations</span>
+          </div>
+          <SleepPatterns userId={session.user.id} />
+        </div>
 
         <div style={{ height: 8 }} />
       </div>

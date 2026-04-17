@@ -6,6 +6,7 @@ import { supabase } from '../lib/supabase'
 import { useLang } from '../lib/LangContext'
 import { showToast } from './Toast'
 import SleepPatterns from './SleepPatterns'
+import SleepDeepDive from './SleepDeepDive'
 
 // ─── AI Analysis Engine ───────────────────────────────────────────────────────
 
@@ -982,9 +983,9 @@ function WhoopTab({ log, yesterdayLog, session, lang, onRefresh }) {
         } catch(e) { return null }
       })()}
 
-      {/* Patterns & correlations */}
+      {/* Deep dive — last night root cause analysis */}
       <div style={{ borderTop: '0.5px solid var(--border)' }}>
-        <SleepPatterns userId={session.user.id} />
+        <SleepDeepDive log={log} hrAnalysis={hrAnalysis} session={session} />
       </div>
 
     </div>
