@@ -176,6 +176,37 @@ export default function TodayPage({ session }) {
         {/* Proactive nudges */}
         <ProactiveNudges session={session} todayLog={log} settings={settings} />
 
+        {/* Recovery snapshot — quick at-a-glance before opening Sleep tab */}
+        {log?.recovery_score || log?.sleep_duration ? (
+          <div className="card" style={{ padding: '12px 14px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
+              <span className="card-title">
+                {log.recovery_score >= 67 ? '🟢' : log.recovery_score >= 34 ? '🟡' : '🔴'} {lang === 'de' ? 'Erholung heute' : 'Recovery today'}
+              </span>
+              <span style={{ fontSize: 10, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>WHOOP</span>
+            </div>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 8 }}>
+              {[
+                { label: lang === 'de' ? 'Erholung' : 'Recovery', value: log.recovery_score ? Math.round(log.recovery_score) + '%' : '—', color: log.recovery_score >= 67 ? 'var(--green)' : log.recovery_score >= 34 ? 'var(--amber)' : 'var(--red)' },
+                { label: 'HRV', value: log.hrv ? Math.round(log.hrv) + 'ms' : '—', color: 'var(--purple)' },
+                { label: 'RHR', value: log.rhr ? Math.round(log.rhr) + 'bpm' : '—', color: 'var(--blue)' },
+                { label: lang === 'de' ? 'Schlaf' : 'Sleep', value: log.sleep_duration ? (Math.floor(log.sleep_duration) + 'h' + (Math.round((log.sleep_duration % 1) * 60) > 0 ? Math.round((log.sleep_duration % 1) * 60) + 'm' : '')) : '—', color: 'var(--blue)' },
+              ].map(m => (
+                <div key={m.label} style={{ textAlign: 'center' }}>
+                  <div style={{ fontSize: 15, fontWeight: 700, fontFamily: 'var(--font-mono)', color: m.color }}>{m.value}</div>
+                  <div style={{ fontSize: 9, color: 'var(--text3)', textTransform: 'uppercase', marginTop: 2 }}>{m.label}</div>
+                </div>
+              ))}
+            </div>
+            {(log.sleep_efficiency || log.sleep_restorative) && (
+              <div style={{ display: 'flex', gap: 12, marginTop: 8, paddingTop: 8, borderTop: '0.5px solid var(--border)', fontSize: 11, color: 'var(--text2)' }}>
+                {log.sleep_efficiency && <span>Efficiency <strong>{Math.round(log.sleep_efficiency)}%</strong></span>}
+                {log.sleep_restorative && <span>Restorative <strong>{Math.floor(log.sleep_restorative)}h{Math.round((log.sleep_restorative % 1) * 60) > 0 ? Math.round((log.sleep_restorative % 1) * 60) + 'm' : ''}</strong></span>}
+              </div>
+            )}
+          </div>
+        ) : null}
+
         {/* Daily Intelligence — Check-in, Sleep, Insight */}
         <DailyIntelligence
           session={session}
