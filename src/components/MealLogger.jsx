@@ -339,13 +339,11 @@ Respond ONLY with valid JSON, no markdown:
                 defaultValue={dinnerTime}
                 onChange={e => {
                   const v = e.target.value
-                  setDinnerTime(v)
-                  if (v) supabase.from('daily_logs').upsert({ user_id: session.user.id, date: dateStr, dinner_time: v, updated_at: new Date().toISOString() }, { onConflict: 'user_id,date' })
+                  if (v) { setDinnerTime(v); supabase.from('daily_logs').upsert({ user_id: session.user.id, date: dateStr, dinner_time: v, updated_at: new Date().toISOString() }, { onConflict: 'user_id,date' }) }
                 }}
-                onBlur={e => {
-                  const v = dinnerRef.current?.value || e.target.value
-                  setDinnerTime(v)
-                  if (v) supabase.from('daily_logs').upsert({ user_id: session.user.id, date: dateStr, dinner_time: v, updated_at: new Date().toISOString() }, { onConflict: 'user_id,date' })
+                onBlur={() => {
+                  const v = dinnerRef.current?.value
+                  if (v && v !== dinnerTime) { setDinnerTime(v); supabase.from('daily_logs').upsert({ user_id: session.user.id, date: dateStr, dinner_time: v, updated_at: new Date().toISOString() }, { onConflict: 'user_id,date' }) }
                 }}
                 style={{ fontSize: 13, fontWeight: 700, fontFamily: 'var(--font-mono)', color: 'var(--green)', background: 'none', border: 'none', outline: 'none', width: 80, textAlign: 'right', cursor: 'pointer' }}
               />

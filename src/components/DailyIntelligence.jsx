@@ -427,7 +427,7 @@ export function EveningLog({ log, onSave, lang, habitGoals, activeHabits, onTogg
       {/* Evening time fields */}
       <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
 
-        {/* Come home time */}
+        {/* Got home at */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
           <button onClick={() => {
             if (!homeTime) {
@@ -458,9 +458,8 @@ export function EveningLog({ log, onSave, lang, habitGoals, activeHabits, onTogg
           )}
         </div>
 
-        {/* Phone away + AC in 2-col grid */}
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 0' }}>
+        {/* Phone away */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
           <button onClick={() => {
             if (!phoneAway) {
               const now = format(new Date(), 'HH:mm')
@@ -478,24 +477,33 @@ export function EveningLog({ log, onSave, lang, habitGoals, activeHabits, onTogg
           }}>
             {phoneAway && <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M2.5 7l3.5 3.5 5.5-6" stroke="white" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/></svg>}
           </button>
-          <span style={{ fontSize: 13, fontWeight: 600, flex: 1, color: phoneAway ? 'var(--text)' : 'var(--text2)' }}>📵 {labels.phone}</span>
+          <span style={{ fontSize: 13, fontWeight: 600, flex: 1, color: phoneAway ? 'var(--text)' : 'var(--text2)' }}>
+            📵 {labels.phone}
+          </span>
           {phoneAway && (
-            <input
-              ref={phoneRef}
-              type="time"
-              defaultValue={phoneAway}
+            <input ref={phoneRef} type="time" defaultValue={phoneAway}
               onChange={e => setPhoneAway(e.target.value)}
-              onBlur={e => setPhoneAway(e.target.value)}
+              onBlur={e => setPhoneAway(phoneRef.current?.value || e.target.value)}
               style={{ fontSize: 13, fontWeight: 700, fontFamily: 'var(--font-mono)', color: 'var(--green)', background: 'none', border: 'none', outline: 'none', width: 80, textAlign: 'right', cursor: 'pointer' }}
             />
           )}
         </div>
 
-        <div className="field">
-          <label className="field-label">❄ {labels.ac}</label>
-          <input className="field-input" type="number" step="1" value={acTemp} onChange={e => setAcTemp(e.target.value)} placeholder="68" inputMode="numeric" />
+        {/* AC temp */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          <div style={{ width: 28, height: 28, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16, flexShrink: 0 }}>❄</div>
+          <span style={{ fontSize: 13, fontWeight: 600, flex: 1, color: 'var(--text2)' }}>{labels.ac}</span>
+          <input
+            className="field-input"
+            type="number" step="1"
+            value={acTemp}
+            onChange={e => setAcTemp(e.target.value)}
+            placeholder="68"
+            inputMode="numeric"
+            style={{ width: 80, textAlign: 'right', fontSize: 13, fontWeight: 700, fontFamily: 'var(--font-mono)' }}
+          />
         </div>
-      </div>
+
       </div>
 
       {/* Wind-down quality */}
