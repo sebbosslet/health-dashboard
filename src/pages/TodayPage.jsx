@@ -355,7 +355,7 @@ export default function TodayPage({ session }) {
           lang={lang}
         />
 
-        <button className="btn-primary" onClick={handleCloseDay} disabled={saving} style={{ background: 'var(--text)', borderColor: 'var(--text)' }}>
+        <button className="btn-primary" onClick={handleCloseDay} disabled={saving}>
           {saving ? (lang === 'de' ? 'Speichern...' : 'Saving...') : (lang === 'de' ? '🌙 Tag abschließen' : '🌙 Close out today')}
         </button>
         <div style={{ height: 8 }} />
