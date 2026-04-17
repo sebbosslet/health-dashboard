@@ -561,111 +561,6 @@ export function EveningLog({ log, onSave, lang, habitGoals, activeHabits, onTogg
 
 // ─── WHOOP Tab (upload + last night summary) ──────────────────────────────────
 
-function WhoopTab({ log, yesterdayLog, session, lang, onRefresh }) {
-  const date = format(new Date(), 'yyyy-MM-dd')
-  const yesterday = format(subDays(new Date(), 1), 'yyyy-MM-dd')
-  const [hrAnalysis, setHrAnalysis] = useState(null)
-  const [forceUpload, setForceUpload] = useState(false)
-
-  function fetchHrAnalysis() {
-    supabase.from('sleep_hr_analysis')
-      .select('*').eq('user_id', session.user.id)
-      .gte('date', yesterday).order('date', { ascending: false }).limit(3)
-      .then(({ data, error }) => {
-        setHrAnalysis(data?.[0] || null)
-      })
-  }
-
-  useEffect(() => { fetchHrAnalysis() }, [session.user.id, date])
-
-  // bed_time can be on today's log (uploaded today) or yesterday's log (uploaded via old Trends flow)
-  // Prefer today's bed_time (from new upload), fall back to yesterday's
-  // Also correct 12:xx AM misread (12:03 AM should be 00:03, not noon)
-  function correctBedTime(t) {
-    if (!t) return null
-    const [h] = t.split(':').map(Number)
-    // Sleep onset of 12:xx is almost certainly midnight (00:xx), never noon
-    return h === 12 ? '00:' + t.slice(3) : t
-  }
-  const bedTime = correctBedTime(log?.bed_time) || correctBedTime(yesterdayLog?.bed_time)
-  const uploaded = !!bedTime
-
-  // Evening fields can be on today's log OR yesterday's
-  const eveningSource = log?.phone_away_time ? log : yesterdayLog
-
-  // Compute wind-down duration: phone away → asleep
-  let windDownMins = null
-  if (eveningSource?.phone_away_time && bedTime) {
-    const pm = parseInt(eveningSource.phone_away_time.split(':')[0])*60 + parseInt(eveningSource.phone_away_time.split(':')[1])
-    let bm = parseInt(bedTime.split(':')[0])*60 + parseInt(bedTime.split(':')[1])
-    if (bm < 360) bm += 1440  // after midnight
-    const gap = bm - pm
-    if (gap > 0 && gap < 600) windDownMins = gap  // sanity check: 0-10h range only
-  }
-
-  // Last night summary grid
-  const summary = []
-  if (eveningSource?.dinner_time) summary.push({ icon: '🍽', label: lang === 'de' ? 'Abendessen' : 'Dinner', value: eveningSource.dinner_time.slice(0,5) })
-  if (eveningSource?.home_time) summary.push({ icon: '🏠', label: lang === 'de' ? 'Zuhause' : 'Home', value: eveningSource.home_time.slice(0,5) })
-  if (eveningSource?.phone_away_time) summary.push({ icon: '📵', label: lang === 'de' ? 'Handy weg' : 'Phone away', value: eveningSource.phone_away_time.slice(0,5) })
-  const hasEveningData = !!(eveningSource?.phone_away_time || eveningSource?.wind_down)
-  summary.push({ icon: '🛏', label: lang === 'de' ? 'Eingeschlafen' : 'Asleep', value: bedTime ? bedTime.slice(0,5) : '—', pending: !bedTime && hasEveningData })
-  summary.push({ icon: '⏱', label: lang === 'de' ? 'Wind-down' : 'Wind-down', value: windDownMins !== null ? `${windDownMins}min` : '—', pending: windDownMins === null && hasEveningData })
-  if (log?.sleep_efficiency) summary.push({ icon: '📊', label: lang === 'de' ? 'Effizienz' : 'Efficiency', value: `${Math.round(log.sleep_efficiency)}%` })
-  if (eveningSource?.wind_down) summary.push({ icon: eveningSource.wind_down === 'good' ? '😌' : eveningSource.wind_down === 'ok' ? '😐' : '😣', label: lang === 'de' ? 'Qualität' : 'Quality', value: eveningSource.wind_down })
-  if (eveningSource?.ac_temp) summary.push({ icon: '❄', label: 'AC', value: `${eveningSource.ac_temp}°F` })
-
-  return (
-    <div style={{ padding: '12px 14px', display: 'flex', flexDirection: 'column', gap: 12 }}>
-
-      {/* Success state or upload widget */}
-      {uploaded && !forceUpload ? (
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 12px', background: 'var(--green-light)', borderRadius: 10, border: '0.5px solid var(--green-border)' }}>
-          <span style={{ fontSize: 18 }}>✅</span>
-          <div style={{ flex: 1 }}>
-            <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--green)' }}>
-              {lang === 'de' ? 'Screenshot analysiert' : 'Screenshot analysed'}
-              {windDownMins !== null && (
-                <span style={{ fontWeight: 400, marginLeft: 6 }}>
-                  · {windDownMins}min wind-down
-                </span>
-              )}
-            </div>
-            <div style={{ fontSize: 10, color: 'var(--green)', opacity: 0.75, marginTop: 1 }}>
-              🛏 {bedTime.slice(0,5)} · <button onClick={() => setForceUpload(true)} style={{ fontSize: 10, color: 'var(--green)', background: 'none', border: 'none', cursor: 'pointer', padding: 0, fontFamily: 'inherit', opacity: 0.7, textDecoration: 'underline' }}>
-                re-upload
-              </button>
-            </div>
-          </div>
-        </div>
-      ) : (
-        <WhoopUpload session={session} date={date} lang={lang} bedTime='' onRefetchHr={fetchHrAnalysis} onDone={(fields) => { setForceUpload(false); if (onRefresh) onRefresh(fields) }} />
-      )}
-
-      {/* Last night summary — always shown if there's data */}
-      {summary.length > 0 && (
-        <div>
-          <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 8 }}>
-            {lang === 'de' ? 'Letzte Nacht' : 'Last night'}
-          </div>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 6 }}>
-            {summary.map((s, i) => (
-              <div key={i} style={{ background: s.pending ? 'transparent' : 'var(--surface2)', borderRadius: 8, padding: '7px 8px', textAlign: 'center', border: s.pending ? '1.5px dashed var(--border)' : 'none', opacity: s.pending ? 0.5 : 1 }}>
-                <div style={{ fontSize: 14, marginBottom: 2 }}>{s.icon}</div>
-                <div style={{ fontSize: 13, fontWeight: 700, fontFamily: 'var(--font-mono)', color: s.pending ? 'var(--text3)' : 'var(--text)' }}>{s.value}</div>
-                <div style={{ fontSize: 9, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.04em', marginTop: 1 }}>{s.label}</div>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
-
-    </div>
-  )
-}
-
-
 // ─── Sleep Stats Summary ──────────────────────────────────────────────────────
 
 const CAUSE_LABELS = {
@@ -871,6 +766,112 @@ function SleepStatsCard({ userId, lang }) {
       <div style={{ padding: '0 14px 14px', borderTop: '0.5px solid var(--border)', paddingTop: 12 }}>
         <SleepStatsCard userId={session.user.id} lang={lang} />
       </div>
+    </div>
+  )
+}
+
+
+
+function WhoopTab({ log, yesterdayLog, session, lang, onRefresh }) {
+  const date = format(new Date(), 'yyyy-MM-dd')
+  const yesterday = format(subDays(new Date(), 1), 'yyyy-MM-dd')
+  const [hrAnalysis, setHrAnalysis] = useState(null)
+  const [forceUpload, setForceUpload] = useState(false)
+
+  function fetchHrAnalysis() {
+    supabase.from('sleep_hr_analysis')
+      .select('*').eq('user_id', session.user.id)
+      .gte('date', yesterday).order('date', { ascending: false }).limit(3)
+      .then(({ data, error }) => {
+        setHrAnalysis(data?.[0] || null)
+      })
+  }
+
+  useEffect(() => { fetchHrAnalysis() }, [session.user.id, date])
+
+  // bed_time can be on today's log (uploaded today) or yesterday's log (uploaded via old Trends flow)
+  // Prefer today's bed_time (from new upload), fall back to yesterday's
+  // Also correct 12:xx AM misread (12:03 AM should be 00:03, not noon)
+  function correctBedTime(t) {
+    if (!t) return null
+    const [h] = t.split(':').map(Number)
+    // Sleep onset of 12:xx is almost certainly midnight (00:xx), never noon
+    return h === 12 ? '00:' + t.slice(3) : t
+  }
+  const bedTime = correctBedTime(log?.bed_time) || correctBedTime(yesterdayLog?.bed_time)
+  const uploaded = !!bedTime
+
+  // Evening fields can be on today's log OR yesterday's
+  const eveningSource = log?.phone_away_time ? log : yesterdayLog
+
+  // Compute wind-down duration: phone away → asleep
+  let windDownMins = null
+  if (eveningSource?.phone_away_time && bedTime) {
+    const pm = parseInt(eveningSource.phone_away_time.split(':')[0])*60 + parseInt(eveningSource.phone_away_time.split(':')[1])
+    let bm = parseInt(bedTime.split(':')[0])*60 + parseInt(bedTime.split(':')[1])
+    if (bm < 360) bm += 1440  // after midnight
+    const gap = bm - pm
+    if (gap > 0 && gap < 600) windDownMins = gap  // sanity check: 0-10h range only
+  }
+
+  // Last night summary grid
+  const summary = []
+  if (eveningSource?.dinner_time) summary.push({ icon: '🍽', label: lang === 'de' ? 'Abendessen' : 'Dinner', value: eveningSource.dinner_time.slice(0,5) })
+  if (eveningSource?.home_time) summary.push({ icon: '🏠', label: lang === 'de' ? 'Zuhause' : 'Home', value: eveningSource.home_time.slice(0,5) })
+  if (eveningSource?.phone_away_time) summary.push({ icon: '📵', label: lang === 'de' ? 'Handy weg' : 'Phone away', value: eveningSource.phone_away_time.slice(0,5) })
+  const hasEveningData = !!(eveningSource?.phone_away_time || eveningSource?.wind_down)
+  summary.push({ icon: '🛏', label: lang === 'de' ? 'Eingeschlafen' : 'Asleep', value: bedTime ? bedTime.slice(0,5) : '—', pending: !bedTime && hasEveningData })
+  summary.push({ icon: '⏱', label: lang === 'de' ? 'Wind-down' : 'Wind-down', value: windDownMins !== null ? `${windDownMins}min` : '—', pending: windDownMins === null && hasEveningData })
+  if (log?.sleep_efficiency) summary.push({ icon: '📊', label: lang === 'de' ? 'Effizienz' : 'Efficiency', value: `${Math.round(log.sleep_efficiency)}%` })
+  if (eveningSource?.wind_down) summary.push({ icon: eveningSource.wind_down === 'good' ? '😌' : eveningSource.wind_down === 'ok' ? '😐' : '😣', label: lang === 'de' ? 'Qualität' : 'Quality', value: eveningSource.wind_down })
+  if (eveningSource?.ac_temp) summary.push({ icon: '❄', label: 'AC', value: `${eveningSource.ac_temp}°F` })
+
+  return (
+    <div style={{ padding: '12px 14px', display: 'flex', flexDirection: 'column', gap: 12 }}>
+
+      {/* Success state or upload widget */}
+      {uploaded && !forceUpload ? (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 12px', background: 'var(--green-light)', borderRadius: 10, border: '0.5px solid var(--green-border)' }}>
+          <span style={{ fontSize: 18 }}>✅</span>
+          <div style={{ flex: 1 }}>
+            <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--green)' }}>
+              {lang === 'de' ? 'Screenshot analysiert' : 'Screenshot analysed'}
+              {windDownMins !== null && (
+                <span style={{ fontWeight: 400, marginLeft: 6 }}>
+                  · {windDownMins}min wind-down
+                </span>
+              )}
+            </div>
+            <div style={{ fontSize: 10, color: 'var(--green)', opacity: 0.75, marginTop: 1 }}>
+              🛏 {bedTime.slice(0,5)} · <button onClick={() => setForceUpload(true)} style={{ fontSize: 10, color: 'var(--green)', background: 'none', border: 'none', cursor: 'pointer', padding: 0, fontFamily: 'inherit', opacity: 0.7, textDecoration: 'underline' }}>
+                re-upload
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : (
+        <WhoopUpload session={session} date={date} lang={lang} bedTime='' onRefetchHr={fetchHrAnalysis} onDone={(fields) => { setForceUpload(false); if (onRefresh) onRefresh(fields) }} />
+      )}
+
+      {/* Last night summary — always shown if there's data */}
+      {summary.length > 0 && (
+        <div>
+          <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 8 }}>
+            {lang === 'de' ? 'Letzte Nacht' : 'Last night'}
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 6 }}>
+            {summary.map((s, i) => (
+              <div key={i} style={{ background: s.pending ? 'transparent' : 'var(--surface2)', borderRadius: 8, padding: '7px 8px', textAlign: 'center', border: s.pending ? '1.5px dashed var(--border)' : 'none', opacity: s.pending ? 0.5 : 1 }}>
+                <div style={{ fontSize: 14, marginBottom: 2 }}>{s.icon}</div>
+                <div style={{ fontSize: 13, fontWeight: 700, fontFamily: 'var(--font-mono)', color: s.pending ? 'var(--text3)' : 'var(--text)' }}>{s.value}</div>
+                <div style={{ fontSize: 9, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.04em', marginTop: 1 }}>{s.label}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+
     </div>
   )
 }
