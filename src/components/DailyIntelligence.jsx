@@ -373,16 +373,18 @@ export function EveningLog({ log, onSave, lang, habitGoals, activeHabits, onTogg
   const [acTemp, setAcTemp] = useState(log?.ac_temp || '')
   const [saving, setSaving] = useState(false)
 
-  // Re-sync when log fields change - set both state and input DOM value
+  // Re-sync when log fields change
   useEffect(() => {
     const phone = log?.phone_away_time?.slice(0,5) || ''
+    const home = log?.home_time?.slice(0,5) || ''
     setPhoneAway(phone)
+    setHomeTime(home)
     setWindDown(log?.wind_down || '')
     setNote(log?.evening_note || '')
     setAcTemp(log?.ac_temp != null ? String(log.ac_temp) : '')
-    // Also set DOM values directly for iOS time inputs
     if (phoneRef.current) phoneRef.current.value = phone
-  }, [log?.phone_away_time, log?.home_time, log?.wind_down, log?.evening_note, log?.dinner_time, log?.ac_temp])
+    if (homeRef.current) homeRef.current.value = home
+  }, [log?.phone_away_time, log?.home_time, log?.wind_down, log?.evening_note, log?.ac_temp])
 
   const labels = lang === 'de'
     ? { habits: 'Abendgewohnheiten', phone: 'Handy weggelegt um', wind: 'Abend-Qualität', note: 'Etwas Besonderes?', save: 'Abend speichern', saving: 'Speichern...', good: 'Gut', ok: 'OK', poor: 'Schlecht', ac: 'AC-Temp (°F)' }
@@ -434,9 +436,11 @@ export function EveningLog({ log, onSave, lang, habitGoals, activeHabits, onTogg
               const now = format(new Date(), 'HH:mm')
               setHomeTime(now)
               if (homeRef.current) homeRef.current.value = now
+              onSave({ home_time: now })
             } else {
               setHomeTime('')
               if (homeRef.current) homeRef.current.value = ''
+              onSave({ home_time: null })
             }
           }} style={{
             width: 28, height: 28, borderRadius: 8, flexShrink: 0,
@@ -452,7 +456,10 @@ export function EveningLog({ log, onSave, lang, habitGoals, activeHabits, onTogg
           {homeTime && (
             <input ref={homeRef} type="time" defaultValue={homeTime}
               onChange={e => setHomeTime(e.target.value)}
-              onBlur={e => setHomeTime(homeRef.current?.value || e.target.value)}
+              onBlur={() => {
+                const v = homeRef.current?.value
+                if (v) { setHomeTime(v); onSave({ home_time: v }) }
+              }}
               style={{ fontSize: 13, fontWeight: 700, fontFamily: 'var(--font-mono)', color: 'var(--blue)', background: 'none', border: 'none', outline: 'none', width: 80, textAlign: 'right', cursor: 'pointer' }}
             />
           )}
@@ -465,9 +472,11 @@ export function EveningLog({ log, onSave, lang, habitGoals, activeHabits, onTogg
               const now = format(new Date(), 'HH:mm')
               setPhoneAway(now)
               if (phoneRef.current) phoneRef.current.value = now
+              onSave({ phone_away_time: now })
             } else {
               setPhoneAway('')
               if (phoneRef.current) phoneRef.current.value = ''
+              onSave({ phone_away_time: null })
             }
           }} style={{
             width: 28, height: 28, borderRadius: 8, flexShrink: 0,
@@ -483,7 +492,10 @@ export function EveningLog({ log, onSave, lang, habitGoals, activeHabits, onTogg
           {phoneAway && (
             <input ref={phoneRef} type="time" defaultValue={phoneAway}
               onChange={e => setPhoneAway(e.target.value)}
-              onBlur={e => setPhoneAway(phoneRef.current?.value || e.target.value)}
+              onBlur={() => {
+                const v = phoneRef.current?.value
+                if (v) { setPhoneAway(v); onSave({ phone_away_time: v }) }
+              }}
               style={{ fontSize: 13, fontWeight: 700, fontFamily: 'var(--font-mono)', color: 'var(--green)', background: 'none', border: 'none', outline: 'none', width: 80, textAlign: 'right', cursor: 'pointer' }}
             />
           )}

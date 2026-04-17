@@ -93,16 +93,14 @@ export default function MealLogger({ session, date, onCaloriesUpdated }) {
   useEffect(() => { fetchMeals() }, [dateStr, session.user.id])
 
   useEffect(() => {
-    // Load saved dinner time from daily_logs
     supabase.from('daily_logs').select('dinner_time').eq('user_id', session.user.id).eq('date', dateStr).maybeSingle()
       .then(({ data }) => {
-        if (data?.dinner_time) setDinnerTime(data.dinner_time.slice(0,5))
+        if (data?.dinner_time) {
+          const t = data.dinner_time.slice(0,5)
+          setDinnerTime(t)
+          if (dinnerRef.current) dinnerRef.current.value = t
+        }
       })
-  }, [dateStr])
-
-  useEffect(() => {
-    supabase.from('daily_logs').select('dinner_time').eq('user_id', session.user.id).eq('date', dateStr).maybeSingle()
-      .then(({ data }) => { if (data?.dinner_time) setDinnerTime(data.dinner_time.slice(0,5)) })
   }, [dateStr])
 
   async function fetchMeals() {
