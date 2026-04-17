@@ -108,6 +108,7 @@ export default function TodayPage({ session }) {
 
   const [activeActivity, setActiveActivity] = useState(new Set())
   const [nutritionExpanded, setNutritionExpanded] = useState(true)
+  const [addingMeal, setAddingMeal] = useState(false)
   const [activeHabits, setActiveHabits] = useState(new Set())
   const [mealCalories, setMealCalories] = useState(0)
   const [water, setWater] = useState('')
@@ -255,19 +256,22 @@ export default function TodayPage({ session }) {
 
         {/* 5. Nutrition */}
         <div className="card">
-          <div className="card-header" onClick={() => setNutritionExpanded(v => !v)} style={{ cursor: 'pointer' }}>
-            <span className="card-title">{t('today_nutrition')}</span>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <div className="card-header">
+            <button onClick={() => setNutritionExpanded(v => !v)} style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'none', border: 'none', cursor: 'pointer', padding: 0, fontFamily: 'inherit' }}>
+              <span className="card-title">{t('today_nutrition')}</span>
               {!nutritionExpanded && mealCalories > 0 && (
-                <span style={{ fontSize: 11, color: 'var(--green)', fontWeight: 600 }}>
+                <span style={{ fontSize: 11, color: 'var(--green)', fontWeight: 600, marginLeft: 4 }}>
                   ✅ {mealCalories} kcal
                 </span>
               )}
-              {nutritionExpanded
-                ? <span className="badge badge-green">{t('today_ai_photo')}</span>
-                : <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M3 5l4 4 4-4" stroke="var(--text3)" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round"/></svg>
-              }
-            </div>
+              <svg width="14" height="14" viewBox="0 0 14 14" fill="none" style={{ transform: nutritionExpanded ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s', marginLeft: 2 }}><path d="M3 5l4 4 4-4" stroke="var(--text3)" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round"/></svg>
+            </button>
+            {nutritionExpanded && (
+              <button onClick={() => { /* trigger add in MealLogger via ref or state */ setAddingMeal(true) }} style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '5px 10px', borderRadius: 16, background: 'var(--green)', border: 'none', color: 'white', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>
+                <svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M6 1v10M1 6h10" stroke="white" strokeWidth="1.8" strokeLinecap="round"/></svg>
+                Add
+              </button>
+            )}
           </div>
 
           <div style={{ display: nutritionExpanded ? 'block' : 'none' }}>
@@ -282,7 +286,7 @@ export default function TodayPage({ session }) {
                   <div className="bar" style={{ width: `${calPct}%`, background: mealCalories > calorieTarget ? 'var(--red)' : 'var(--amber)' }} />
                 </div>
               </div>
-              <MealLogger session={session} date={today} onCaloriesUpdated={setMealCalories} onDoneEating={() => setNutritionExpanded(false)} />
+              <MealLogger session={session} date={today} onCaloriesUpdated={setMealCalories} onDoneEating={() => setNutritionExpanded(false)} addTriggered={addingMeal} onAddHandled={() => setAddingMeal(false)} />
             </div>
         </div>
 

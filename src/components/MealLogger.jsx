@@ -75,6 +75,7 @@ export default function MealLogger({ session, date, onCaloriesUpdated }) {
   const [mealType, setMealType] = useState('lunch')
   const [editingCalories, setEditingCalories] = useState(null)
   const [showManual, setShowManual] = useState(false)
+  const [showAddSheet, setShowAddSheet] = useState(false)
   const [describeText, setDescribeText] = useState('')
   const [describeAnalysing, setDescribeAnalysing] = useState(false)
 
@@ -101,6 +102,14 @@ export default function MealLogger({ session, date, onCaloriesUpdated }) {
         }
       })
   }, [dateStr])
+
+  // Open add sheet when parent taps + Add
+  useEffect(() => {
+    if (addTriggered) {
+      setShowAddSheet(true)
+      if (onAddHandled) onAddHandled()
+    }
+  }, [addTriggered])
 
   async function fetchMeals() {
     const { data } = await supabase
@@ -558,37 +567,39 @@ Respond ONLY with valid JSON, no markdown:
         </div>
       )}
 
-      {/* Action buttons */}
+      {/* Add sheet — triggered by + Add in card header */}
       {!preview && !showManual && (
-        <div style={{ padding: '10px 14px 12px', display: 'flex', flexDirection: 'column', gap: 8 }}>
+        <div>
           <input ref={fileRef} type="file" accept="image/*" style={{ display: 'none' }} onChange={handleFileChange} />
 
-          {analysing ? (
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '12px', background: 'var(--green-light)', borderRadius: 10, border: '0.5px solid var(--green-border)' }}>
+          {analysing && (
+            <div style={{ margin: '0 14px 12px', display: 'flex', alignItems: 'center', gap: 10, padding: '12px', background: 'var(--green-light)', borderRadius: 10, border: '0.5px solid var(--green-border)' }}>
               <div style={{ width: 20, height: 20, borderRadius: '50%', border: '2.5px solid var(--green-light)', borderTopColor: 'var(--green)', animation: 'spin 0.8s linear infinite', flexShrink: 0 }} />
-              <div>
-                <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--green)' }}>{lang === 'de' ? 'Foto wird analysiert...' : 'Analysing photo...'}</div>
-                <div style={{ fontSize: 11, color: 'var(--text2)', marginTop: 2 }}>{lang === 'de' ? 'Claude schätzt Kalorien und Makros' : 'Claude is estimating calories and macros'}</div>
-              </div>
+              <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--green)' }}>{lang === 'de' ? 'Foto wird analysiert...' : 'Analysing photo...'}</div>
             </div>
-          ) : (
-            <>
-              <button onClick={() => fileRef.current?.click()} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 14px', borderRadius: 10, border: '1px dashed var(--green-border)', background: 'rgba(26,122,94,0.03)', cursor: 'pointer', fontFamily: 'inherit', width: '100%', textAlign: 'left' }}>
-                <div style={{ width: 36, height: 36, borderRadius: 10, background: 'var(--green-light)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                  <svg width="18" height="18" viewBox="0 0 18 18" fill="none"><rect x="1" y="3" width="16" height="12" rx="2" stroke="var(--green)" strokeWidth="1.3"/><circle cx="9" cy="9" r="3" stroke="var(--green)" strokeWidth="1.3"/><path d="M6 3L7 1.5h4L12 3" stroke="var(--green)" strokeWidth="1.3"/></svg>
-                </div>
-                <div>
-                  <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--green)' }}>{lang === 'de' ? 'Foto aufnehmen oder auswählen' : 'Camera or photo library'}</div>
-                  <div style={{ fontSize: 11, color: 'var(--text2)', marginTop: 2 }}>{lang === 'de' ? 'KI schätzt Kalorien automatisch' : 'AI estimates calories automatically'}</div>
-                </div>
-              </button>
-
-              <button onClick={() => setShowManual(true)} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, padding: '9px 14px', borderRadius: 10, border: '0.5px solid var(--border)', background: 'var(--surface2)', cursor: 'pointer', fontFamily: 'inherit', fontSize: 13, color: 'var(--text2)' }}>
-                <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M7 2v10M2 7h10" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round"/></svg>
-                {lang === 'de' ? 'Manuell eingeben' : 'Enter manually'}
-              </button>
-            </>
           )}
+
+          {showAddSheet && !analysing && (
+            <div style={{ margin: '0 14px 12px', display: 'flex', flexDirection: 'column', gap: 6, padding: '12px', background: 'var(--surface2)', borderRadius: 12, border: '0.5px solid var(--border)' }}>
+              <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 2 }}>
+                {lang === 'de' ? 'Mahlzeit hinzufügen' : 'Add a meal'}
+              </div>
+              <div style={{ display: 'flex', gap: 8 }}>
+                <button onClick={() => { fileRef.current?.click(); setShowAddSheet(false) }} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, padding: '12px 8px', borderRadius: 10, border: '1px solid var(--green-border)', background: 'var(--green-light)', cursor: 'pointer', fontFamily: 'inherit' }}>
+                  <svg width="22" height="22" viewBox="0 0 22 22" fill="none"><rect x="1" y="4" width="20" height="15" rx="3" stroke="var(--green)" strokeWidth="1.5"/><circle cx="11" cy="11.5" r="4" stroke="var(--green)" strokeWidth="1.5"/><path d="M7.5 4L8.5 2h5l1 2" stroke="var(--green)" strokeWidth="1.5" strokeLinecap="round"/></svg>
+                  <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--green)' }}>{lang === 'de' ? 'Foto' : 'Photo'}</span>
+                </button>
+                <button onClick={() => { setShowManual(true); setShowAddSheet(false) }} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, padding: '12px 8px', borderRadius: 10, border: '0.5px solid var(--border)', background: 'var(--surface)', cursor: 'pointer', fontFamily: 'inherit' }}>
+                  <svg width="22" height="22" viewBox="0 0 22 22" fill="none"><path d="M4 6h14M4 11h10M4 16h7" stroke="var(--text2)" strokeWidth="1.5" strokeLinecap="round"/></svg>
+                  <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--text2)' }}>{lang === 'de' ? 'Beschreiben' : 'Describe'}</span>
+                </button>
+              </div>
+              <button onClick={() => setShowAddSheet(false)} style={{ alignSelf: 'center', background: 'none', border: 'none', color: 'var(--text3)', fontSize: 11, cursor: 'pointer', fontFamily: 'inherit', marginTop: 2 }}>
+                {lang === 'de' ? 'Abbrechen' : 'Cancel'}
+              </button>
+            </div>
+          )}
+
         </div>
       )}
     </div>
