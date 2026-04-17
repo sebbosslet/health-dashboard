@@ -37,12 +37,11 @@ export default function SleepPatterns({ userId }) {
   useEffect(() => {
     if (!userId) { setStatus('empty'); return }
 
-    // Check cache first — only recompute if new sleep_hr_analysis exists since last cache
-    supabase.from('user_settings').select('sleep_patterns_cache, sleep_patterns_date').eq('user_id', userId).maybeSingle()
-      .then(({ data: settings }) => {
-        // Get latest sleep_hr_analysis date to detect new data
-        supabase.from('sleep_hr_analysis').select('date').eq('user_id', userId).order('date', { ascending: false }).limit(1).maybeSingle()
-          .then(({ data: latest }) => {
+    // Check cache and latest date in parallel
+    Promise.all([
+      supabase.from('user_settings').select('sleep_patterns_cache, sleep_patterns_date').eq('user_id', userId).maybeSingle(),
+      supabase.from('sleep_hr_analysis').select('date').eq('user_id', userId).order('date', { ascending: false }).limit(1).maybeSingle(),
+    ]).then(([{ data: settings }, { data: latest }]) => {
             const latestDate = latest?.date || null
             const cacheDate = settings?.sleep_patterns_date || null
             const cacheData = settings?.sleep_patterns_cache
@@ -58,8 +57,7 @@ export default function SleepPatterns({ userId }) {
 
             // No valid cache — compute fresh
             computePatterns(userId, latestDate)
-          })
-      })
+    })
   }, [userId])
 
   function computePatterns(userId, latestDate) {
@@ -190,7 +188,7 @@ export default function SleepPatterns({ userId }) {
     })
   }
 
-  if (status === 'loading') return <div style={{ padding: '16px 14px', fontSize: 11, color: 'var(--text3)' }}>Analysing patterns...</div>
+  if (status === 'loading') return null
   if (status === 'error') return <div style={{ padding: '16px 14px', fontSize: 11, color: 'var(--text3)' }}>Pattern analysis unavailable.</div>
   if (status === 'empty' || !data) return <div style={{ padding: '16px 14px', fontSize: 11, color: 'var(--text3)' }}>Log more nights to unlock pattern analysis.</div>
 
