@@ -563,217 +563,273 @@ function SleepStatsCard({ userId, lang }) {
 
   useEffect(() => {
     if (!userId) { setLoading(false); return }
-
     Promise.all([
       supabase.from('daily_logs').select('*').eq('user_id', userId)
-        .not('recovery_score', 'is', null).order('date', { ascending: false }).limit(60),
+        .order('date', { ascending: true }).limit(90),
       supabase.from('sleep_hr_analysis').select('*').eq('user_id', userId)
-        .order('date', { ascending: false }).limit(60),
-    ]).then(([{ data: logs }, { data: hrData }]) => {
-      if (!logs?.length || logs.length < 5) { setLoading(false); return }
+        .order('date', { ascending: true }).limit(90),
+      supabase.from('meal_logs').select('date,is_caffeinated,is_alcohol,consumed_at').eq('user_id', userId)
+        .order('date', { ascending: false }).limit(200),
+    ]).then(([{ data: logs }, { data: hr }, { data: meals }]) => {
+      if (!logs?.length || logs.length < 4) { setLoading(false); return }
 
-      // Helper: avg of array
-      const avg = arr => arr.length ? +(arr.reduce((a, b) => a + b, 0) / arr.length).toFixed(1) : null
-      const diff = (a, b) => a != null && b != null ? +(a - b).toFixed(1) : null
+      const avg = arr => arr.length ? +(arr.reduce((a,b)=>a+b,0)/arr.length).toFixed(1) : null
+      const pct = (n, total) => total ? Math.round(n/total*100) : 0
 
-      // Build hr lookup by date
+      // Build lookups
       const hrByDate = {}
-      hrData?.forEach(d => { hrByDate[d.date] = d })
+      hr?.forEach(d => { hrByDate[d.date] = d })
+      const mealsByDate = {}
+      meals?.forEach(m => {
+        if (!mealsByDate[m.date]) mealsByDate[m.date] = []
+        mealsByDate[m.date].push(m)
+      })
 
-      // ── Correlations using daily_logs ──
+      // Annotate logs with hr data
+      const enriched = logs.map(l => ({
+        ...l,
+        hr: hrByDate[l.date] || null,
+        stability: hrByDate[l.date]?.stability_score ?? null,
+        deep_pct: hrByDate[l.date]?.deep_pct ?? null,
+        rem_pct: hrByDate[l.date]?.rem_pct ?? null,
+        awake_pct: hrByDate[l.date]?.awake_pct ?? null,
+        spike_count: hrByDate[l.date]?.spike_count ?? null,
+        likely_cause: hrByDate[l.date]?.likely_cause ?? null,
+        had_alcohol: (mealsByDate[l.date] || []).some(m => m.is_alcohol),
+        had_caffeine_late: (mealsByDate[l.date] || []).some(m => m.is_caffeinated && m.consumed_at >= '17:00'),
+      }))
 
-      // 1. Late phone (>23:00) vs early phone (<22:30) → recovery
-      const latePhone = logs.filter(l => l.phone_away_time && l.phone_away_time >= '23:00')
-      const earlyPhone = logs.filter(l => l.phone_away_time && l.phone_away_time < '22:30')
-      const phoneEffect = {
-        late: avg(latePhone.map(l => l.recovery_score).filter(Boolean)),
-        early: avg(earlyPhone.map(l => l.recovery_score).filter(Boolean)),
-        n: latePhone.length + earlyPhone.length,
+      const withRecovery = enriched.filter(l => l.recovery_score != null)
+      const withStability = enriched.filter(l => l.stability != null)
+      const withSleep = enriched.filter(l => l.sleep_duration != null)
+      const total = enriched.length
+      const totalHr = hr?.length || 0
+
+      // ── OVERALL BASELINES ──
+      const baseline = {
+        recovery: avg(withRecovery.map(l => l.recovery_score)),
+        hrv: avg(enriched.filter(l=>l.hrv).map(l=>l.hrv)),
+        rhr: avg(enriched.filter(l=>l.rhr).map(l=>l.rhr)),
+        sleepDuration: avg(withSleep.map(l => l.sleep_duration)),
+        sleepEfficiency: avg(enriched.filter(l=>l.sleep_efficiency).map(l=>l.sleep_efficiency)),
+        stability: avg(withStability.map(l => l.stability)),
+        deep: avg(withStability.map(l => l.deep_pct).filter(Boolean)),
+        rem: avg(withStability.map(l => l.rem_pct).filter(Boolean)),
+        awake: avg(withStability.map(l => l.awake_pct).filter(Boolean)),
+        avgSpikes: avg(withStability.map(l => l.spike_count).filter(v => v!=null)),
+        nights: total,
+        hrNights: totalHr,
       }
 
-      // 2. Gym days → next day recovery
-      const gymDays = logs.filter(l => l.activity?.some(a => a.includes('gym')))
-      const gymNextDay = gymDays.map(l => {
-        const next = logs.find(n => n.date > l.date)
-        return next?.recovery_score
-      }).filter(Boolean)
-      const noGymNextDay = logs.filter(l => !l.activity?.some(a => a.includes('gym')))
-        .map(l => l.recovery_score).filter(Boolean)
-      const gymEffect = {
-        with: avg(gymNextDay),
-        without: avg(noGymNextDay),
-        n: gymNextDay.length,
+      // ── CAUSE BREAKDOWN ──
+      const causeCounts = {}
+      hr?.forEach(d => { if(d.likely_cause) causeCounts[d.likely_cause]=(causeCounts[d.likely_cause]||0)+1 })
+      const causes = Object.entries(causeCounts).sort((a,b)=>b[1]-a[1])
+
+      // ── BEHAVIOUR CORRELATIONS ──
+      const split = (condition, metric) => {
+        const yes = enriched.filter(condition)
+        const no = enriched.filter(l => !condition(l))
+        return {
+          yes: avg(yes.map(l=>l[metric]).filter(v=>v!=null)),
+          no: avg(no.map(l=>l[metric]).filter(v=>v!=null)),
+          nYes: yes.filter(l=>l[metric]!=null).length,
+          nNo: no.filter(l=>l[metric]!=null).length,
+        }
       }
 
-      // 3. AC temp bands → stability score
-      const coolNights = logs.filter(l => l.ac_temp && l.ac_temp <= 67)
-        .map(l => hrByDate[l.date]?.stability_score).filter(Boolean)
-      const warmNights = logs.filter(l => l.ac_temp && l.ac_temp >= 70)
-        .map(l => hrByDate[l.date]?.stability_score).filter(Boolean)
-      const tempEffect = coolNights.length >= 2 && warmNights.length >= 2 ? {
-        cool: avg(coolNights), warm: avg(warmNights), n: coolNights.length + warmNights.length
-      } : null
+      // Next-day metric after a given condition on previous day
+      const nextDaySplit = (condition, metric) => {
+        const withCondition = [], withoutCondition = []
+        for (let i = 0; i < enriched.length - 1; i++) {
+          const next = enriched[i+1]
+          if (next[metric] == null) continue
+          if (condition(enriched[i])) withCondition.push(next[metric])
+          else withoutCondition.push(next[metric])
+        }
+        return { yes: avg(withCondition), no: avg(withoutCondition), nYes: withCondition.length, nNo: withoutCondition.length }
+      }
 
-      // 4. Wind-down quality → recovery
-      const goodWindDown = logs.filter(l => l.wind_down === 'good').map(l => l.recovery_score).filter(Boolean)
-      const poorWindDown = logs.filter(l => l.wind_down === 'poor').map(l => l.recovery_score).filter(Boolean)
-      const windDownEffect = goodWindDown.length >= 2 && poorWindDown.length >= 2 ? {
-        good: avg(goodWindDown), poor: avg(poorWindDown), n: goodWindDown.length + poorWindDown.length
-      } : null
+      const corrs = {
+        // Phone timing
+        phoneEarly: split(l => l.phone_away_time && l.phone_away_time < '22:30', 'recovery_score'),
+        phoneLate:  split(l => l.phone_away_time && l.phone_away_time >= '23:00', 'recovery_score'),
+        phoneOnStability: split(l => l.phone_away_time && l.phone_away_time < '22:30', 'stability'),
 
-      // 5. Late dinner (>20:00) → stability
-      const lateDinner = logs.filter(l => l.dinner_time && l.dinner_time >= '20:00')
-        .map(l => hrByDate[l.date]?.stability_score).filter(Boolean)
-      const earlyDinner = logs.filter(l => l.dinner_time && l.dinner_time < '19:00')
-        .map(l => hrByDate[l.date]?.stability_score).filter(Boolean)
-      const dinnerEffect = lateDinner.length >= 2 && earlyDinner.length >= 2 ? {
-        late: avg(lateDinner), early: avg(earlyDinner), n: lateDinner.length + earlyDinner.length
-      } : null
+        // Wind-down
+        windGood: split(l => l.wind_down === 'good', 'recovery_score'),
+        windPoor: split(l => l.wind_down === 'poor', 'recovery_score'),
+        windOnStability: split(l => l.wind_down === 'good', 'stability'),
 
-      // 6. Sauna → next day recovery
-      const saunaDays = logs.filter(l => l.activity?.some(a => a.includes('sauna')))
-      const saunaNextDay = saunaDays.map(l => {
-        const next = logs.find(n => n.date > l.date)
-        return next?.recovery_score
-      }).filter(Boolean)
-      const saunaEffect = saunaNextDay.length >= 2 ? {
-        with: avg(saunaNextDay),
-        without: avg(noGymNextDay),
-        n: saunaNextDay.length,
-      } : null
+        // Activities → next day
+        gymNextDay: nextDaySplit(l => l.activity?.some(a=>a.includes('gym')), 'recovery_score'),
+        saunaNextDay: nextDaySplit(l => l.activity?.some(a=>a.includes('sauna')), 'recovery_score'),
+        runNextDay: nextDaySplit(l => l.activity?.some(a=>a.includes('run')), 'recovery_score'),
 
-      // 7. HR spike causes frequency
-      const causes = {}
-      hrData?.forEach(d => { if (d.likely_cause && d.likely_cause !== 'unclear') causes[d.likely_cause] = (causes[d.likely_cause] || 0) + 1 })
-      const topCauses = Object.entries(causes).sort((a, b) => b[1] - a[1]).slice(0, 4)
+        // Temperature
+        tempCool: split(l => l.ac_temp && l.ac_temp <= 67, 'stability'),
+        tempWarm: split(l => l.ac_temp && l.ac_temp >= 70, 'stability'),
 
-      // 8. Trend: stability last 14 vs prior 14
-      const hrWithStab = hrData?.filter(d => d.stability_score != null) || []
-      const recent14 = avg(hrWithStab.slice(0, 14).map(d => d.stability_score))
-      const prior14 = avg(hrWithStab.slice(14, 28).map(d => d.stability_score))
-      const stabilityTrend = diff(recent14, prior14)
+        // Dinner timing
+        dinnerEarly: split(l => l.dinner_time && l.dinner_time < '19:00', 'stability'),
+        dinnerLate:  split(l => l.dinner_time && l.dinner_time >= '20:30', 'stability'),
 
-      setPatterns({ phoneEffect, gymEffect, tempEffect, windDownEffect, dinnerEffect, saunaEffect, topCauses, stabilityTrend, recent14, total: hrData?.length || 0 })
+        // Alcohol → same night
+        alcoholOnRecovery: split(l => l.had_alcohol, 'recovery_score'),
+        alcoholOnStability: split(l => l.had_alcohol, 'stability'),
+        alcoholOnSpikes: split(l => l.had_alcohol, 'spike_count'),
+
+        // Caffeine late → sleep
+        caffeineOnEfficiency: split(l => l.had_caffeine_late, 'sleep_efficiency'),
+        caffeineOnStability: split(l => l.had_caffeine_late, 'stability'),
+
+        // Meditation habit
+        meditationOnRecovery: nextDaySplit(l => l.habits?.some(h=>h.includes('meditat')), 'recovery_score'),
+
+        // Water intake
+        hydratedOnRecovery: split(l => l.water && l.water >= 2000, 'recovery_score'),
+        dehyOnRecovery: split(l => l.water && l.water < 1200, 'recovery_score'),
+
+        // Steps
+        activeOnRecovery: nextDaySplit(l => l.steps && l.steps >= 8000, 'recovery_score'),
+      }
+
+      // Trend: split into thirds
+      const third = Math.floor(withRecovery.length / 3)
+      const early3rd = avg(withRecovery.slice(0, third).map(l=>l.recovery_score))
+      const late3rd = avg(withRecovery.slice(-third).map(l=>l.recovery_score))
+      const recoveryTrend = early3rd && late3rd ? +(late3rd - early3rd).toFixed(1) : null
+
+      const stabFirst = avg(withStability.slice(0, Math.floor(withStability.length/2)).map(l=>l.stability))
+      const stabLast  = avg(withStability.slice(Math.floor(withStability.length/2)).map(l=>l.stability))
+      const stabilityTrend = stabFirst && stabLast ? +(stabLast - stabFirst).toFixed(1) : null
+
+      setPatterns({ baseline, causes, corrs, recoveryTrend, stabilityTrend })
       setLoading(false)
     })
   }, [userId])
 
-  if (loading) return <div style={{ padding: '12px 14px 4px', fontSize: 11, color: 'var(--text3)' }}>Analysing patterns...</div>
-  if (!patterns) return <div style={{ padding: '12px 14px', fontSize: 11, color: 'var(--text3)' }}>Upload WHOOP screenshots to unlock pattern analysis.</div>
+  if (loading) return <div style={{ padding: '10px 0 4px', fontSize: 11, color: 'var(--text3)' }}>Analysing patterns...</div>
+  if (!patterns) return <div style={{ padding: '10px 0', fontSize: 11, color: 'var(--text3)' }}>Upload WHOOP screenshots to unlock pattern analysis.</div>
 
-  // Build insight cards from computed correlations
-  const insights = []
+  const { baseline, causes, corrs, recoveryTrend, stabilityTrend } = patterns
+  const c = corrs
 
-  const { phoneEffect, gymEffect, tempEffect, windDownEffect, dinnerEffect, saunaEffect, topCauses, stabilityTrend, recent14, total } = patterns
-
-  if (phoneEffect.early != null && phoneEffect.late != null && phoneEffect.n >= 4) {
-    const delta = +(phoneEffect.early - phoneEffect.late).toFixed(0)
-    insights.push({
-      icon: '📵',
-      label: 'Phone away early vs late',
-      finding: delta > 0
-        ? `Putting phone away before 22:30 → ${delta}% higher recovery (${phoneEffect.early}% vs ${phoneEffect.late}%)`
-        : `No clear recovery difference yet between early/late phone cutoff`,
-      signal: delta > 5 ? 'positive' : 'neutral',
-    })
-  }
-
-  if (gymEffect.with != null && gymEffect.n >= 3) {
-    const delta = +(gymEffect.with - (gymEffect.without || gymEffect.with)).toFixed(0)
-    insights.push({
-      icon: '🏋️',
-      label: 'Day after gym',
-      finding: `Next-day recovery after gym: ${gymEffect.with}%${gymEffect.without ? ' vs ' + gymEffect.without + '% on rest days' : ''}`,
-      signal: gymEffect.with >= (gymEffect.without || 0) ? 'positive' : 'negative',
-    })
-  }
-
-  if (saunaEffect?.with != null) {
-    insights.push({
-      icon: '🧖',
-      label: 'Day after sauna',
-      finding: `Next-day recovery after sauna: ${saunaEffect.with}%`,
-      signal: saunaEffect.with >= 65 ? 'positive' : 'neutral',
-    })
-  }
-
-  if (windDownEffect) {
-    const delta = +(windDownEffect.good - windDownEffect.poor).toFixed(0)
-    insights.push({
-      icon: '😌',
-      label: 'Wind-down quality',
-      finding: `Good wind-down → ${windDownEffect.good}% recovery vs poor wind-down → ${windDownEffect.poor}% (${delta > 0 ? '+' : ''}${delta}%)`,
-      signal: delta > 3 ? 'positive' : 'neutral',
-    })
-  }
-
-  if (tempEffect) {
-    const delta = +(tempEffect.cool - tempEffect.warm).toFixed(1)
-    insights.push({
-      icon: '❄',
-      label: 'Room temperature',
-      finding: `≤67°F → stability ${tempEffect.cool}/10 vs ≥70°F → ${tempEffect.warm}/10`,
-      signal: delta > 0.5 ? 'positive' : 'neutral',
-    })
-  }
-
-  if (dinnerEffect) {
-    const delta = +(dinnerEffect.early - dinnerEffect.late).toFixed(1)
-    insights.push({
-      icon: '🍽',
-      label: 'Dinner timing',
-      finding: delta > 0.5
-        ? `Eating before 19:00 → stability ${dinnerEffect.early}/10 vs after 20:00 → ${dinnerEffect.late}/10`
-        : `No clear effect of dinner timing on sleep stability yet`,
-      signal: delta > 0.5 ? 'positive' : 'neutral',
-    })
-  }
-
-  if (topCauses.length > 0) {
-    insights.push({
-      icon: '⚡',
-      label: 'Recurring disruption causes',
-      finding: topCauses.map(([c, n]) => {
-        const labels = { thyroid: 'Thyroid', stress: 'Stress', apnea: 'Apnea', temperature: 'Temperature', food: 'Food', caffeine: 'Caffeine', alcohol: 'Alcohol', mixed: 'Mixed' }
-        return (labels[c] || c) + ' (' + n + 'x)'
-      }).join(' · '),
-      signal: topCauses[0]?.[0] === 'thyroid' ? 'info' : 'warning',
-    })
-  }
-
-  if (stabilityTrend != null) {
-    insights.push({
-      icon: stabilityTrend >= 0 ? '📈' : '📉',
-      label: 'Stability trend',
-      finding: stabilityTrend >= 0
-        ? `Sleep stability improved +${stabilityTrend} pts in last 14 nights vs prior 14`
-        : `Sleep stability down ${Math.abs(stabilityTrend)} pts vs prior 14 nights`,
-      signal: stabilityTrend >= 0 ? 'positive' : 'warning',
-    })
-  }
-
-  if (!insights.length) return (
-    <div style={{ padding: '12px 14px', fontSize: 11, color: 'var(--text3)' }}>
-      Keep logging — patterns will appear after a few more nights of data.
-    </div>
-  )
-
-  const signalColor = { positive: 'var(--green)', negative: 'var(--red)', warning: 'var(--amber)', neutral: 'var(--text3)', info: 'var(--blue)' }
-
-  return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-      <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
-        🔬 {lang === 'de' ? 'Muster & Korrelationen' : 'Patterns & correlations'} · {total} {lang === 'de' ? 'Nächte' : 'nights'}
-      </div>
-      {insights.map((ins, i) => (
-        <div key={i} style={{ display: 'flex', gap: 10, padding: '8px 10px', background: 'var(--surface2)', borderRadius: 8, borderLeft: '3px solid ' + (signalColor[ins.signal] || 'var(--border)') }}>
-          <span style={{ fontSize: 16, flexShrink: 0 }}>{ins.icon}</span>
-          <div style={{ flex: 1 }}>
-            <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text2)', marginBottom: 2 }}>{ins.label}</div>
-            <div style={{ fontSize: 12, color: 'var(--text)', lineHeight: 1.5 }}>{ins.finding}</div>
+  // Format a correlation row
+  const CorrRow = ({ icon, label, yesVal, noVal, nYes, noLabel, yesLabel, unit = '%', invert = false }) => {
+    if (yesVal == null || nYes < 2) return null
+    const delta = noVal != null ? +(yesVal - noVal).toFixed(1) : null
+    const positive = invert ? delta < 0 : delta > 0
+    const color = delta == null ? 'var(--text3)' : Math.abs(delta) < 1 ? 'var(--text3)' : positive ? 'var(--green)' : 'var(--red)'
+    return (
+      <div style={{ display: 'grid', gridTemplateColumns: '20px 1fr auto', gap: 8, alignItems: 'start', padding: '7px 0', borderBottom: '0.5px solid var(--border)' }}>
+        <span style={{ fontSize: 14 }}>{icon}</span>
+        <div>
+          <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--text)' }}>{label}</div>
+          <div style={{ fontSize: 11, color: 'var(--text2)', marginTop: 1 }}>
+            {yesLabel || 'Yes'}: <strong>{yesVal}{unit}</strong>
+            {noVal != null && <> · {noLabel || 'No'}: <strong>{noVal}{unit}</strong></>}
+            <span style={{ color: 'var(--text3)', marginLeft: 4 }}>n={nYes}</span>
           </div>
         </div>
-      ))}
+        {delta != null && Math.abs(delta) >= 0.5 && (
+          <div style={{ fontSize: 12, fontWeight: 700, color, textAlign: 'right', whiteSpace: 'nowrap' }}>
+            {delta > 0 ? '+' : ''}{delta}{unit}
+          </div>
+        )}
+      </div>
+    )
+  }
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+
+      {/* Baselines */}
+      <div>
+        <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 8 }}>
+          📊 Your baselines · {baseline.nights} nights logged · {baseline.hrNights} analysed
+        </div>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 6 }}>
+          {[
+            { label: 'Recovery', value: baseline.recovery, unit: '%', color: baseline.recovery >= 67 ? 'var(--green)' : baseline.recovery >= 34 ? 'var(--amber)' : 'var(--red)' },
+            { label: 'HRV', value: baseline.hrv, unit: 'ms', color: 'var(--purple)' },
+            { label: 'RHR', value: baseline.rhr, unit: 'bpm', color: 'var(--blue)' },
+            { label: 'Sleep', value: baseline.sleepDuration, unit: 'h', color: 'var(--blue)' },
+            { label: 'Stability', value: baseline.stability, unit: '/10', color: baseline.stability >= 7 ? 'var(--green)' : 'var(--amber)' },
+            { label: 'Deep', value: baseline.deep, unit: '%', color: 'var(--purple)' },
+          ].filter(m => m.value != null).map(m => (
+            <div key={m.label} style={{ background: 'var(--surface2)', borderRadius: 8, padding: '6px 8px', textAlign: 'center' }}>
+              <div style={{ fontSize: 9, color: 'var(--text3)', textTransform: 'uppercase', marginBottom: 2 }}>{m.label}</div>
+              <div style={{ fontSize: 13, fontWeight: 700, fontFamily: 'var(--font-mono)', color: m.color }}>{m.value}{m.unit}</div>
+            </div>
+          ))}
+        </div>
+        {(recoveryTrend != null || stabilityTrend != null) && (
+          <div style={{ marginTop: 6, display: 'flex', gap: 8 }}>
+            {recoveryTrend != null && (
+              <span style={{ fontSize: 11, color: recoveryTrend >= 0 ? 'var(--green)' : 'var(--red)' }}>
+                Recovery {recoveryTrend >= 0 ? '↑' : '↓'} {Math.abs(recoveryTrend)}% over time
+              </span>
+            )}
+            {stabilityTrend != null && (
+              <span style={{ fontSize: 11, color: stabilityTrend >= 0 ? 'var(--green)' : 'var(--red)' }}>
+                · Stability {stabilityTrend >= 0 ? '↑' : '↓'} {Math.abs(stabilityTrend)} pts
+              </span>
+            )}
+          </div>
+        )}
+      </div>
+
+      {/* Disruption causes */}
+      {causes.length > 0 && (
+        <div>
+          <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 8 }}>
+            ⚡ Disruption causes ({baseline.hrNights} nights)
+          </div>
+          {causes.map(([cause, n]) => {
+            const labels = { thyroid: 'Thyroid medication', stress: 'Stress / cortisol', apnea: 'Sleep apnea', temperature: 'Temperature', food: 'Food / digestion', caffeine: 'Caffeine', alcohol: 'Alcohol', mixed: 'Multiple factors', unclear: 'Unclear' }
+            const colors = { thyroid: 'var(--blue)', stress: 'var(--amber)', apnea: 'var(--red)', temperature: 'var(--purple)', food: 'var(--amber)', caffeine: 'var(--amber)', alcohol: 'var(--purple)', mixed: 'var(--text2)' }
+            return (
+              <div key={cause} style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 5 }}>
+                <div style={{ flex: 1 }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 2 }}>
+                    <span style={{ fontSize: 12, color: 'var(--text)' }}>{labels[cause] || cause}</span>
+                    <span style={{ fontSize: 11, fontFamily: 'var(--font-mono)', color: 'var(--text3)' }}>{n}× · {pct(n, baseline.hrNights)}%</span>
+                  </div>
+                  <div style={{ height: 4, background: 'var(--border)', borderRadius: 2 }}>
+                    <div style={{ height: 4, borderRadius: 2, background: colors[cause] || 'var(--text3)', width: pct(n, baseline.hrNights) + '%' }} />
+                  </div>
+                </div>
+              </div>
+            )
+          })}
+        </div>
+      )}
+
+      {/* Behaviour correlations */}
+      <div>
+        <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 4 }}>
+          🔬 Behaviour → sleep quality
+        </div>
+        <CorrRow icon="📵" label="Phone away before 22:30 → recovery" yesLabel="Early" noLabel="Late/none" yesVal={c.phoneEarly.yes} noVal={c.phoneLate.yes} nYes={c.phoneEarly.nYes} />
+        <CorrRow icon="📵" label="Phone cutoff → stability score" yesLabel="Early" noLabel="Late" yesVal={c.phoneOnStability.yes} noVal={c.phoneOnStability.no} nYes={c.phoneOnStability.nYes} unit="/10" />
+        <CorrRow icon="😌" label="Good wind-down → recovery" yesLabel="Good" noLabel="Poor" yesVal={c.windGood.yes} noVal={c.windPoor.yes} nYes={c.windGood.nYes} />
+        <CorrRow icon="😌" label="Good wind-down → stability" yesLabel="Good" noLabel="No good" yesVal={c.windOnStability.yes} noVal={c.windOnStability.no} nYes={c.windOnStability.nYes} unit="/10" />
+        <CorrRow icon="🏋️" label="Gym day → next day recovery" yesLabel="After gym" noLabel="Rest day" yesVal={c.gymNextDay.yes} noVal={c.gymNextDay.no} nYes={c.gymNextDay.nYes} />
+        <CorrRow icon="🧖" label="Sauna day → next day recovery" yesLabel="After sauna" noLabel="No sauna" yesVal={c.saunaNextDay.yes} noVal={c.saunaNextDay.no} nYes={c.saunaNextDay.nYes} />
+        <CorrRow icon="🏃" label="Run day → next day recovery" yesLabel="After run" noLabel="No run" yesVal={c.runNextDay.yes} noVal={c.runNextDay.no} nYes={c.runNextDay.nYes} />
+        <CorrRow icon="❄" label="Cool room (≤67°F) → stability" yesLabel="≤67°F" noLabel="≥70°F" yesVal={c.tempCool.yes} noVal={c.tempWarm.yes} nYes={c.tempCool.nYes} unit="/10" />
+        <CorrRow icon="🍽" label="Early dinner (<19:00) → stability" yesLabel="<19:00" noLabel=">20:30" yesVal={c.dinnerEarly.yes} noVal={c.dinnerLate.yes} nYes={c.dinnerEarly.nYes} unit="/10" />
+        <CorrRow icon="🍷" label="Alcohol → recovery" yesLabel="Alcohol" noLabel="No alcohol" yesVal={c.alcoholOnRecovery.yes} noVal={c.alcoholOnRecovery.no} nYes={c.alcoholOnRecovery.nYes} />
+        <CorrRow icon="🍷" label="Alcohol → HR stability" yesLabel="Alcohol" noLabel="No alcohol" yesVal={c.alcoholOnStability.yes} noVal={c.alcoholOnStability.no} nYes={c.alcoholOnStability.nYes} unit="/10" />
+        <CorrRow icon="🍷" label="Alcohol → HR spikes" yesLabel="Alcohol" noLabel="No alcohol" yesVal={c.alcoholOnSpikes.yes} noVal={c.alcoholOnSpikes.no} nYes={c.alcoholOnSpikes.nYes} unit="" invert={true} />
+        <CorrRow icon="☕" label="Late caffeine (>17:00) → efficiency" yesLabel="Late caffeine" noLabel="No late caffeine" yesVal={c.caffeineOnEfficiency.yes} noVal={c.caffeineOnEfficiency.no} nYes={c.caffeineOnEfficiency.nYes} />
+        <CorrRow icon="☕" label="Late caffeine → stability" yesLabel="Late caffeine" noLabel="None" yesVal={c.caffeineOnStability.yes} noVal={c.caffeineOnStability.no} nYes={c.caffeineOnStability.nYes} unit="/10" />
+        <CorrRow icon="🧘" label="Meditation → next day recovery" yesLabel="With meditation" noLabel="Without" yesVal={c.meditationOnRecovery.yes} noVal={c.meditationOnRecovery.no} nYes={c.meditationOnRecovery.nYes} />
+        <CorrRow icon="💧" label="Good hydration (≥2L) → recovery" yesLabel="≥2L" noLabel="<1.2L" yesVal={c.hydratedOnRecovery.yes} noVal={c.dehyOnRecovery.yes} nYes={c.hydratedOnRecovery.nYes} />
+        <CorrRow icon="👟" label="Active day (≥8k steps) → next recovery" yesLabel="≥8k steps" noLabel="Less active" yesVal={c.activeOnRecovery.yes} noVal={c.activeOnRecovery.no} nYes={c.activeOnRecovery.nYes} />
+      </div>
+
     </div>
   )
 }
