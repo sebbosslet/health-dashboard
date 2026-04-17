@@ -557,6 +557,31 @@ export function EveningLog({ log, onSave, lang, habitGoals, activeHabits, onTogg
 
 // ─── Sleep Patterns & Correlations ──────────────────────────────────────────
 
+function CorrRow({ icon, label, yesVal, noVal, nYes, noLabel, yesLabel, unit = '%', invert = false }) {
+  if (yesVal == null || nYes < 2) return null
+  const delta = noVal != null ? +(yesVal - noVal).toFixed(1) : null
+  const positive = invert ? delta < 0 : delta > 0
+  const color = delta == null ? 'var(--text3)' : Math.abs(delta) < 1 ? 'var(--text3)' : positive ? 'var(--green)' : 'var(--red)'
+  return (
+    <div style={{ display: 'grid', gridTemplateColumns: '20px 1fr auto', gap: 8, alignItems: 'start', padding: '7px 0', borderBottom: '0.5px solid var(--border)' }}>
+      <span style={{ fontSize: 14 }}>{icon}</span>
+      <div>
+        <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--text)' }}>{label}</div>
+        <div style={{ fontSize: 11, color: 'var(--text2)', marginTop: 1 }}>
+          {yesLabel || 'Yes'}: <strong>{yesVal}{unit}</strong>
+          {noVal != null && <> · {noLabel || 'No'}: <strong>{noVal}{unit}</strong></>}
+          <span style={{ color: 'var(--text3)', marginLeft: 4 }}>n={nYes}</span>
+        </div>
+      </div>
+      {delta != null && Math.abs(delta) >= 0.5 && (
+        <div style={{ fontSize: 12, fontWeight: 700, color, textAlign: 'right', whiteSpace: 'nowrap' }}>
+          {delta > 0 ? '+' : ''}{delta}{unit}
+        </div>
+      )}
+    </div>
+  )
+}
+
 function SleepStatsCard({ userId, lang }) {
   const [patterns, setPatterns] = useState(null)
   const [loading, setLoading] = useState(true)
@@ -714,32 +739,6 @@ function SleepStatsCard({ userId, lang }) {
 
   const { baseline, causes, corrs, recoveryTrend, stabilityTrend } = patterns
   const c = corrs
-
-  // Format a correlation row
-  const CorrRow = ({ icon, label, yesVal, noVal, nYes, noLabel, yesLabel, unit = '%', invert = false }) => {
-    if (yesVal == null || nYes < 2) return null
-    const delta = noVal != null ? +(yesVal - noVal).toFixed(1) : null
-    const positive = invert ? delta < 0 : delta > 0
-    const color = delta == null ? 'var(--text3)' : Math.abs(delta) < 1 ? 'var(--text3)' : positive ? 'var(--green)' : 'var(--red)'
-    return (
-      <div style={{ display: 'grid', gridTemplateColumns: '20px 1fr auto', gap: 8, alignItems: 'start', padding: '7px 0', borderBottom: '0.5px solid var(--border)' }}>
-        <span style={{ fontSize: 14 }}>{icon}</span>
-        <div>
-          <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--text)' }}>{label}</div>
-          <div style={{ fontSize: 11, color: 'var(--text2)', marginTop: 1 }}>
-            {yesLabel || 'Yes'}: <strong>{yesVal}{unit}</strong>
-            {noVal != null && <> · {noLabel || 'No'}: <strong>{noVal}{unit}</strong></>}
-            <span style={{ color: 'var(--text3)', marginLeft: 4 }}>n={nYes}</span>
-          </div>
-        </div>
-        {delta != null && Math.abs(delta) >= 0.5 && (
-          <div style={{ fontSize: 12, fontWeight: 700, color, textAlign: 'right', whiteSpace: 'nowrap' }}>
-            {delta > 0 ? '+' : ''}{delta}{unit}
-          </div>
-        )}
-      </div>
-    )
-  }
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
