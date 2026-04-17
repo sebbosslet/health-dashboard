@@ -729,15 +729,9 @@ SLEEP HR ANALYSIS:
 - Likely cause: ${hrData.likely_cause || 'unclear'} (${hrData.cause_confidence || '—'}) — ${hrData.cause_reasoning || 'n/a'}
 - Recommendation: ${hrData.recommendation || 'n/a'}` : ''
 
-      const suppContext = suppLogs?.length
-        ? `
-- Supplements taken: ${suppLogs.length} item(s)${suppLogs[0]?.taken_time ? `, last at ${suppLogs[suppLogs.length-1]?.taken_time?.slice(0,5)}` : ''}`
-        : '
-- Supplements: none logged'
+      const suppContext = suppLogs?.length ? '\n- Supplements taken: ' + suppLogs.length + ' item(s)' + (suppLogs[0]?.taken_time ? ', last at ' + (suppLogs[suppLogs.length-1]?.taken_time?.slice(0,5) || '') : '') : '\n- Supplements: none logged'
 
-      const medContext = medLogs?.length
-        ? `
-- Medications taken: ${medLogs.length} item(s)${medLogs[0]?.taken_time ? `, last at ${medLogs[medLogs.length-1]?.taken_time?.slice(0,5)}` : ''}` : ''
+      const medContext = medLogs?.length ? '\n- Medications taken: ' + medLogs.length + ' item(s)' + (medLogs[0]?.taken_time ? ', last at ' + (medLogs[medLogs.length-1]?.taken_time?.slice(0,5) || '') : '') : ''
 
       const poopContext = poopLogs?.length
         ? `
