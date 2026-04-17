@@ -323,18 +323,24 @@ function MorningCheckin({ log, onSave, lang, yesterdayLog, session }) {
     <div style={{ padding: '12px 14px', display: 'flex', flexDirection: 'column', gap: 14 }}>
 
       {/* Yesterday evening context */}
-      {!!yesterdayLog && !!(yesterdayLog.phone_away_time || yesterdayLog.wind_down || (yesterdayLog.habits?.length > 0)) && (
-        <div style={{ background: 'var(--surface2)', borderRadius: 8, padding: '8px 12px', fontSize: 11, color: 'var(--text2)', lineHeight: 1.6 }}>
-          <span style={{ fontWeight: 600, color: 'var(--text)' }}>
+      {!!yesterdayLog && !!(yesterdayLog.phone_away_time || yesterdayLog.wind_down || yesterdayLog.home_time || (yesterdayLog.habits?.length > 0)) && (
+        <div style={{ background: 'var(--surface2)', borderRadius: 8, padding: '8px 12px', fontSize: 11, color: 'var(--text2)', lineHeight: 1.8 }}>
+          <div style={{ fontWeight: 700, color: 'var(--text)', marginBottom: 2 }}>
             {lang === 'de' ? 'Gestern Abend' : 'Last evening'}
-          </span>
-          {' · '}
-          <span>{[
-            yesterdayLog.phone_away_time ? `📵 ${yesterdayLog.phone_away_time.slice(0,5)}` : null,
-            yesterdayLog.bed_time ? `🛏 ${yesterdayLog.bed_time.slice(0,5)}` : null,
-            yesterdayLog.wind_down ? `${yesterdayLog.wind_down === 'good' ? '😌' : yesterdayLog.wind_down === 'ok' ? '😐' : '😣'} ${yesterdayLog.wind_down}` : null,
-            yesterdayLog.habits?.length > 0 ? `${yesterdayLog.habits.length} ${lang === 'de' ? 'Gewohnheiten' : 'habits'}` : null,
-          ].filter(Boolean).join(' · ')}</span>
+          </div>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '2px 10px' }}>
+            {[
+              yesterdayLog.home_time ? '🏠 ' + yesterdayLog.home_time.slice(0,5) : null,
+              yesterdayLog.dinner_time ? '🍽 ' + yesterdayLog.dinner_time.slice(0,5) : null,
+              yesterdayLog.phone_away_time ? '📵 ' + yesterdayLog.phone_away_time.slice(0,5) : null,
+              yesterdayLog.bed_time ? '🛏 ' + yesterdayLog.bed_time.slice(0,5) : null,
+              yesterdayLog.wind_down ? (yesterdayLog.wind_down === 'good' ? '😌' : yesterdayLog.wind_down === 'ok' ? '😐' : '😣') + ' ' + yesterdayLog.wind_down : null,
+              yesterdayLog.ac_temp ? '❄ ' + yesterdayLog.ac_temp + '°F' : null,
+              yesterdayLog.habits?.length > 0 ? '✓ ' + yesterdayLog.habits.length + ' ' + (lang === 'de' ? 'Gewohnheiten' : 'habits') : null,
+            ].filter(Boolean).map((item, i) => (
+              <span key={i} style={{ color: 'var(--text2)' }}>{item}</span>
+            ))}
+          </div>
         </div>
       )}
 
@@ -1061,26 +1067,27 @@ ADDITIONAL CONTEXT FROM SEBASTIAN: ${extraContext}` : '')
 
 export default function DailyIntelligence({ session, log, onSave, habitGoals, activeHabits, onToggleHabit }) {
   const { lang } = useLang()
-  const [section, setSection] = useState('whoop')
   const [yesterdayLog, setYesterdayLog] = useState(null)
-  const hour = new Date().getHours()
 
-  // Fetch yesterday's log for morning context
+  // Fetch yesterday's log
   useEffect(() => {
     const yesterday = format(subDays(new Date(), 1), 'yyyy-MM-dd')
     supabase.from('daily_logs').select('*').eq('user_id', session.user.id).eq('date', yesterday).maybeSingle()
       .then(({ data }) => setYesterdayLog(data))
   }, [session.user.id])
 
-  // Smart default section based on time of day
   const hasMorning = log?.morning_energy > 0
   const hasWhoop = !!(log?.bed_time || yesterdayLog?.bed_time)
   const hasInsight = !!log?.ai_insight
 
+  // Smart default: guide user through the flow in order
+  const defaultSection = !hasMorning ? 'checkin' : !hasWhoop ? 'sleep' : 'insight'
+  const [section, setSection] = useState(defaultSection)
+
   const sections = [
-    { key: 'whoop', label: '📸 WHOOP', done: hasWhoop },
-    { key: 'morning', label: lang === 'de' ? '🌅 Morgen' : '🌅 Morning', done: hasMorning },
-    { key: 'insight', label: '✨ Insight', done: hasInsight },
+    { key: 'checkin', label: lang === 'de' ? '🌅 Check-in' : '🌅 Check-in', done: hasMorning },
+    { key: 'sleep',   label: lang === 'de' ? '😴 Schlaf'   : '😴 Sleep',    done: hasWhoop },
+    { key: 'insight', label: lang === 'de' ? '✨ Analyse'  : '✨ Insight',   done: hasInsight },
   ]
 
   return (
@@ -1088,14 +1095,14 @@ export default function DailyIntelligence({ session, log, onSave, habitGoals, ac
       <div className="card-header">
         <span className="card-title">🧠 {lang === 'de' ? 'Tages-Analyse' : 'Daily Intelligence'}</span>
         <span style={{ fontSize: 11, color: 'var(--text3)' }}>
-          {[hasWhoop, hasMorning, hasInsight].filter(Boolean).length}/3
+          {[hasMorning, hasWhoop, hasInsight].filter(Boolean).length}/3
         </span>
       </div>
 
       {/* Tab row */}
       <div style={{ display: 'flex', borderBottom: '0.5px solid var(--border)' }}>
         {sections.map(s => (
-          <button key={s.key} onClick={() => setSection(section === s.key ? null : s.key)} style={{
+          <button key={s.key} onClick={() => setSection(s.key)} style={{
             flex: 1, padding: '9px 4px', background: 'none', border: 'none',
             borderBottom: `2px solid ${section === s.key ? 'var(--green)' : 'transparent'}`,
             color: section === s.key ? 'var(--green)' : 'var(--text2)',
@@ -1109,12 +1116,17 @@ export default function DailyIntelligence({ session, log, onSave, habitGoals, ac
         ))}
       </div>
 
-      {section === 'whoop' && (
-        <WhoopTab log={log} yesterdayLog={yesterdayLog} session={session} lang={lang} onRefresh={onSave} />
-      )}
-      {section === 'morning' && (
+      {/* 1. Check-in — morning subjective + last evening summary */}
+      {section === 'checkin' && (
         <MorningCheckin log={log} onSave={onSave} lang={lang} yesterdayLog={yesterdayLog} session={session} />
       )}
+
+      {/* 2. Sleep — WHOOP upload + last night data + HR analysis */}
+      {section === 'sleep' && (
+        <WhoopTab log={log} yesterdayLog={yesterdayLog} session={session} lang={lang} onRefresh={onSave} />
+      )}
+
+      {/* 3. Insight — full synthesis narrative + sleep stats history */}
       {section === 'insight' && (
         <InsightCard log={log} userId={session.user.id} lang={lang} />
       )}
