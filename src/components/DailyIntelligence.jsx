@@ -695,12 +695,14 @@ const CAUSE_COLORS = {
 function SleepStatsCard({ userId, lang }) {
   const [stats, setStats] = useState(null)
   const [loading, setLoading] = useState(true)
-  const [expanded, setExpanded] = useState(false)
+  const [expanded, setExpanded] = useState(true)
 
   useEffect(() => {
+    if (!userId) { setLoading(false); return }
     supabase.from('sleep_hr_analysis').select('*').eq('user_id', userId)
       .order('date', { ascending: false })
-      .then(({ data }) => {
+      .then(({ data, error }) => {
+        if (error) { console.error('[SleepStats] fetch error:', error.message); setLoading(false); return }
         if (!data?.length) { setLoading(false); return }
         const total = data.length
         const withSpikes = data.filter(d => d.spike_count > 0).length
