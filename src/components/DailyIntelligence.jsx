@@ -902,7 +902,7 @@ function WhoopTab({ log, yesterdayLog, session, lang, onRefresh }) {
     <div style={{ padding: '12px 14px', display: 'flex', flexDirection: 'column', gap: 12 }}>
 
       {/* Temperature curve — shown if SwitchBot data was captured */}
-      {hrAnalysis?.temp_curve && (() => {
+      {hrAnalysis?.temp_curve ? (() => {
         try {
           const curve = JSON.parse(hrAnalysis.temp_curve)
           if (!curve?.length) return null
@@ -932,7 +932,18 @@ function WhoopTab({ log, yesterdayLog, session, lang, onRefresh }) {
             </div>
           )
         } catch(e) { return null }
-      })()}
+      })() : uploaded ? (
+        // WHOOP uploaded but no temp data — SwitchBot polling may not have run overnight
+        <div style={{ padding: '10px 14px', borderTop: '0.5px solid var(--border)', display: 'flex', alignItems: 'center', gap: 10 }}>
+          <span style={{ fontSize: 16 }}>🌡</span>
+          <div style={{ flex: 1 }}>
+            <div style={{ fontSize: 12, color: 'var(--text2)' }}>No overnight temperature data</div>
+            <div style={{ fontSize: 11, color: 'var(--text3)', marginTop: 2 }}>
+              Check that <strong>SWITCHBOT_DEVICE_ID</strong> is set in Netlify env vars — the poller runs every 15 min once configured.
+            </div>
+          </div>
+        </div>
+      ) : null}
 
       {/* Deep dive — last night root cause analysis */}
       <div style={{ borderTop: '0.5px solid var(--border)' }}>
