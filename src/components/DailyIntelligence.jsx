@@ -947,7 +947,7 @@ function WhoopTab({ log, yesterdayLog, session, lang, onRefresh }) {
 
       {/* Deep dive — last night root cause analysis */}
       <div style={{ borderTop: '0.5px solid var(--border)' }}>
-        <SleepDeepDive log={log} hrAnalysis={hrAnalysis} session={session} />
+        <SleepDeepDive log={log} session={session} />
       </div>
 
     </div>

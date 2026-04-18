@@ -66,7 +66,7 @@ function Sparkline({ values, highlight, color = 'var(--blue)' }) {
 }
 
 // ── Main component ────────────────────────────────────────────────────────────
-export default function SleepDeepDive({ log, hrAnalysis, session }) {
+export default function SleepDeepDive({ log, session }) {
   const [data, setData] = useState(null)
   const [loading, setLoading] = useState(true)
   const userId = session?.user?.id
@@ -118,10 +118,9 @@ export default function SleepDeepDive({ log, hrAnalysis, session }) {
       // HR lookup
       const hrMap = {}
       recentHr.forEach(h => { hrMap[h.date] = h })
-      // hrAnalysis prop = most recently fetched record (could be 2 nights ago if not yet uploaded today)
-      // Use it only if date matches today (just uploaded this morning for last night's sleep)
-      // Otherwise fall back to hrMap[yesterday] which is last night's stored analysis
-      const lastHr = (hrAnalysis?.date === today ? hrAnalysis : null) || hrMap[yesterday] || hrMap[today] || null
+      // HR lookup — fetch strictly: today's record (this morning's upload for last night)
+      // then fall back to yesterday's record. Never use a stale prop.
+      const lastHr = hrMap[today] || hrMap[yesterday] || null
 
       // ── Baselines (exclude today/yesterday) ──
       const prior = recentLogs.filter(l => l.date < yesterday)
