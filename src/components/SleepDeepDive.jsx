@@ -298,16 +298,15 @@ export default function SleepDeepDive({ log, session }) {
   const todayRecovery = tLog.recovery_score
   const todayStability = lastHr?.stability_score
 
-  // ── Section header ──────────────────────────────────────────────────────────
   const SectionLabel = ({ children }) => (
     <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 6, marginTop: 4 }}>
       {children}
     </div>
   )
 
-  // ── Verdict line ────────────────────────────────────────────────────────────
+  // ── Build verdict explanation ───────────────────────────────────────────────
   const verdictColor = recoveryDelta == null ? 'var(--text2)' : recoveryDelta >= 5 ? 'var(--green)' : recoveryDelta <= -5 ? 'var(--red)' : 'var(--amber)'
-  const verdictText = (() => {
+  const verdictLabel = (() => {
     if (!todayRecovery && !todayStability) return 'Upload your WHOOP screenshot to unlock analysis'
     if (rank && rankOf) {
       if (rank === 1) return `Best night in ${rankOf} days`
@@ -318,18 +317,150 @@ export default function SleepDeepDive({ log, session }) {
     return null
   })()
 
+  // Build why-sentence from actual data
+  const whyParts = []
+  if (recoveryDelta != null && Math.abs(recoveryDelta) >= 3) whyParts.push(`recovery ${recoveryDelta > 0 ? '+' : ''}${recoveryDelta}% vs your ${baseRecovery}% avg`)
+  if (lastHr?.spike_count != null) whyParts.push(`${lastHr.spike_count} HR spikes`)
+  if (todayStability != null && baseStability != null) whyParts.push(`stability ${todayStability}/10 (avg ${baseStability})`)
+  if (lastHr?.deep_pct != null) whyParts.push(`${lastHr.deep_pct}% deep sleep`)
+  const whySentence = whyParts.length ? whyParts.join(' · ') : null
+
+  // ── Build reasoning for each factor ────────────────────────────────────────
+  const factors = []
+
+  // Thyroid
+  if (thyroxin) {
+    factors.push({
+      icon: '💊', label: thyroxin.name,
+      value: thyroxin.takenTime ? thyroxin.takenTime.slice(0,5) : 'taken',
+      signal: thyroxin.fasted ? 'good' : 'warn',
+      stat: thyroxin.fasted ? 'Taken fasted' : 'Not fasted',
+      reasoning: thyroxin.fasted
+        ? 'Good — fasted intake ensures optimal T4 absorption. Thyroid is your most frequent sleep disruptor; proper dosing matters.'
+        : 'Should be taken fasted for full effect — poor absorption may contribute to thyroid-related sleep disruption.',
+    })
+  }
+
+  // Caffeine
+  if (lastCaffeine) {
+    const halfLivesStr = caffeineHalfLivesAtSleep != null ? `${caffeineHalfLivesAtSleep} half-lives cleared` : null
+    const remainingPct = caffeineHalfLivesAtSleep != null ? Math.round(100 / Math.pow(2, caffeineHalfLivesAtSleep)) : null
+    factors.push({
+      icon: '☕', label: 'Last caffeine',
+      value: lastCaffeine.consumed_at?.slice(0,5) || '—',
+      signal: caffeineHalfLivesAtSleep >= 2 ? 'neutral' : caffeineHalfLivesAtSleep >= 1 ? 'warn' : 'bad',
+      stat: halfLivesStr || lastCaffeine.meal_name,
+      reasoning: caffeineHalfLivesAtSleep == null ? null
+        : caffeineHalfLivesAtSleep >= 2.5 ? `${remainingPct}% remaining at sleep — minimal impact expected.`
+        : caffeineHalfLivesAtSleep >= 1.5 ? `~${remainingPct}% caffeine still active at sleep onset — likely raising your baseline arousal and contributing to the ${lastHr?.spike_count || 'elevated'} HR spikes.`
+        : `>50% caffeine still active — significant impact on sleep architecture. Likely a primary driver of disruption tonight.`,
+    })
+  } else {
+    factors.push({ icon: '☕', label: 'Caffeine', value: 'none', signal: 'good', stat: 'No caffeine logged', reasoning: 'Not a factor tonight.' })
+  }
+
+  // Alcohol
+  if (alcoholMeals?.length > 0) {
+    const lastDrink = alcoholMeals[alcoholMeals.length-1]
+    factors.push({
+      icon: '🍷', label: 'Alcohol',
+      value: alcoholMeals.map(m => m.meal_name).join(', '),
+      signal: 'bad',
+      stat: `Last drink ${lastDrink.consumed_at?.slice(0,5) || '—'}`,
+      reasoning: `Alcohol suppresses REM sleep and fragments HR in the first half of the night. This is likely contributing to the ${lastHr?.spike_count || 'elevated'} spikes${lastHr?.rem_pct != null ? ` and reduced REM (${lastHr.rem_pct}%)` : ''}.`,
+    })
+  }
+
+  // Dinner timing
+  if (dinnerMins) {
+    const minsLate = avgDinner ? Math.round(dinnerMins - avgDinner) : null
+    const dinnerSignal = dinnerMins < 18 * 60 + 30 ? 'good' : dinnerMins > 20 * 60 ? 'warn' : 'neutral'
+    factors.push({
+      icon: '🍽', label: 'Dinner',
+      value: yLog.dinner_time?.slice(0,5),
+      signal: dinnerSignal,
+      stat: minsLate != null ? `${minsLate > 0 ? '+' : ''}${minsLate}m vs your avg` : null,
+      reasoning: dinnerMins > 20 * 60
+        ? 'Late dinner — digestion during sleep raises core temperature and increases HR variability. May have contributed to early-night spikes.'
+        : dinnerMins < 18 * 60 + 30
+        ? 'Early dinner — good timing, digestion well clear of sleep onset.'
+        : 'Typical dinner timing — unlikely to be a significant factor.',
+    })
+  }
+
+  // Wind-down
+  if (windDownGap != null) {
+    factors.push({
+      icon: '📵', label: 'Wind-down gap',
+      value: fmtMins(windDownGap),
+      signal: windDownGap >= 45 ? 'good' : windDownGap >= 20 ? 'warn' : 'bad',
+      stat: avgWindDownGap ? `avg is ${fmtMins(avgWindDownGap)}` : `phone away ${yLog.phone_away_time?.slice(0,5)} → sleep ${(tLog.bed_time || yLog.bed_time)?.slice(0,5)}`,
+      reasoning: windDownGap < 20
+        ? `Only ${fmtMins(windDownGap)} between phone away and sleep. Very short wind-down means your nervous system had little time to downregulate — likely contributed to slow sleep onset and elevated early HR.`
+        : windDownGap < 45
+        ? `${fmtMins(windDownGap)} wind-down — moderate. On nights with ≥45m you typically sleep with higher stability.`
+        : `${fmtMins(windDownGap)} wind-down — good. Sufficient time to downregulate before sleep.`,
+    })
+  }
+
+  // Temperature
+  if (lastTemp) {
+    const tempSignal = optimalTempRange
+      ? (lastTemp >= optimalTempRange.min - 1 && lastTemp <= optimalTempRange.max + 1 ? 'good' : 'warn')
+      : (lastTemp <= 68 ? 'good' : lastTemp <= 71 ? 'warn' : 'bad')
+    factors.push({
+      icon: '🌡', label: 'Bedroom temperature',
+      value: `${lastTemp}°F avg`,
+      signal: tempSignal,
+      stat: optimalTempRange ? `your sweet spot: ${optimalTempRange.min}–${optimalTempRange.max}°F` : 'optimal: 65–68°F',
+      reasoning: tempSignal === 'good'
+        ? `Within your optimal range — temperature not a likely factor tonight.`
+        : `${lastTemp}°F is above your optimal range${optimalTempRange ? ` of ${optimalTempRange.min}–${optimalTempRange.max}°F` : ' (65–68°F)'}. A warmer room raises core body temperature and typically increases HR spikes — may be a contributing factor.`,
+    })
+  }
+
+  // Hydration
+  if (water) {
+    const waterSignal = water >= 2000 ? 'good' : water >= 1200 ? 'neutral' : 'warn'
+    factors.push({
+      icon: '💧', label: 'Hydration',
+      value: water >= 1000 ? (water/1000).toFixed(1) + 'L' : water + 'ml',
+      signal: waterSignal,
+      stat: avgWater ? `your avg: ${(avgWater/1000).toFixed(1)}L` : null,
+      reasoning: water < 1200
+        ? 'Under-hydration can increase RHR and reduce sleep quality. Consider whether this contributed tonight.'
+        : water >= 2000
+        ? 'Well hydrated — not a factor tonight.'
+        : 'Adequate hydration — unlikely to be a factor.',
+    })
+  }
+
+  // Gut health
+  if (poopSummary) {
+    factors.push({
+      icon: '💩', label: 'Gut health',
+      value: `${poopSummary.count}× Type ${poopSummary.types.join('/')}`,
+      signal: poopSummary.hasFlags ? 'warn' : poopSummary.types.every(t => t >= 3 && t <= 5) ? 'good' : 'neutral',
+      stat: poopSummary.hasFlags ? '⚠️ ' + poopSummary.flags.join(', ') : 'normal range',
+      reasoning: poopSummary.hasFlags
+        ? 'Flags detected — gut inflammation can elevate cortisol and disrupt sleep. Worth monitoring.'
+        : poopSummary.types.every(t => t >= 3 && t <= 5)
+        ? 'Healthy gut motility — not a likely factor tonight.'
+        : 'Irregular stool type may indicate digestive stress.',
+    })
+  }
+
   return (
     <div style={{ padding: '14px', display: 'flex', flexDirection: 'column', gap: 16 }}>
 
       {/* ── 1. VERDICT ── */}
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
-        <div>
-          <div style={{ fontSize: 14, fontWeight: 700, color: verdictColor }}>{verdictText}</div>
-          {baseRecovery && <div style={{ fontSize: 11, color: 'var(--text3)', marginTop: 2 }}>
-            7-day avg: {baseRecovery}% recovery{baseStability ? ` · ${baseStability}/10 stability` : ''}
-          </div>}
+      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12 }}>
+        <div style={{ flex: 1 }}>
+          <div style={{ fontSize: 14, fontWeight: 700, color: verdictColor }}>{verdictLabel}</div>
+          {whySentence && <div style={{ fontSize: 12, color: 'var(--text2)', marginTop: 4, lineHeight: 1.5 }}>{whySentence}</div>}
+          {baseRecovery && <div style={{ fontSize: 11, color: 'var(--text3)', marginTop: 3 }}>7-day avg: {baseRecovery}% recovery{baseStability ? ` · ${baseStability}/10 stability` : ''}</div>}
         </div>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 4, alignItems: 'flex-end' }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 4, alignItems: 'flex-end', flexShrink: 0 }}>
           {sparkRecovery.some(Boolean) && (
             <div>
               <div style={{ fontSize: 8, color: 'var(--text3)', textAlign: 'right', marginBottom: 2 }}>RECOVERY</div>
@@ -365,14 +496,12 @@ export default function SleepDeepDive({ log, session }) {
             </div>
             {lastHr.likely_cause && lastHr.likely_cause !== 'unclear' && (
               <div style={{ borderTop: '0.5px solid var(--border)', paddingTop: 8 }}>
-                <div style={{ fontSize: 11, color: 'var(--text2)' }}>
-                  <strong style={{ color: 'var(--text)' }}>Likely cause: </strong>
+                <div style={{ fontSize: 12, color: 'var(--text)' }}>
+                  <strong>Likely cause: </strong>
                   {lastHr.likely_cause.charAt(0).toUpperCase() + lastHr.likely_cause.slice(1)}
-                  {lastHr.cause_confidence && <span style={{ color: 'var(--text3)' }}> ({lastHr.cause_confidence} confidence)</span>}
+                  {lastHr.cause_confidence && <span style={{ color: 'var(--text3)', fontWeight: 400 }}> ({lastHr.cause_confidence} confidence)</span>}
                 </div>
-                {lastHr.cause_reasoning && (
-                  <div style={{ fontSize: 11, color: 'var(--text2)', marginTop: 3 }}>{lastHr.cause_reasoning}</div>
-                )}
+                {lastHr.cause_reasoning && <div style={{ fontSize: 11, color: 'var(--text2)', marginTop: 4, lineHeight: 1.5 }}>{lastHr.cause_reasoning}</div>}
               </div>
             )}
           </div>
@@ -382,143 +511,30 @@ export default function SleepDeepDive({ log, session }) {
       {/* ── 3. ROOT CAUSE ANALYSIS ── */}
       <div>
         <SectionLabel>🔬 Last night — root cause analysis</SectionLabel>
-
-        {/* Thyroid medication */}
-        {thyroxin && (
-          <FactorRow
-            icon="💊"
-            label={thyroxin.name}
-            lastNight={thyroxin.takenTime ? thyroxin.takenTime.slice(0,5) : 'taken'}
-            unit=""
-            signal={thyroxin.fasted ? 'good' : 'warn'}
-            detail={thyroxin.fasted
-              ? 'Taken fasted — optimal absorption'
-              : 'Check: should be taken fasted for full effect'}
-          />
-        )}
-
-        {/* Caffeine */}
-        {lastCaffeine ? (
-          <FactorRow
-            icon="☕"
-            label="Last caffeine"
-            lastNight={lastCaffeine.consumed_at?.slice(0,5) || '—'}
-            unit=""
-            signal={caffeineHalfLivesAtSleep >= 2 ? 'good' : caffeineHalfLivesAtSleep >= 1 ? 'warn' : 'bad'}
-            detail={caffeineHalfLivesAtSleep != null
-              ? `${caffeineHalfLivesAtSleep} half-lives cleared by sleep onset — ${caffeineHalfLivesAtSleep >= 2 ? '~75% metabolised' : caffeineHalfLivesAtSleep >= 1 ? '~50% still active' : '>50% still active'}`
-              : lastCaffeine.meal_name}
-          />
-        ) : (
-          <FactorRow icon="☕" label="Caffeine" lastNight="none" unit="" signal="good" detail="No caffeine logged yesterday" />
-        )}
-
-        {/* Alcohol */}
-        {alcoholMeals.length > 0 && (
-          <FactorRow
-            icon="🍷"
-            label="Alcohol"
-            lastNight={alcoholMeals.map(m => m.meal_name).join(', ')}
-            unit=""
-            signal="bad"
-            detail={`Last drink: ${alcoholMeals[alcoholMeals.length-1].consumed_at?.slice(0,5) || '—'} · suppresses REM, raises RHR, fragments HR`}
-          />
-        )}
-
-        {/* Dinner timing */}
-        {dinnerMins && (
-          <FactorRow
-            icon="🍽"
-            label="Dinner"
-            lastNight={yLog.dinner_time?.slice(0,5)}
-            unit=""
-            vsBaseline={avgDinner ? Math.round(dinnerMins - avgDinner) : null}
-            signal={dinnerMins < 18 * 60 + 30 ? 'good' : dinnerMins > 20 * 60 ? 'warn' : 'neutral'}
-            detail={avgDinner
-              ? `Your avg dinner: ${Math.floor(avgDinner/60)}:${String(Math.round(avgDinner%60)).padStart(2,'0')}`
-              : null}
-          />
-        )}
-
-        {/* Home time */}
-        {homeMins && (
-          <FactorRow
-            icon="🏠"
-            label="Got home"
-            lastNight={yLog.home_time?.slice(0,5)}
-            unit=""
-            vsBaseline={avgHome ? Math.round(homeMins - avgHome) : null}
-            signal={homeMins <= 19 * 60 ? 'good' : homeMins >= 21 * 60 ? 'warn' : 'neutral'}
-            detail={homeMins && phoneAwayMins && phoneAwayMins > homeMins ? `${fmtMins(phoneAwayMins - homeMins)} until phone away` : null}
-          />
-        )}
-
-        {/* Wind-down gap */}
-        {windDownGap != null && (
-          <FactorRow
-            icon="📵"
-            label="Wind-down time"
-            lastNight={fmtMins(windDownGap)}
-            unit=""
-            vsBaseline={avgWindDownGap ? Math.round(windDownGap - avgWindDownGap) : null}
-            signal={windDownGap >= 45 ? 'good' : windDownGap >= 20 ? 'warn' : 'bad'}
-            detail={`Phone away ${yLog.phone_away_time?.slice(0,5)} → asleep ${(tLog.bed_time || yLog.bed_time)?.slice(0,5)}`}
-          />
-        )}
-
-        {/* Temperature */}
-        {lastTemp && (
-          <FactorRow
-            icon="🌡"
-            label="Bedroom temperature"
-            lastNight={lastTemp + '°F'}
-            unit=""
-            signal={optimalTempRange
-              ? (lastTemp >= optimalTempRange.min - 1 && lastTemp <= optimalTempRange.max + 1 ? 'good' : 'warn')
-              : (lastTemp <= 68 ? 'good' : lastTemp <= 71 ? 'warn' : 'bad')}
-            detail={optimalTempRange
-              ? `Your sweet spot: ${optimalTempRange.min}–${optimalTempRange.max}°F (from ${Math.round(optimalTempRange.avg)}°F avg on good nights)`
-              : 'Optimal sleep: 65–68°F'}
-          />
-        )}
-
-        {/* Hydration */}
-        {water && (
-          <FactorRow
-            icon="💧"
-            label="Hydration"
-            lastNight={water >= 1000 ? (water / 1000).toFixed(1) + 'L' : water + 'ml'}
-            unit=""
-            vsBaseline={avgWater ? Math.round((water - avgWater) / 100) / 10 : null}
-            signal={water >= 2000 ? 'good' : water >= 1200 ? 'warn' : 'bad'}
-            detail={avgWater ? `Your avg: ${(avgWater/1000).toFixed(1)}L` : null}
-          />
-        )}
-
-        {/* Bowel */}
-        {poopSummary && (
-          <FactorRow
-            icon="💩"
-            label="Gut health yesterday"
-            lastNight={poopSummary.count + 'x · Type ' + poopSummary.types.join('/')}
-            unit=""
-            signal={poopSummary.hasFlags ? 'warn' : poopSummary.types.every(t => t >= 3 && t <= 5) ? 'good' : 'neutral'}
-            detail={poopSummary.hasFlags ? '⚠️ ' + poopSummary.flags.join(', ') : null}
-          />
-        )}
+        <div style={{ display: 'flex', flexDirection: 'column' }}>
+          {factors.map((f, i) => (
+            <div key={i} style={{ padding: '10px 0', borderBottom: '0.5px solid var(--border)' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: '20px 1fr auto', gap: 8, alignItems: 'start' }}>
+                <span style={{ fontSize: 15 }}>{f.icon}</span>
+                <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--text)' }}>{f.label}</div>
+                <div style={{ textAlign: 'right' }}>
+                  <span style={{ fontSize: 13, fontWeight: 700, fontFamily: 'var(--font-mono)', color: f.signal === 'good' ? 'var(--green)' : f.signal === 'bad' ? 'var(--red)' : f.signal === 'warn' ? 'var(--amber)' : 'var(--text2)' }}>{f.value}</span>
+                </div>
+              </div>
+              {f.stat && <div style={{ fontSize: 11, color: 'var(--text3)', marginLeft: 28, marginTop: 1 }}>{f.stat}</div>}
+              {f.reasoning && <div style={{ fontSize: 12, color: 'var(--text2)', marginLeft: 28, marginTop: 4, lineHeight: 1.55, fontStyle: 'italic' }}>{f.reasoning}</div>}
+            </div>
+          ))}
+        </div>
       </div>
 
-      {/* ── 4. WHAT WAS DIFFERENT ── */}
+      {/* ── 4. VS RECENT NIGHTS ── */}
       {comparisons.length > 0 && (
         <div>
           <SectionLabel>📊 vs recent nights</SectionLabel>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
             {comparisons.map((c, i) => (
-              <div key={i} style={{
-                display: 'flex', alignItems: 'center', gap: 8,
-                padding: '7px 10px', borderRadius: 8, background: 'var(--surface2)',
-                borderLeft: '3px solid ' + (c.better ? 'var(--green)' : 'var(--red)')
-              }}>
+              <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '7px 10px', borderRadius: 8, background: 'var(--surface2)', borderLeft: '3px solid ' + (c.better ? 'var(--green)' : 'var(--red)') }}>
                 <span style={{ fontSize: 14 }}>{c.better ? '↑' : '↓'}</span>
                 <span style={{ fontSize: 12, color: 'var(--text2)', flex: 1 }}>{c.detail}</span>
               </div>
