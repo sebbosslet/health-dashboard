@@ -49,9 +49,10 @@
 
 <h1>🌡 SwitchBot Temperature Monitor</h1>
 <p class="sub">Polling every 15 minutes · refreshes every 30s</p>
-<button id="lang-toggle" onclick="toggleLang()" style="background:rgba(255,255,255,0.08);border:1px solid #333;color:#aaa;padding:5px 12px;border-radius:16px;font-size:12px;cursor:pointer;font-family:inherit;margin-bottom:16px;">🇩🇪 Deutsch</button>
-
-<div id="badge" class="badge wait"><span class="dot pulse"></span> Loading...</div>
+<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:16px;">
+  <button id="lang-toggle" onclick="toggleLang()" style="background:rgba(255,255,255,0.08);border:1px solid #333;color:#aaa;padding:5px 12px;border-radius:16px;font-size:12px;cursor:pointer;font-family:inherit;">🇩🇪 Deutsch</button>
+  <div id="badge" class="badge wait"><span class="dot pulse"></span> Loading...</div>
+</div>
 
 <div class="section">
   <div class="section-title" id="title-current">Current reading</div>
@@ -103,10 +104,13 @@ function render() {
   const latestEl = document.getElementById('latest')
   if (latest) {
     const age = Math.round((now - new Date(latest.recorded_at)) / 60000)
+    const mainTemp = lang === 'de' ? latest.temperature_c + '°C' : latest.temperature_f + '°F'
+    const subTemp  = lang === 'de' ? latest.temperature_f + '°F' : latest.temperature_c + '°C'
+    const humLabel = lang === 'de' ? 'Luftfeuchtigkeit' : 'humidity'
     latestEl.innerHTML = `
-      <div class="latest-temp">${latest.temperature_f}°F</div>
-      <div class="latest-meta">${latest.temperature_c}°C · ${latest.humidity}% humidity</div>
-      <div class="latest-meta">${fmtTime(latest.recorded_at)} · ${age < 2 ? 'just now' : age + ' min ago'}</div>
+      <div class="latest-temp">${mainTemp}</div>
+      <div class="latest-meta">${subTemp} · ${latest.humidity}% ${humLabel}</div>
+      <div class="latest-meta">${fmtTime(latest.recorded_at)} · ${age < 2 ? t.justNow : age + ' ' + t.minAgo}</div>
     `
   } else {
     latestEl.innerHTML = `<div style="color:#444;font-size:13px">No readings yet</div>`
