@@ -66,7 +66,7 @@ const CONFIDENCE_COLORS = {
   low: 'var(--red)',
 }
 
-export default function MealLogger({ session, date, onCaloriesUpdated, onDoneEating, addTriggered, onAddHandled }) {
+export default function MealLogger({ session, date, dinnerTime: dinnerTimeProp = '', onCaloriesUpdated, onDoneEating, addTriggered, onAddHandled }) {
   const { t, lang } = useLang()
   const fileRef = useRef()
   const [meals, setMeals] = useState([])
@@ -84,7 +84,10 @@ export default function MealLogger({ session, date, onCaloriesUpdated, onDoneEat
   const [isCaffeinated, setIsCaffeinated] = useState(false)
   const [isAlcohol, setIsAlcohol] = useState(false)
   const [showReassess, setShowReassess] = useState(false)
-  const [dinnerTime, setDinnerTime] = useState('')
+  const [dinnerTime, setDinnerTime] = useState(dinnerTimeProp)
+
+  // Sync from parent log whenever it changes (e.g. after save propagates back)
+  useEffect(() => { setDinnerTime(dinnerTimeProp) }, [dinnerTimeProp])
   const [reassessText, setReassessText] = useState('')
   const [reassessing, setReassessing] = useState(false)
 
@@ -92,16 +95,6 @@ export default function MealLogger({ session, date, onCaloriesUpdated, onDoneEat
 
   useEffect(() => { fetchMeals() }, [dateStr, session.user.id])
 
-  useEffect(() => {
-    supabase.from('daily_logs').select('dinner_time').eq('user_id', session.user.id).eq('date', dateStr).maybeSingle()
-      .then(({ data }) => {
-        if (data?.dinner_time) {
-          const t = data.dinner_time.slice(0,5)
-          setDinnerTime(t)
-          if (dinnerRef.current) dinnerRef.current.value = t
-        }
-      })
-  }, [dateStr])
 
   // Open add sheet when parent taps + Add
   useEffect(() => {
