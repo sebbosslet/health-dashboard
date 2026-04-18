@@ -208,18 +208,31 @@ function render() {
   }).join('')
   timelineEl.innerHTML = slotHtml
 
-  // Live countdown
+  // Live countdown — triggers poll + fetch when it hits 0
   if (countdownInterval) clearInterval(countdownInterval)
-  countdownInterval = setInterval(() => {
+  let pollTriggered = false
+  countdownInterval = setInterval(async () => {
     const cd = document.getElementById('countdown')
     if (!cd) { clearInterval(countdownInterval); return }
     const nextSlot = slots.find(s => s > new Date())
     if (!nextSlot) return
     const secLeft = Math.round((nextSlot - new Date()) / 1000)
-    if (secLeft <= 0) { fetchData(); return }
-    const minLeft = Math.floor(secLeft / 60)
-    const secRem = secLeft % 60
+    const minLeft = Math.floor(Math.max(0, secLeft) / 60)
+    const secRem = Math.max(0, secLeft) % 60
     cd.textContent = `${minLeft}m ${String(secRem).padStart(2,'0')}s`
+
+    if (secLeft <= 0 && !pollTriggered) {
+      pollTriggered = true
+      cd.textContent = 'Polling...'
+      cd.style.color = '#fff'
+      // Trigger the SwitchBot poll
+      try {
+        await fetch('/.netlify/functions/switchbot-poll')
+      } catch(e) {}
+      // Wait 3s for the write to land, then fetch and re-render
+      await new Promise(r => setTimeout(r, 3000))
+      await fetchData()
+    }
   }, 1000)
 }
 
