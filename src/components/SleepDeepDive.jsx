@@ -257,7 +257,7 @@ export default function SleepDeepDive({ log, hrAnalysis, session }) {
         yLog, tLog, lastHr,
         baseRecovery, baseStability, baseEfficiency,
         recoveryDelta, stabilityDelta, rank, rankOf,
-        sparkRecovery, sparkStability, spark7,
+        sparkRecovery, sparkStability,
         caffeineMeals, lastCaffeine, caffeineHalfLivesAtSleep,
         alcoholMeals, medDetails, thyroxin,
         phoneAwayMins, homeMins, dinnerMins, bedTimeMins,
@@ -269,19 +269,23 @@ export default function SleepDeepDive({ log, hrAnalysis, session }) {
       })
       setLoading(false)
     }).catch(err => {
-      console.error('SleepDeepDive error:', err)
+      console.error('SleepDeepDive fetch error:', err)
       setLoading(false)
     })
   }, [userId, yesterday])
 
-  if (loading) return null
-  if (!data) return null
+  if (loading) return (
+    <div style={{ padding: '14px', fontSize: 11, color: 'var(--text3)' }}>Loading analysis...</div>
+  )
+  if (!data) return (
+    <div style={{ padding: '14px', fontSize: 11, color: 'var(--text3)' }}>Analysis unavailable — check console for errors.</div>
+  )
 
   const {
     yLog, tLog, lastHr,
     baseRecovery, baseStability,
     recoveryDelta, stabilityDelta, rank, rankOf,
-    sparkRecovery, sparkStability, spark7,
+    sparkRecovery, sparkStability,
     caffeineMeals, lastCaffeine, caffeineHalfLivesAtSleep,
     alcoholMeals, medDetails, thyroxin,
     phoneAwayMins, homeMins, dinnerMins, bedTimeMins,
