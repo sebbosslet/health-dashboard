@@ -49,9 +49,9 @@
 
 <h1>🌡 SwitchBot Temperature Monitor</h1>
 <p class="sub">Polling every 15 minutes · refreshes every 30s</p>
-<div style="margin-bottom:16px;">
-  <button id="lang-toggle" onclick="toggleLang()" style="background:rgba(255,255,255,0.08);border:1px solid #333;color:#aaa;padding:5px 12px;border-radius:16px;font-size:12px;cursor:pointer;font-family:inherit;margin-right:10px;">🇩🇪 Deutsch</button>
-  <span id="badge" class="badge wait" style="vertical-align:middle;"><span class="dot pulse"></span> Loading...</span>
+<div style="margin-bottom:16px;display:flex;flex-direction:column;align-items:flex-start;gap:10px;">
+  <button id="lang-toggle" onclick="toggleLang()" style="background:rgba(255,255,255,0.08);border:1px solid #333;color:#aaa;padding:5px 12px;border-radius:16px;font-size:12px;cursor:pointer;font-family:inherit;">🇩🇪 Deutsch</button>
+  <div id="badge" class="badge wait"><span class="dot pulse"></span> Loading...</div>
 </div>
 
 <div class="section">
