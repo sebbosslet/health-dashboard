@@ -48,7 +48,7 @@
 <body>
 
 <h1>🌡 SwitchBot Temperature Monitor</h1>
-<p class="sub">Polling every 5 minutes · refreshes every 30s</p>
+<p class="sub">Polling every 15 minutes · refreshes every 30s</p>
 
 <div id="badge" class="badge wait"><span class="dot pulse"></span> Loading...</div>
 
@@ -87,11 +87,11 @@ function nextSlots() {
   const now = new Date()
   // Round up to next 15-min boundary
   const mins = now.getMinutes()
-  const nextMins = Math.ceil((mins + 1) / 5) * 5
+  const nextMins = Math.ceil((mins + 1) / 15) * 15
   const base = new Date(now)
   base.setMinutes(nextMins, 0, 0)
-  for (let i = 0; i < 24; i++) {
-    const t = new Date(base.getTime() + i * 5 * 60 * 1000)
+  for (let i = 0; i < 8; i++) {
+    const t = new Date(base.getTime() + i * 15 * 60 * 1000)
     slots.push(t)
   }
   return slots
@@ -147,7 +147,7 @@ function render() {
     // Expected = polls since the earliest reading (or 24h window start, whichever is later)
     const windowStart = new Date(Math.max(now - 24*60*60*1000, new Date(readings[readings.length-1]?.recorded_at || now)))
     const hoursActive = (now - windowStart) / (60 * 60 * 1000)
-    const expectedPolls = Math.max(1, Math.round(hoursActive * 12))
+    const expectedPolls = Math.max(1, Math.round(hoursActive * 4))
     const successRate = Math.min(100, Math.round(last24.length / expectedPolls * 100))
     const rateColor = successRate >= 80 ? 'green' : successRate >= 50 ? 'amber' : 'red'
 
@@ -168,12 +168,12 @@ function render() {
   const timelineEl = document.getElementById('timeline')
   const isNext = (slot) => {
     const diff = slot - now
-    return diff > 0 && diff < 6 * 60 * 1000 // within 16 min window = next expected
+    return diff > 0 && diff < 16 * 60 * 1000 // within 16 min window = next expected
   }
 
   // Find readings close to each slot (within 8 min)
   const slotHtml = slots.map((slot, i) => {
-    const match = readings.find(r => Math.abs(new Date(r.recorded_at) - slot) < 3 * 60 * 1000)
+    const match = readings.find(r => Math.abs(new Date(r.recorded_at) - slot) < 8 * 60 * 1000)
     const isPast = slot < now
     const isNextSlot = !isPast && slots.findIndex(s => s > now) === i
 

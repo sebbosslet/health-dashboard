@@ -18,4 +18,4 @@
   node_bundler = "esbuild"
 
 [functions."switchbot-poll"]
-  schedule = "*/5 * * * *"
+  schedule = "*/15 * * * *"
