@@ -990,6 +990,7 @@ function InsightCard({ log, userId, lang }) {
   const [hrAnalysis, setHrAnalysis] = useState(null)
   const [anomalyText, setAnomalyText] = useState('')
   const [showAnomalyPrompt, setShowAnomalyPrompt] = useState(false)
+  const [collapsed, setCollapsed] = useState(false)
   const today = format(new Date(), 'yyyy-MM-dd')
   const yesterday = format(subDays(new Date(), 1), 'yyyy-MM-dd')
 
@@ -1101,7 +1102,22 @@ ADDITIONAL CONTEXT FROM SEBASTIAN: ${extraContext}` : '')
   const todayDate = format(new Date(), 'd MMM')
 
   return (
-    <div style={{ padding: '12px 14px', display: 'flex', flexDirection: 'column', gap: 12 }}>
+    <div style={{ display: 'flex', flexDirection: 'column' }}>
+      {insight && (
+        <button onClick={() => setCollapsed(v => !v)} style={{
+          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+          padding: '8px 14px 8px', background: 'none', border: 'none', cursor: 'pointer',
+          fontFamily: 'inherit', borderBottom: collapsed ? 'none' : '0.5px solid var(--border)',
+        }}>
+          <span style={{ fontSize: 11, color: 'var(--text3)', fontWeight: 600 }}>
+            {collapsed ? (lang === 'de' ? 'Analyse anzeigen' : 'Show insight') : (lang === 'de' ? 'Analyse ausblenden' : 'Hide insight')}
+          </span>
+          <svg width="12" height="12" viewBox="0 0 12 12" fill="none" style={{ transform: collapsed ? 'none' : 'rotate(180deg)', transition: 'transform 0.2s' }}>
+            <path d="M2 4l4 4 4-4" stroke="var(--text3)" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round"/>
+          </svg>
+        </button>
+      )}
+      {!collapsed && <div style={{ padding: '12px 14px', display: 'flex', flexDirection: 'column', gap: 12 }}>
       {/* Anomaly prompt — shown when fragmentation detected */}
       {showAnomalyPrompt && !insight && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
@@ -1162,6 +1178,7 @@ ADDITIONAL CONTEXT FROM SEBASTIAN: ${extraContext}` : '')
           </button>
         </>
       )}
+      </div>}
     </div>
   )
 }
