@@ -21,23 +21,36 @@ function makeSwitchBotHeaders() {
   }
 }
 
+async function fetchWithRetry(url, options, retries = 3, delayMs = 1000) {
+  for (let i = 0; i < retries; i++) {
+    try {
+      const res = await fetch(url, options)
+      if (res.ok || res.status < 500) return res
+      console.warn(`Attempt ${i+1} got status ${res.status}, retrying...`)
+    } catch (err) {
+      console.warn(`Attempt ${i+1} failed: ${err.message}`)
+      if (i === retries - 1) throw err
+    }
+    await new Promise(r => setTimeout(r, delayMs * (i + 1)))
+  }
+}
+
 exports.handler = async (event) => {
-  // Allow manual trigger via POST as well as scheduled
   try {
     if (!SWITCHBOT_TOKEN || !SWITCHBOT_SECRET || !SWITCHBOT_DEVICE_ID) {
       console.error('Missing SwitchBot env vars')
       return { statusCode: 500, body: 'Missing SwitchBot config' }
     }
 
-    // Fetch current temperature from SwitchBot
-    const res = await fetch(
+    // Fetch from SwitchBot with retry
+    const res = await fetchWithRetry(
       `https://api.switch-bot.com/v1.1/devices/${SWITCHBOT_DEVICE_ID}/status`,
       { headers: makeSwitchBotHeaders() }
     )
     const json = await res.json()
 
     if (json.statusCode !== 100) {
-      console.error('SwitchBot error:', json)
+      console.error('SwitchBot API error:', JSON.stringify(json))
       return { statusCode: 500, body: JSON.stringify(json) }
     }
 
@@ -46,8 +59,8 @@ exports.handler = async (event) => {
 
     console.log(`[SwitchBot] ${temperature}°C / ${humidity}% @ ${now}`)
 
-    // Save to Supabase temperature_readings table
-    const saveRes = await fetch(`${SUPABASE_URL}/rest/v1/temperature_readings`, {
+    // Save to Supabase with retry
+    const saveRes = await fetchWithRetry(`${SUPABASE_URL}/rest/v1/temperature_readings`, {
       method: 'POST',
       headers: {
         'apikey': SUPABASE_KEY,
@@ -75,7 +88,7 @@ exports.handler = async (event) => {
       body: JSON.stringify({ temperature, humidity, recorded_at: now }),
     }
   } catch (err) {
-    console.error('switchbot-poll error:', err)
+    console.error('switchbot-poll fatal error:', err.message)
     return { statusCode: 500, body: err.message }
   }
 }
