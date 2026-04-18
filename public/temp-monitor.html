@@ -49,21 +49,22 @@
 
 <h1>🌡 SwitchBot Temperature Monitor</h1>
 <p class="sub">Polling every 15 minutes · refreshes every 30s</p>
+<button id="lang-toggle" onclick="toggleLang()" style="background:rgba(255,255,255,0.08);border:1px solid #333;color:#aaa;padding:5px 12px;border-radius:16px;font-size:12px;cursor:pointer;font-family:inherit;margin-bottom:16px;">🇩🇪 Deutsch</button>
 
 <div id="badge" class="badge wait"><span class="dot pulse"></span> Loading...</div>
 
 <div class="section">
-  <div class="section-title">Current reading</div>
+  <div class="section-title" id="title-current">Current reading</div>
   <div id="latest" class="latest-big" style="color:#444">No data yet</div>
 </div>
 
 <div class="section">
-  <div class="section-title">Last 24h statistics</div>
+  <div class="section-title" id="title-stats">Last 24h statistics</div>
   <div id="stats"></div>
 </div>
 
 <div class="section">
-  <div class="section-title">Next 2 hours — expected data points</div>
+  <div class="section-title" id="title-timeline">Next 2 hours — expected data points</div>
   <div id="timeline" class="timeline"></div>
 </div>
 
@@ -75,10 +76,6 @@ let countdownInterval = null
 
 function fmtTime(iso) {
   return new Date(iso).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-}
-
-function fmtTemp(c, f) {
-  return `${f}°F / ${c}°C`
 }
 
 function nextSlots() {
@@ -123,15 +120,18 @@ function render() {
 
   let badgeClass, badgeText
   if (!latest) {
-    badgeClass = 'wait'; badgeText = '⏳ No data yet — waiting for first poll'
+    badgeClass = 'wait'; badgeText = t.noDataBadge
   } else if (ageMinutes <= 20) {
-    badgeClass = 'good'; badgeText = `✓ Live — last reading ${ageMinutes}m ago`
+    badgeClass = 'good'; badgeText = t.live(ageMinutes)
   } else if (ageMinutes <= 45) {
-    badgeClass = 'warn'; badgeText = `⚠ Delayed — last reading ${ageMinutes}m ago`
+    badgeClass = 'warn'; badgeText = t.delayed(ageMinutes)
   } else {
-    badgeClass = 'bad'; badgeText = `✗ Stale — last reading ${ageMinutes}m ago`
+    badgeClass = 'bad'; badgeText = t.stale(ageMinutes)
   }
   badge.className = `badge ${badgeClass}`
+  document.getElementById('title-current').textContent = t.current
+  document.getElementById('title-stats').textContent = t.stats
+  document.getElementById('title-timeline').textContent = t.timeline
   badge.innerHTML = `<span class="dot${badgeClass==='good'?' pulse':''}"></span> ${badgeText}`
 
   // ── Stats ──
@@ -151,13 +151,16 @@ function render() {
     const successRate = Math.min(100, Math.round(last24.length / expectedPolls * 100))
     const rateColor = successRate >= 80 ? 'green' : successRate >= 50 ? 'amber' : 'red'
 
+    const avgTdisp = lang === 'de' ? (+((avgT - 32) * 5/9)).toFixed(1) + '°C' : avgT + '°F'
+    const minTdisp = lang === 'de' ? (+((minT - 32) * 5/9)).toFixed(1) + '°C' : minT + '°F'
+    const maxTdisp = lang === 'de' ? (+((maxT - 32) * 5/9)).toFixed(1) + '°C' : maxT + '°F'
     statsEl.innerHTML = `
-      <div class="stat-row"><span class="stat-label">Readings received</span><span class="stat-value ${rateColor}">${last24.length} / ${expectedPolls} expected</span></div>
-      <div class="stat-row"><span class="stat-label">Success rate</span><span class="stat-value ${rateColor}">${successRate}%</span></div>
-      <div class="stat-row"><span class="stat-label">Avg temperature</span><span class="stat-value">${avgT}°F</span></div>
-      <div class="stat-row"><span class="stat-label">Range</span><span class="stat-value">${minT}–${maxT}°F</span></div>
-      <div class="stat-row"><span class="stat-label">Avg humidity</span><span class="stat-value">${avgH}%</span></div>
-      <div class="stat-row"><span class="stat-label">Last received</span><span class="stat-value">${latest ? fmtTime(latest.recorded_at) : '—'}</span></div>
+      <div class="stat-row"><span class="stat-label">${t.readings}</span><span class="stat-value ${rateColor}">${last24.length} / ${expectedPolls} ${t.expected}</span></div>
+      <div class="stat-row"><span class="stat-label">${t.successRate}</span><span class="stat-value ${rateColor}">${successRate}%</span></div>
+      <div class="stat-row"><span class="stat-label">${t.avgTemp}</span><span class="stat-value">${avgTdisp}</span></div>
+      <div class="stat-row"><span class="stat-label">${t.range}</span><span class="stat-value">${minTdisp}–${maxTdisp}</span></div>
+      <div class="stat-row"><span class="stat-label">${t.avgHumidity}</span><span class="stat-value">${avgH}%</span></div>
+      <div class="stat-row"><span class="stat-label">${t.lastReceived}</span><span class="stat-value">${latest ? fmtTime(latest.recorded_at) : '—'}</span></div>
     `
   } else {
     statsEl.innerHTML = `<div class="stat-row"><span class="stat-label" style="color:#555">No readings in last 24h</span></div>`
@@ -181,13 +184,13 @@ function render() {
       return `<div class="slot received">
         <span class="slot-time">${fmtTime(slot)}</span>
         <span class="slot-icon">✅</span>
-        <span class="slot-val got">${match.temperature_f}°F · ${match.humidity}%</span>
+        <span class="slot-val got">${lang === 'de' ? match.temperature_c + '°C' : match.temperature_f + '°F'} · ${match.humidity}%</span>
       </div>`
     } else if (isPast) {
       return `<div class="slot" style="opacity:0.3">
         <span class="slot-time">${fmtTime(slot)}</span>
         <span class="slot-icon">❌</span>
-        <span class="slot-val" style="color:#ff453a">missed</span>
+        <span class="slot-val" style="color:#ff453a">${t.missed}</span>
       </div>`
     } else if (isNextSlot) {
       const secLeft = Math.round((slot - now) / 1000)
@@ -202,7 +205,7 @@ function render() {
       return `<div class="slot future">
         <span class="slot-time">${fmtTime(slot)}</span>
         <span class="slot-icon">🕐</span>
-        <span class="slot-val future">expected</span>
+        <span class="slot-val future">${t.expSlot}</span>
       </div>`
     }
   }).join('')
@@ -223,7 +226,7 @@ function render() {
 
     if (secLeft <= 0 && !pollTriggered) {
       pollTriggered = true
-      cd.textContent = 'Polling...'
+      cd.textContent = T[lang].polling
       cd.style.color = '#fff'
       // Trigger the SwitchBot poll
       try {
@@ -236,15 +239,99 @@ function render() {
   }, 1000)
 }
 
+const T = {
+  en: {
+    title: '🌡 SwitchBot Temperature Monitor',
+    sub: 'Polling every 15 minutes · refreshes every 30s',
+    toggle: '🇩🇪 Deutsch',
+    current: 'Current reading',
+    stats: 'Last 24h statistics',
+    timeline: 'Next 2 hours — expected data points',
+    noData: 'No data yet',
+    readings: 'Readings received',
+    expected: 'expected',
+    successRate: 'Success rate',
+    avgTemp: 'Avg temperature',
+    range: 'Range',
+    avgHumidity: 'Avg humidity',
+    lastReceived: 'Last received',
+    justNow: 'just now',
+    minAgo: 'min ago',
+    missed: 'missed',
+    polling: 'Polling...',
+    expSlot: 'expected',
+    live: (m) => `✓ Live — last reading ${m}m ago`,
+    delayed: (m) => `⚠ Delayed — last reading ${m}m ago`,
+    stale: (m) => `✗ Stale — last reading ${m}m ago`,
+    noDataBadge: '⏳ No data yet — waiting for first poll',
+    refreshing: 'Refreshing...',
+    lastRefreshed: (t) => `Last refreshed: ${t}`,
+    fetching: (t) => `Fetching... ${t}`,
+    error: (e) => `Error: ${e}`,
+    unit: 'F',
+  },
+  de: {
+    title: '🌡 SwitchBot Temperatur-Monitor',
+    sub: 'Alle 15 Minuten · Aktualisierung alle 30s',
+    toggle: '🇬🇧 English',
+    current: 'Aktueller Messwert',
+    stats: 'Letzte 24 Stunden',
+    timeline: 'Nächste 2 Stunden — erwartete Datenpunkte',
+    noData: 'Noch keine Daten',
+    readings: 'Messwerte erhalten',
+    expected: 'erwartet',
+    successRate: 'Erfolgsrate',
+    avgTemp: 'Durchschn. Temperatur',
+    range: 'Bereich',
+    avgHumidity: 'Durchschn. Luftfeuchtigkeit',
+    lastReceived: 'Zuletzt empfangen',
+    justNow: 'gerade eben',
+    minAgo: 'Min. her',
+    missed: 'verpasst',
+    polling: 'Abfrage...',
+    expSlot: 'erwartet',
+    live: (m) => `✓ Aktiv — letzter Messwert vor ${m} Min.`,
+    delayed: (m) => `⚠ Verzögert — letzter Messwert vor ${m} Min.`,
+    stale: (m) => `✗ Veraltet — letzter Messwert vor ${m} Min.`,
+    noDataBadge: '⏳ Noch keine Daten — warte auf erste Abfrage',
+    refreshing: 'Aktualisiere...',
+    lastRefreshed: (t) => `Zuletzt aktualisiert: ${t}`,
+    fetching: (t) => `Lade... ${t}`,
+    error: (e) => `Fehler: ${e}`,
+    unit: 'C',
+  }
+}
+
+let lang = 'en'
+
+function toggleLang() {
+  lang = lang === 'en' ? 'de' : 'en'
+  const t = T[lang]
+  document.getElementById('lang-toggle').textContent = t.toggle
+  document.querySelector('h1').textContent = t.title
+  document.querySelector('.sub').textContent = t.sub
+  render()
+}
+
+function fmtTempVal(r) {
+  return lang === 'de' ? r.temperature_c + '°C' : r.temperature_f + '°F'
+}
+function fmtTempNum(f, c) {
+  return lang === 'de' ? c + '°C' : f + '°F'
+}
+function fmtHumidity(h) {
+  return h + '%'
+}
+
 async function fetchData() {
-  document.getElementById('refreshing').textContent = `Fetching... ${new Date().toLocaleTimeString()}`
+  document.getElementById('refreshing').textContent = T[lang].fetching(new Date().toLocaleTimeString())
   try {
     const res = await fetch('/.netlify/functions/temp-status')
     readings = await res.json()
     render()
-    document.getElementById('refreshing').textContent = `Last refreshed: ${new Date().toLocaleTimeString()}`
+    document.getElementById('refreshing').textContent = T[lang].lastRefreshed(new Date().toLocaleTimeString())
   } catch(e) {
-    document.getElementById('refreshing').textContent = `Error: ${e.message}`
+    document.getElementById('refreshing').textContent = T[lang].error(e.message)
   }
 }
 
