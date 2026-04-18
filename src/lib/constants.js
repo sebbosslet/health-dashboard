@@ -1,6 +1,6 @@
 // ─── Shared constants ─────────────────────────────────────────────────────────
 
-export const CLAUDE_MODEL = 'claude-sonnet-4-5-20250929'
+export const CLAUDE_MODEL = 'claude-sonnet-4-5'
 
 export const CAFFEINE_REGEX = /coffee|espresso|cappuccino|latte|americano|flat white|cold brew|matcha|green tea|black tea|oolong|chai|earl grey|tea|coca.?cola|coke|pepsi|diet coke|red bull|monster|rockstar|energy drink|pre.?workout|preworkout|bang|celsius|ghost energy|prime energy|yerba mate|guarana|mountain dew|dr pepper/i
 

@@ -1074,7 +1074,9 @@ ADDITIONAL CONTEXT FROM SEBASTIAN: ${extraContext}` : '')
         updated_at: new Date().toISOString(),
       }, { onConflict: 'user_id,date' })
     } catch (e) {
-      showToast(lang === 'de' ? 'Analyse fehlgeschlagen' : 'Analysis failed')
+      console.error('generateInsight error:', e)
+      const msg = e?.message || String(e)
+      showToast((lang === 'de' ? 'Analyse fehlgeschlagen: ' : 'Analysis failed: ') + msg.slice(0, 80))
     }
     setLoading(false)
   }
