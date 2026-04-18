@@ -14,6 +14,7 @@
   .badge.warn { background: rgba(255,159,10,0.15); color: #ff9f0a; border: 1px solid rgba(255,159,10,0.3); }
   .badge.bad  { background: rgba(255,69,58,0.15);  color: #ff453a; border: 1px solid rgba(255,69,58,0.3); }
   .badge.wait { background: rgba(255,255,255,0.08); color: #888; border: 1px solid rgba(255,255,255,0.1); }
+  #badge { align-self: center; flex-shrink: 0; }
   .dot { width: 8px; height: 8px; border-radius: 50%; background: currentColor; }
   .dot.pulse { animation: pulse 1.5s infinite; }
   @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.3} }
@@ -49,7 +50,7 @@
 
 <h1>🌡 SwitchBot Temperature Monitor</h1>
 <p class="sub">Polling every 15 minutes · refreshes every 30s</p>
-<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:16px;">
+<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:16px;width:fit-content;">
   <button id="lang-toggle" onclick="toggleLang()" style="background:rgba(255,255,255,0.08);border:1px solid #333;color:#aaa;padding:5px 12px;border-radius:16px;font-size:12px;cursor:pointer;font-family:inherit;">🇩🇪 Deutsch</button>
   <div id="badge" class="badge wait"><span class="dot pulse"></span> Loading...</div>
 </div>
