@@ -60,9 +60,25 @@ SEBASTIAN'S PERSONAL PATTERNS (${historicalLogs.length} days of data):
 `
 
   const yesterdayDate = yesterdayLog ? format(new Date(yesterdayLog.date), 'd MMM') : 'yesterday'
-  const caffeineContext = caffeineMeals.length
-    ? '\n- Caffeine: ' + caffeineMeals.map(m => m.meal_name + (m.consumed_at ? ' at ' + m.consumed_at.slice(0,5) + ' (50% cleared ~' + String((parseInt(m.consumed_at.split(':')[0])+5)%24).padStart(2,'0') + ':' + m.consumed_at.slice(3,5) + ')' : '')).join(', ')
-    : '\n- Caffeine: none logged'
+  const caffeineContext = (() => {
+    if (!caffeineMeals.length) return '\n- Caffeine: none logged'
+    // Calculate actual % remaining at sleep onset for each caffeinated item
+    const bedTimeStr = yesterdayLog?.bed_time
+    const items = caffeineMeals.map(m => {
+      if (!m.consumed_at || !bedTimeStr) return m.meal_name + (m.consumed_at ? ' at ' + m.consumed_at.slice(0,5) : '')
+      const cafMins = parseInt(m.consumed_at.split(':')[0]) * 60 + parseInt(m.consumed_at.split(':')[1] || 0)
+      let bedMins = parseInt(bedTimeStr.split(':')[0]) * 60 + parseInt(bedTimeStr.split(':')[1] || 0)
+      if (bedMins < 360) bedMins += 1440 // after midnight
+      const gapHours = (bedMins - cafMins) / 60
+      if (gapHours <= 0) return m.meal_name + ' at ' + m.consumed_at.slice(0,5) + ' (consumed after sleep onset — ignore)'
+      const halfLives = gapHours / 5
+      const remainingPct = Math.round(100 / Math.pow(2, halfLives))
+      const impact = remainingPct > 50 ? 'HIGH impact — >50% active at sleep' : remainingPct > 25 ? 'moderate — ~' + remainingPct + '% active at sleep' : 'low — only ~' + remainingPct + '% remaining at sleep, ' + gapHours.toFixed(1) + 'h gap'
+      return m.meal_name + ' at ' + m.consumed_at.slice(0,5) + ' (' + impact + ')'
+    })
+    return '\n- Caffeine: ' + items.join(', ')
+  })()
+
 
   const alcoholContext = alcoholMeals.length
     ? '\n- Alcohol: ' + alcoholMeals.map(m => m.meal_name + (m.consumed_at ? ' at ' + m.consumed_at.slice(0,5) : '')).join(', ') + ' — alcohol significantly fragments sleep, suppresses REM, raises RHR'
