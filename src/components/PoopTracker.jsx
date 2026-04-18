@@ -6,6 +6,21 @@ import { showToast } from './Toast'
 import { useLang } from '../lib/LangContext'
 import { CLAUDE_MODEL } from '../lib/constants'
 
+const FLAG_LABELS = {
+  blood: 'Blood present',
+  mucus: 'Mucus present',
+  undigested_food: 'Undigested food',
+  urgency: 'Urgency',
+  pain: 'Pain',
+  straining: 'Straining',
+  incomplete: 'Incomplete evacuation',
+  floating: 'Floating stool',
+  oily: 'Oily/greasy',
+}
+
+const fmtFlags = flags => flags.map(f => FLAG_LABELS[f] || f.replace(/_/g, ' ')).join(' · ')
+
+
 const BRISTOL_TYPES = [
   { type: 1, emoji: '🪨', label: 'Separate hard lumps', color: '#8B4513', signal: 'severe constipation' },
   { type: 2, emoji: '🌰', label: 'Lumpy sausage', color: '#A0522D', signal: 'mild constipation' },
@@ -145,7 +160,7 @@ export default function PoopTracker({ session, date }) {
               </div>
               {log.assessment && <div style={{ fontSize: 11, color: 'var(--text2)', marginTop: 1 }}>{log.assessment}</div>}
               {log.flags?.length > 0 && (
-                <div style={{ fontSize: 11, color: 'var(--red)', marginTop: 1 }}>⚠️ {log.flags.join(', ')}</div>
+                <div style={{ fontSize: 11, color: 'var(--red)', marginTop: 1 }}>⚠️ {fmtFlags(log.flags)}</div>
               )}
             </div>
             <span style={{ fontSize: 11, fontFamily: 'var(--font-mono)', color: 'var(--text3)', flexShrink: 0 }}>{log.logged_at?.slice(0,5)}</span>
@@ -193,7 +208,7 @@ export default function PoopTracker({ session, date }) {
               <div style={{ fontSize: 12, color: 'var(--text)', lineHeight: 1.5 }}>{analysis.assessment}</div>
               {analysis.color && <div style={{ fontSize: 11, color: 'var(--text2)' }}>Colour: {analysis.color}</div>}
               {analysis.flags?.length > 0 && (
-                <div style={{ fontSize: 11, color: 'var(--red)', fontWeight: 600 }}>⚠️ {analysis.flags.join(', ')}</div>
+                <div style={{ fontSize: 11, color: 'var(--red)', fontWeight: 600 }}>⚠️ {fmtFlags(analysis.flags)}</div>
               )}
             </div>
           )}

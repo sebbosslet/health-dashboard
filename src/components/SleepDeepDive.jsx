@@ -2,6 +2,10 @@ import { useState, useEffect } from 'react'
 import { supabase } from '../lib/supabase'
 import { format, subDays } from 'date-fns'
 
+
+const FLAG_LABELS = { blood: 'Blood present', mucus: 'Mucus present', undigested_food: 'Undigested food', urgency: 'Urgency', pain: 'Pain', straining: 'Straining', incomplete: 'Incomplete evacuation', floating: 'Floating stool', oily: 'Oily/greasy' }
+const fmtFlags = flags => flags.map(f => FLAG_LABELS[f] || f.replace(/_/g, ' ')).join(' · ')
+
 // ── helpers ──────────────────────────────────────────────────────────────────
 const avg = arr => {
   const v = arr.filter(x => x != null && !isNaN(x))
@@ -441,7 +445,7 @@ export default function SleepDeepDive({ log, session }) {
       icon: '💩', label: 'Gut health',
       value: `${poopSummary.count}× Type ${poopSummary.types.join('/')}`,
       signal: poopSummary.hasFlags ? 'warn' : poopSummary.types.every(t => t >= 3 && t <= 5) ? 'good' : 'neutral',
-      stat: poopSummary.hasFlags ? '⚠️ ' + poopSummary.flags.join(', ') : 'normal range',
+      stat: poopSummary.hasFlags ? '⚠️ ' + fmtFlags(poopSummary.flags) : 'normal range',
       reasoning: poopSummary.hasFlags
         ? 'Flags detected — gut inflammation can elevate cortisol and disrupt sleep. Worth monitoring.'
         : poopSummary.types.every(t => t >= 3 && t <= 5)
