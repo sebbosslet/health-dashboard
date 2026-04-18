@@ -251,7 +251,7 @@ export default function TodayPage({ session }) {
                   <div className="bar" style={{ width: `${calPct}%`, background: mealCalories > calorieTarget ? 'var(--red)' : 'var(--amber)' }} />
                 </div>
               </div>
-              <MealLogger session={session} date={today} dinnerTime={log?.dinner_time?.slice(0,5) || ''} onCaloriesUpdated={setMealCalories} onDoneEating={() => {}} addTriggered={addingMeal} onAddHandled={() => setAddingMeal(false)} />
+              <MealLogger session={session} date={today} dinnerTime={log?.dinner_time?.slice(0,5) || ''} onSave={save} onCaloriesUpdated={setMealCalories} onDoneEating={() => {}} addTriggered={addingMeal} onAddHandled={() => setAddingMeal(false)} />
             </div>
         </div>
 

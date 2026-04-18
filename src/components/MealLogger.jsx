@@ -67,7 +67,7 @@ const CONFIDENCE_COLORS = {
   low: 'var(--red)',
 }
 
-export default function MealLogger({ session, date, dinnerTime: dinnerTimeProp = '', onCaloriesUpdated, onDoneEating, addTriggered, onAddHandled }) {
+export default function MealLogger({ session, date, dinnerTime: dinnerTimeProp = '', onSave, onCaloriesUpdated, onDoneEating, addTriggered, onAddHandled }) {
   const { t, lang } = useLang()
   const fileRef = useRef()
   const [meals, setMeals] = useState([])
@@ -333,18 +333,18 @@ Respond ONLY with valid JSON, no markdown:
                 defaultValue={dinnerTime}
                 onChange={e => {
                   const v = e.target.value
-                  if (v) { setDinnerTime(v); supabase.from('daily_logs').upsert({ user_id: session.user.id, date: dateStr, dinner_time: v, updated_at: new Date().toISOString() }, { onConflict: 'user_id,date' }) }
+                  if (v) { setDinnerTime(v); if (onSave) onSave({ dinner_time: v }) }
                 }}
                 onBlur={e => {
                   const v = e.target.value
-                  if (v) { setDinnerTime(v); supabase.from('daily_logs').upsert({ user_id: session.user.id, date: dateStr, dinner_time: v, updated_at: new Date().toISOString() }, { onConflict: 'user_id,date' }) }
+                  if (v) { setDinnerTime(v); if (onSave) onSave({ dinner_time: v }) }
                 }}
                 style={{ fontSize: 14, fontWeight: 700, fontFamily: 'var(--font-mono)', color: 'var(--green)', background: 'none', border: 'none', outline: 'none', width: 80, textAlign: 'right', cursor: 'pointer' }}
               />
             </div>
             <button onClick={() => {
               setDinnerTime('')
-              supabase.from('daily_logs').upsert({ user_id: session.user.id, date: dateStr, dinner_time: null, updated_at: new Date().toISOString() }, { onConflict: 'user_id,date' })
+              if (onSave) onSave({ dinner_time: null })
             }} style={{ alignSelf: 'center', background: 'none', border: 'none', color: 'var(--text3)', cursor: 'pointer', fontFamily: 'inherit', fontSize: 11, textDecoration: 'underline' }}>
               {lang === 'de' ? 'Rückgängig' : 'Not done yet — undo'}
             </button>
@@ -354,7 +354,7 @@ Respond ONLY with valid JSON, no markdown:
           <button onClick={() => {
             const now = format(new Date(), 'HH:mm')
             setDinnerTime(now)
-            supabase.from('daily_logs').upsert({ user_id: session.user.id, date: dateStr, dinner_time: now, updated_at: new Date().toISOString() }, { onConflict: 'user_id,date' })
+            if (onSave) onSave({ dinner_time: now })
             showToast(lang === 'de' ? 'Essenszeit gespeichert' : 'Done eating — time saved')
             if (onDoneEating) onDoneEating()
           }} style={{
