@@ -118,7 +118,10 @@ export default function SleepDeepDive({ log, hrAnalysis, session }) {
       // HR lookup
       const hrMap = {}
       recentHr.forEach(h => { hrMap[h.date] = h })
-      const lastHr = hrAnalysis || hrMap[yesterday] || null
+      // hrAnalysis prop = most recently fetched record (could be 2 nights ago if not yet uploaded today)
+      // Use it only if date matches today (just uploaded this morning for last night's sleep)
+      // Otherwise fall back to hrMap[yesterday] which is last night's stored analysis
+      const lastHr = (hrAnalysis?.date === today ? hrAnalysis : null) || hrMap[yesterday] || hrMap[today] || null
 
       // ── Baselines (exclude today/yesterday) ──
       const prior = recentLogs.filter(l => l.date < yesterday)
@@ -134,15 +137,17 @@ export default function SleepDeepDive({ log, hrAnalysis, session }) {
       const recoveryDelta = todayRecovery && baseRecovery ? +(todayRecovery - baseRecovery).toFixed(0) : null
       const stabilityDelta = todayStability && baseStability ? +(todayStability - baseStability).toFixed(1) : null
 
-      // Rank last night vs recent 7
+      // Rank last night vs recent 7 (prior nights only, not today)
       const recoveries = recentLogs.filter(l => l.date < today && l.recovery_score).map(l => l.recovery_score).sort((a, b) => b - a)
-      const rank = todayRecovery ? recoveries.filter(r => r > todayRecovery).length + 1 : null
-      const rankOf = recoveries.length + (todayRecovery ? 1 : 0)
+      const rank = todayRecovery && recoveries.length >= 2 ? recoveries.filter(r => r > todayRecovery).length + 1 : null
+      const rankOf = recoveries.length >= 2 ? recoveries.length + 1 : null
 
-      // ── Sparkline data (last 7 nights + last night) ──
-      const spark7 = [...recentLogs.filter(l => l.date <= yesterday)].slice(-7)
-      const sparkRecovery = spark7.map(l => l.recovery_score)
-      const sparkStability = spark7.map(l => hrMap[l.date]?.stability_score)
+      // ── Sparkline data — prior nights + today appended ──
+      const spark7base = [...recentLogs.filter(l => l.date < today)].slice(-6)
+      // Append today's data (from log prop, not recentLogs which excludes today)
+      const sparkDays = [...spark7base, { date: today, recovery_score: tLog.recovery_score, _today: true }]
+      const sparkRecovery = sparkDays.map(l => l.recovery_score ?? null)
+      const sparkStability = sparkDays.map(l => (l._today ? lastHr : hrMap[l.date])?.stability_score ?? null)
 
       // ── Caffeine ──
       const caffeineMeals = meals.filter(m => m.is_caffeinated)
@@ -182,17 +187,19 @@ export default function SleepDeepDive({ log, hrAnalysis, session }) {
       const dinnerMins = toMins(yLog.dinner_time)
       const bedTimeMins = bedMins
 
-      const avgPhoneAway = avg(prior.filter(l => l.phone_away_time).map(l => toMins(l.phone_away_time)))
       const avgHome = avg(prior.filter(l => l.home_time).map(l => toMins(l.home_time)))
       const avgDinner = avg(prior.filter(l => l.dinner_time).map(l => toMins(l.dinner_time)))
-      const avgBed = avg(prior.filter(l => l.bed_time).map(l => {
-        let m = toMins(l.bed_time); if (m < 360) m += 1440; return m
-      }))
 
+      // Wind-down gap: compute per-night phone→bed gap, then average those gaps
       const windDownGap = phoneAwayMins && bedTimeMins ? (() => {
         let b = bedTimeMins; if (b < 360) b += 1440; return b - phoneAwayMins
       })() : null
-      const avgWindDownGap = avgPhoneAway && avgBed ? avgBed - avgPhoneAway : null
+      const avgWindDownGap = avg(prior.filter(l => l.phone_away_time && l.bed_time).map(l => {
+        const pm = toMins(l.phone_away_time)
+        let bm = toMins(l.bed_time); if (bm < 360) bm += 1440
+        const gap = bm - pm
+        return gap > 0 && gap < 600 ? gap : null
+      }).filter(Boolean))
 
       // ── Temperature ──
       const lastTemp = lastHr?.temp_avg_f || yLog.ac_temp
@@ -254,7 +261,7 @@ export default function SleepDeepDive({ log, hrAnalysis, session }) {
         caffeineMeals, lastCaffeine, caffeineHalfLivesAtSleep,
         alcoholMeals, medDetails, thyroxin,
         phoneAwayMins, homeMins, dinnerMins, bedTimeMins,
-        avgPhoneAway, avgHome, avgDinner,
+        avgHome, avgDinner,
         windDownGap, avgWindDownGap,
         lastTemp, optimalTempRange,
         poopSummary, water, avgWater,
@@ -278,7 +285,7 @@ export default function SleepDeepDive({ log, hrAnalysis, session }) {
     caffeineMeals, lastCaffeine, caffeineHalfLivesAtSleep,
     alcoholMeals, medDetails, thyroxin,
     phoneAwayMins, homeMins, dinnerMins, bedTimeMins,
-    avgPhoneAway, avgHome, avgDinner,
+    avgHome, avgDinner,
     windDownGap, avgWindDownGap,
     lastTemp, optimalTempRange,
     poopSummary, water, avgWater,
@@ -439,7 +446,7 @@ export default function SleepDeepDive({ log, hrAnalysis, session }) {
             unit=""
             vsBaseline={avgHome ? Math.round(homeMins - avgHome) : null}
             signal={homeMins <= 19 * 60 ? 'good' : homeMins >= 21 * 60 ? 'warn' : 'neutral'}
-            detail={windDownGap != null ? `${fmtMins(windDownGap)} home-to-phone window` : null}
+            detail={homeMins && phoneAwayMins && phoneAwayMins > homeMins ? `${fmtMins(phoneAwayMins - homeMins)} until phone away` : null}
           />
         )}
 
