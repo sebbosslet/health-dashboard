@@ -87,8 +87,10 @@ export default function MealLogger({ session, date, dinnerTime: dinnerTimeProp =
   const [showReassess, setShowReassess] = useState(false)
   const [dinnerTime, setDinnerTime] = useState(dinnerTimeProp)
 
-  // Sync from parent log whenever it changes (e.g. after save propagates back)
-  useEffect(() => { setDinnerTime(dinnerTimeProp) }, [dinnerTimeProp])
+  // Sync from parent ONLY if parent has a value (never clear a locally-set time)
+  useEffect(() => {
+    if (dinnerTimeProp) setDinnerTime(dinnerTimeProp)
+  }, [dinnerTimeProp])
   const [reassessText, setReassessText] = useState('')
   const [reassessing, setReassessing] = useState(false)
 
