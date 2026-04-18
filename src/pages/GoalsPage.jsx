@@ -257,7 +257,7 @@ export default function GoalsPage({ session }) {
                       <label className="field-label">{t('goals_name')}</label>
                       <input className="field-input" value={editName} onChange={e => setEditName(e.target.value)} placeholder={lang === 'de' ? 'z.B. Laufen' : 'e.g. Running'} />
                     </div>
-                    {(editCategory === 'Activity' || editCategory === 'Evening habits') && (
+                    {true && (
                       <div className="field">
                         <label className="field-label">Icon</label>
                         <input className="field-input" value={editEmoji} onChange={e => setEditEmoji(e.target.value)} placeholder="🏋️" style={{ textAlign: 'center', fontSize: 18, padding: '6px 4px' }} maxLength={4} />

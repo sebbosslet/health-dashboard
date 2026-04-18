@@ -78,13 +78,17 @@ export default function TodayPage({ session }) {
   const { settings } = useSettings(session.user.id)
   const [activityGoals, setActivityGoals] = useState([])
   const [habitGoals, setHabitGoals] = useState([])
+  const [recoveryGoals, setRecoveryGoals] = useState([])
+  const [funGoals, setFunGoals] = useState([])
+  const [activeRecovery, setActiveRecovery] = useState(new Set())
+  const [activeFun, setActiveFun] = useState(new Set())
 
   useEffect(() => {
     supabase
       .from('goals')
       .select('name, category, emoji')
       .eq('user_id', session.user.id)
-      .in('category', ['Activity', 'Evening habits'])
+      .in('category', ['Activity', 'Evening habits', 'Recovery & Self-care', 'Fun'])
       .then(({ data }) => {
         const activities = (data || []).filter(g => g.category === 'Activity')
         const habits = (data || []).filter(g => g.category === 'Evening habits')
@@ -95,6 +99,8 @@ export default function TodayPage({ session }) {
         setHabitGoals(habits.length ? habits : [
           { name: 'Reading' }, { name: 'Meditation' }, { name: 'No phone' }, { name: 'Journaling' }
         ])
+        setRecoveryGoals((data || []).filter(g => g.category === 'Recovery & Self-care'))
+        setFunGoals((data || []).filter(g => g.category === 'Fun'))
       })
   }, [session.user.id])
 
@@ -110,6 +116,8 @@ export default function TodayPage({ session }) {
     if (log) {
       setActiveActivity(new Set(log.activity || []))
       setActiveHabits(new Set(log.habits || []))
+      setActiveRecovery(new Set(log.activity || []))
+      setActiveFun(new Set(log.activity || []))
       setWater(log.water ? String(log.water) : '0')
     }
   }, [log])
@@ -331,6 +339,44 @@ export default function TodayPage({ session }) {
             </div>
           </div>
         </div>
+
+        {/* Recovery & Self-care */}
+        {recoveryGoals.length > 0 && (
+          <div className="card">
+            <div className="card-header"><span className="card-title">🧘 Recovery & Self-care</span></div>
+            <div style={{ padding: '10px 14px 14px' }}>
+              <div className="toggle-grid">
+                {recoveryGoals.map(a => {
+                  const key = a.name.toLowerCase().replace(/\s+/g, '_')
+                  return (
+                    <button key={key} className={`toggle-btn ${activeActivity.has(key) ? 'active' : ''}`} onClick={() => toggle(activeActivity, setActiveActivity, key)}>
+                      {a.emoji || ''} {a.name}
+                    </button>
+                  )
+                })}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Fun */}
+        {funGoals.length > 0 && (
+          <div className="card">
+            <div className="card-header"><span className="card-title">🎉 Fun</span></div>
+            <div style={{ padding: '10px 14px 14px' }}>
+              <div className="toggle-grid">
+                {funGoals.map(a => {
+                  const key = a.name.toLowerCase().replace(/\s+/g, '_')
+                  return (
+                    <button key={key} className={`toggle-btn ${activeActivity.has(key) ? 'active' : ''}`} onClick={() => toggle(activeActivity, setActiveActivity, key)}>
+                      {a.emoji || ''} {a.name}
+                    </button>
+                  )
+                })}
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* 9. Supplements */}
         <SupTracker session={session} date={today} />
