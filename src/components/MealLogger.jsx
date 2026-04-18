@@ -4,6 +4,7 @@ import { useState, useEffect, useRef } from 'react'
 import { supabase } from '../lib/supabase'
 import { useLang } from '../lib/LangContext'
 import { format } from 'date-fns'
+import { showToast } from './Toast'
 
 const MEAL_TYPES = ['breakfast', 'lunch', 'dinner', 'snack']
 
@@ -352,6 +353,7 @@ Respond ONLY with valid JSON, no markdown:
             const now = format(new Date(), 'HH:mm')
             setDinnerTime(now)
             supabase.from('daily_logs').upsert({ user_id: session.user.id, date: dateStr, dinner_time: now, updated_at: new Date().toISOString() }, { onConflict: 'user_id,date' })
+            showToast(lang === 'de' ? 'Essenszeit gespeichert' : 'Done eating — time saved')
             if (onDoneEating) onDoneEating()
           }} style={{
             width: '100%', padding: '11px 14px', borderRadius: 10,
