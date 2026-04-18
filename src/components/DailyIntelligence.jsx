@@ -1001,7 +1001,7 @@ function InsightCard({ log, userId, lang }) {
         { data: yesterdayLog }, { data: history }, { data: yesterdayEvents },
         { data: travelState }, { data: caffeineMeals }, { data: alcoholMeals },
         { data: suppLogs }, { data: medLogs }, { data: poopLogs },
-        { data: goals }, { data: hrData },
+        { data: goals }, { data: hrData }, { data: hrHistory },
       ] = await Promise.all([
         supabase.from('daily_logs').select('*').eq('user_id', userId).eq('date', yesterday).maybeSingle(),
         supabase.from('daily_logs').select('*').eq('user_id', userId).gte('date', thirtyDaysAgo).lt('date', today).order('date', { ascending: true }),
@@ -1210,7 +1210,21 @@ export default function DailyIntelligence({ session, log, onSave, habitGoals, ac
 
       {/* 2. Sleep — WHOOP upload + last night data + HR analysis */}
       {section === 'sleep' && (
-        <WhoopTab log={log} yesterdayLog={yesterdayLog} session={session} lang={lang} onRefresh={onSave} />
+        hasCheckin
+          ? <WhoopTab log={log} yesterdayLog={yesterdayLog} session={session} lang={lang} onRefresh={onSave} />
+          : <div style={{ padding: '24px 14px', textAlign: 'center', display: 'flex', flexDirection: 'column', gap: 8, alignItems: 'center' }}>
+              <div style={{ fontSize: 28 }}>😴</div>
+              <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text2)' }}>
+                {lang === 'de' ? 'Schlaf-Analyse noch nicht verfügbar' : 'Sleep analysis not available yet'}
+              </div>
+              <div style={{ fontSize: 12, color: 'var(--text3)', lineHeight: 1.5 }}>
+                {!hasMorning && !hasWhoop
+                  ? (lang === 'de' ? 'Bitte zuerst Check-in und WHOOP Screenshot hochladen' : 'Complete your morning check-in and upload your WHOOP screenshot first')
+                  : !hasMorning
+                  ? (lang === 'de' ? 'Bitte zuerst Morning Check-in abschließen' : 'Complete your morning check-in first')
+                  : (lang === 'de' ? 'Bitte WHOOP Screenshot hochladen' : 'Upload your WHOOP screenshot first')}
+              </div>
+            </div>
       )}
 
       {/* 3. Insight — full synthesis narrative + sleep stats history */}
