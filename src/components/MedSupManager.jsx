@@ -23,6 +23,41 @@ function ItemForm({ type, userId, existing, onSaved, onCancel, lang }) {
   const [multiIngredient, setMultiIngredient] = useState(!!(existing?.ingredients && parseIngredients(existing.ingredients).length > 0))
   const [ingredients, setIngredients] = useState(parseIngredients(existing?.ingredients).length > 0 ? parseIngredients(existing.ingredients) : [{ name: '', dose: '' }])
   const [saving, setSaving] = useState(false)
+  const [autoFilling, setAutoFilling] = useState(false)
+
+  async function autoFillIngredients() {
+    if (!name.trim()) { showToast('Enter the supplement name first'); return }
+    setAutoFilling(true)
+    try {
+      const res = await fetch('/.netlify/functions/claude-proxy', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          model: 'claude-sonnet-4-5',
+          max_tokens: 800,
+          messages: [{
+            role: 'user',
+            content: 'List all ingredients and their standard doses for the supplement product: "' + name.trim() + '". Respond ONLY with a JSON array, no other text. Format: [{"name": "Ingredient Name", "dose": "Xmg"}]. Include every active ingredient with its typical per-serving dose. If it is a single-ingredient supplement, return an array with one item.'
+          }]
+        })
+      })
+      const data = await res.json()
+      const text = data.content?.[0]?.text || ''
+      const clean = text.replace(/```json|```/g, '').trim()
+      const parsed = JSON.parse(clean)
+      if (Array.isArray(parsed) && parsed.length > 0) {
+        setIngredients(parsed.map(i => ({ name: i.name || '', dose: i.dose || '' })))
+        setMultiIngredient(true)
+        showToast('Ingredients filled — review and adjust doses')
+      } else {
+        showToast('No ingredients found — try a more specific name')
+      }
+    } catch(e) {
+      console.error('Auto-fill error:', e)
+      showToast('Auto-fill failed — fill manually')
+    }
+    setAutoFilling(false)
+  }
 
   function addIngredient() {
     setIngredients(prev => [...prev, { name: '', dose: '' }])
@@ -125,8 +160,19 @@ function ItemForm({ type, userId, existing, onSaved, onCancel, lang }) {
 
           {multiIngredient && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 6, padding: '10px 12px', background: 'var(--surface)', borderRadius: 10, border: '0.5px solid var(--border)' }}>
-              <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--text2)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 2 }}>
-                {lang === 'de' ? 'Inhaltsstoffe' : 'Ingredients'}
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 2 }}>
+                <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--text2)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                  {lang === 'de' ? 'Inhaltsstoffe' : 'Ingredients'}
+                </div>
+                <button onClick={autoFillIngredients} disabled={autoFilling || !name.trim()} style={{
+                  display: 'flex', alignItems: 'center', gap: 5, padding: '4px 10px',
+                  background: autoFilling ? 'var(--surface2)' : 'var(--green)', border: 'none',
+                  borderRadius: 12, color: autoFilling ? 'var(--text3)' : 'white',
+                  fontSize: 11, fontWeight: 600, cursor: autoFilling || !name.trim() ? 'default' : 'pointer',
+                  fontFamily: 'inherit', opacity: !name.trim() ? 0.4 : 1,
+                }}>
+                  {autoFilling ? '⏳ Filling...' : '✨ Auto-fill'}
+                </button>
               </div>
               {ingredients.map((ing, i) => (
                 <div key={i} style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
