@@ -32,13 +32,17 @@ const BRISTOL_TYPES = [
 ]
 
 async function analysePoopPhoto(base64, mimeType) {
-  const prompt = `You are a gastroenterologist. Analyse this stool photo clinically and objectively.
+  const prompt = `You are a gastroenterologist. Analyse this toilet photo clinically and objectively.
+
+IMPORTANT: Toilet photos typically contain both stool AND urine water. The water colour is affected by urine — ignore any yellow or amber tint in the water when assessing stool colour. Focus only on the stool itself, not the surrounding water.
+
+If no stool is visible (urine only, empty bowl, unclear), return bristol_type: null and confidence: "low".
 
 Respond ONLY with valid JSON:
 {
   "bristol_type": 1-7 or null,
   "color": "brown|yellow|green|black|red|pale|other",
-  "assessment": "one clinical sentence about what this indicates",
+  "assessment": "one clinical sentence about the stool itself (do not comment on urine or water colour)",
   "flags": ["blood", "mucus", "undigested_food"] or [],
   "confidence": "high|medium|low"
 }`
