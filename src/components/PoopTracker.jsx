@@ -81,8 +81,6 @@ export default function PoopTracker({ session, date }) {
   const [analysis, setAnalysis] = useState(null)
   const [saving, setSaving] = useState(false)
   const fileRef = useRef()
-  const cameraRef = useRef()
-  const [showPhotoSheet, setShowPhotoSheet] = useState(false)
 
   const dateStr = format(date || new Date(), 'yyyy-MM-dd')
 
@@ -248,10 +246,9 @@ export default function PoopTracker({ session, date }) {
               <input className="field-input" type="time" value={time} onChange={e => setTime(e.target.value)} />
             </div>
 
-            {/* Camera icon button — same as meal logger */}
-            <input ref={cameraRef} type="file" accept="image/*" capture="environment" style={{ display: 'none' }} onChange={e => { setShowPhotoSheet(false); handlePhoto(e) }} />
-            <input ref={fileRef} type="file" accept="image/*" style={{ display: 'none' }} onChange={e => { setShowPhotoSheet(false); handlePhoto(e) }} />
-            <button onClick={() => setShowPhotoSheet(v => !v)} disabled={analysing} style={{
+            {/* Photo library picker — tap icon to open library directly */}
+            <input ref={fileRef} type="file" accept="image/*" style={{ display: 'none' }} onChange={handlePhoto} />
+            <button onClick={() => fileRef.current?.click()} disabled={analysing} style={{
               width: 44, height: 44, borderRadius: 10, flexShrink: 0,
               border: analysis ? '1.5px solid var(--green)' : '1.5px solid var(--border)',
               background: analysis ? 'var(--green-light)' : 'var(--surface2)',
@@ -268,28 +265,6 @@ export default function PoopTracker({ session, date }) {
               }
             </button>
           </div>
-
-          {/* Photo sheet */}
-          {showPhotoSheet && !analysing && (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 6, padding: '12px', background: 'var(--surface2)', borderRadius: 12, border: '0.5px solid var(--border)' }}>
-              <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 2 }}>
-                {lang === 'de' ? 'Foto hinzufügen' : 'Add photo'}
-              </div>
-              <div style={{ display: 'flex', gap: 8 }}>
-                <button onClick={() => { cameraRef.current?.click(); setShowPhotoSheet(false) }} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, padding: '12px 8px', borderRadius: 10, border: '1px solid var(--green-border)', background: 'var(--green-light)', cursor: 'pointer', fontFamily: 'inherit' }}>
-                  <svg width="22" height="22" viewBox="0 0 22 22" fill="none"><rect x="1" y="4" width="20" height="15" rx="3" stroke="var(--green)" strokeWidth="1.5"/><circle cx="11" cy="11.5" r="4" stroke="var(--green)" strokeWidth="1.5"/><path d="M7.5 4L8.5 2h5l1 2" stroke="var(--green)" strokeWidth="1.5" strokeLinecap="round"/></svg>
-                  <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--green)' }}>{lang === 'de' ? 'Kamera' : 'Camera'}</span>
-                </button>
-                <button onClick={() => { fileRef.current?.click(); setShowPhotoSheet(false) }} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, padding: '12px 8px', borderRadius: 10, border: '0.5px solid var(--border)', background: 'var(--surface)', cursor: 'pointer', fontFamily: 'inherit' }}>
-                  <svg width="22" height="22" viewBox="0 0 22 22" fill="none"><path d="M4 6h14M4 11h10M4 16h7" stroke="var(--text2)" strokeWidth="1.5" strokeLinecap="round"/></svg>
-                  <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--text2)' }}>{lang === 'de' ? 'Bibliothek' : 'Library'}</span>
-                </button>
-              </div>
-              <button onClick={() => setShowPhotoSheet(false)} style={{ alignSelf: 'center', background: 'none', border: 'none', color: 'var(--text3)', fontSize: 11, cursor: 'pointer', fontFamily: 'inherit', marginTop: 2 }}>
-                {lang === 'de' ? 'Abbrechen' : 'Cancel'}
-              </button>
-            </div>
-          )}
 
           {/* Actions */}
           <div style={{ display: 'flex', gap: 8 }}>
