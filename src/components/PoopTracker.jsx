@@ -240,12 +240,12 @@ export default function PoopTracker({ session, date }) {
           )}
 
           {/* Time + photo row */}
-          <div style={{ display: 'flex', gap: 8 }}>
-            <div style={{ width: 'calc(50% - 4px)' }}>
+          <div style={{ display: 'flex', gap: '25%' }}>
+            <div style={{ flex: 1 }}>
               <label className="field-label">⏰ Time</label>
               <input type="time" value={time} onChange={e => setTime(e.target.value)} style={{ display: 'block', width: '100%', boxSizing: 'border-box', padding: '8px 6px', borderRadius: 8, border: '1.5px solid var(--border)', background: 'var(--surface2)', color: 'var(--text)', fontSize: 13, fontFamily: 'inherit', outline: 'none' }} />
             </div>
-            <div style={{ width: 'calc(50% - 4px)' }}>
+            <div style={{ flex: 1 }}>
               <label className="field-label">📷 {lang === 'de' ? 'Foto' : 'Photo'}</label>
               <input ref={fileRef} type="file" accept="image/*" style={{ display: 'none' }} onChange={handlePhoto} />
               <button onClick={() => fileRef.current?.click()} disabled={analysing} style={{
