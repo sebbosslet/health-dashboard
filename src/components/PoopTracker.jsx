@@ -240,18 +240,14 @@ export default function PoopTracker({ session, date }) {
           )}
 
           {/* Time + photo icon row */}
-          <div style={{ display: 'flex', alignItems: 'flex-end', gap: 10 }}>
-            <div className="field" style={{ flex: 1 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+            <div>
               <label className="field-label">⏰ Time</label>
               <input className="field-input" type="time" value={time} onChange={e => setTime(e.target.value)} />
             </div>
-
-            {/* Photo picker — equal width to time */}
-            <input ref={fileRef} type="file" accept="image/*" style={{ display: 'none' }} onChange={handlePhoto} />
-            <div style={{ flex: 1 }}>
-              <label className="field-label" style={{ fontSize: 10, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.05em', display: 'block', marginBottom: 4 }}>
-                📷 {lang === 'de' ? 'Foto' : 'Photo'}
-              </label>
+            <div>
+              <label className="field-label">📷 {lang === 'de' ? 'Foto' : 'Photo'}</label>
+              <input ref={fileRef} type="file" accept="image/*" style={{ display: 'none' }} onChange={handlePhoto} />
               <button onClick={() => fileRef.current?.click()} disabled={analysing} style={{
                 width: '100%', height: 40, borderRadius: 10,
                 border: analysis ? '1.5px solid var(--green)' : '1.5px solid var(--border)',
@@ -270,7 +266,6 @@ export default function PoopTracker({ session, date }) {
               </button>
             </div>
           </div>
-
           {/* Actions */}
           <div style={{ display: 'flex', gap: 8 }}>
             <button onClick={() => { setShowLog(false); setSelectedType(null); setAnalysis(null) }} className="btn-secondary" style={{ flex: 1 }}>
