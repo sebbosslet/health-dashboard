@@ -239,20 +239,20 @@ export default function PoopTracker({ session, date }) {
             </div>
           )}
 
-          {/* Time + photo icon row */}
+          {/* Time + photo row */}
           <div style={{ display: 'flex', gap: 8 }}>
-            <div style={{ width: '50%' }}>
+            <div style={{ width: 'calc(50% - 4px)' }}>
               <label className="field-label">⏰ Time</label>
-              <input className="field-input" type="time" value={time} onChange={e => setTime(e.target.value)} style={{ width: '100%', boxSizing: 'border-box' }} />
+              <input type="time" value={time} onChange={e => setTime(e.target.value)} style={{ display: 'block', width: '100%', boxSizing: 'border-box', padding: '8px 6px', borderRadius: 8, border: '1.5px solid var(--border)', background: 'var(--surface2)', color: 'var(--text)', fontSize: 13, fontFamily: 'inherit', outline: 'none' }} />
             </div>
-            <div style={{ width: '50%' }}>
+            <div style={{ width: 'calc(50% - 4px)' }}>
               <label className="field-label">📷 {lang === 'de' ? 'Foto' : 'Photo'}</label>
               <input ref={fileRef} type="file" accept="image/*" style={{ display: 'none' }} onChange={handlePhoto} />
               <button onClick={() => fileRef.current?.click()} disabled={analysing} style={{
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
                 width: '100%', height: 40, borderRadius: 8, boxSizing: 'border-box',
                 border: analysis ? '1.5px solid var(--green)' : '1.5px solid var(--border)',
                 background: analysis ? 'var(--green-light)' : 'var(--surface2)',
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
                 cursor: analysing ? 'default' : 'pointer', padding: 0,
               }}>
                 {analysing
