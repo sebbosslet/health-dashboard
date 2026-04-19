@@ -264,7 +264,6 @@ export default function PoopTracker({ session, date }) {
             </button>
           </div>
 
-          </div>
           {/* Actions */}
           <div style={{ display: 'flex', gap: 8 }}>
             <button onClick={() => { setShowLog(false); setSelectedType(null); setAnalysis(null) }} className="btn-secondary" style={{ flex: 1 }}>
