@@ -34,13 +34,17 @@ const BRISTOL_TYPES = [
 async function analysePoopPhoto(base64, mimeType) {
   const prompt = `You are a gastroenterologist. Analyse this toilet bowl photo. The bowl may contain stool and urine together.
 
-Only report what you can clearly see. Do not infer conditions or diagnose.
+Only report what you can clearly see. Do not diagnose.
+
+For bristol_suggestion: based ONLY on visible stool texture and surface — NOT water colour or shape assumptions. If you cannot clearly see the stool texture, return null.
+Bristol scale reminder: 1=separate hard lumps, 2=lumpy sausage, 3=sausage with cracks, 4=smooth sausage/snake, 5=soft blobs, 6=fluffy ragged, 7=watery.
 
 Respond ONLY with valid JSON:
 {
   "color": "brown|yellow|green|black|red|pale|other",
-  "assessment": "one sentence describing only the stool's visible colour and any notable characteristics",
+  "assessment": "one sentence describing only the stool's visible colour and texture",
   "urine_color": "clear|pale_yellow|yellow|dark_yellow|orange|not_visible",
+  "bristol_suggestion": 1-7 or null,
   "flags": ["blood", "mucus", "undigested_food"] or [],
   "confidence": "high|medium|low"
 }`
@@ -181,24 +185,39 @@ export default function PoopTracker({ session, date }) {
             <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--text2)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 8 }}>
               {lang === 'de' ? 'Bristol-Stuhltyp' : 'Bristol stool type'}
             </div>
+            {analysis?.bristol_suggestion && !selectedType && (
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '7px 10px', background: 'rgba(52,199,89,0.08)', borderRadius: 8, border: '1px solid var(--green-border)', marginBottom: 4 }}>
+                <span style={{ fontSize: 13 }}>✨</span>
+                <span style={{ fontSize: 12, color: 'var(--green)', flex: 1 }}>
+                  Photo suggests <strong>Type {analysis.bristol_suggestion}</strong> — tap to confirm
+                </span>
+              </div>
+            )}
             <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-              {BRISTOL_TYPES.map(b => (
+              {BRISTOL_TYPES.map(b => {
+                const isSuggested = analysis?.bristol_suggestion === b.type && !selectedType
+                const isSelected = selectedType === b.type
+                return (
                 <button key={b.type} onClick={() => setSelectedType(b.type)} style={{
                   display: 'flex', alignItems: 'center', gap: 10, padding: '8px 10px',
-                  borderRadius: 8, border: `1.5px solid ${selectedType === b.type ? 'var(--green)' : 'var(--border)'}`,
-                  background: selectedType === b.type ? 'var(--green-light)' : 'var(--surface2)',
+                  borderRadius: 8,
+                  border: `1.5px solid ${isSelected ? 'var(--green)' : isSuggested ? 'var(--green)' : 'var(--border)'}`,
+                  background: isSelected ? 'var(--green-light)' : isSuggested ? 'rgba(52,199,89,0.06)' : 'var(--surface2)',
                   cursor: 'pointer', fontFamily: 'inherit', textAlign: 'left',
                 }}>
                   <span style={{ fontSize: 20, flexShrink: 0 }}>{b.emoji}</span>
                   <div style={{ flex: 1 }}>
-                    <span style={{ fontSize: 12, fontWeight: 600, color: selectedType === b.type ? 'var(--green)' : 'var(--text)' }}>
+                    <span style={{ fontSize: 12, fontWeight: 600, color: isSelected || isSuggested ? 'var(--green)' : 'var(--text)' }}>
                       Type {b.type}
                     </span>
                     <span style={{ fontSize: 12, color: 'var(--text2)', marginLeft: 6 }}>{b.label}</span>
                   </div>
-                  <span style={{ fontSize: 10, color: selectedType === b.type ? 'var(--green)' : 'var(--text3)', flexShrink: 0 }}>{b.signal}</span>
+                  <span style={{ fontSize: 10, flexShrink: 0, color: isSelected ? 'var(--green)' : isSuggested ? 'var(--green)' : 'var(--text3)' }}>
+                    {isSuggested ? '✨ suggested' : b.signal}
+                  </span>
                 </button>
-              ))}
+                )
+              })}
             </div>
           </div>
 
