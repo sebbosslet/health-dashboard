@@ -34,15 +34,18 @@ const BRISTOL_TYPES = [
 async function analysePoopPhoto(base64, mimeType) {
   const prompt = `You are a gastroenterologist. Analyse this toilet photo clinically and objectively.
 
-IMPORTANT: Toilet photos typically contain both stool AND urine water. The water colour is affected by urine — ignore any yellow or amber tint in the water when assessing stool colour. Focus only on the stool itself, not the surrounding water.
+CRITICAL RULES:
+1. Toilet water is ALWAYS coloured by urine — the water colour tells you NOTHING about stool health. Do NOT mention water colour, water appearance, or anything about the liquid in the bowl.
+2. Analyse ONLY the solid stool matter itself — its shape, texture, and consistency.
+3. Your assessment sentence must describe only the stool. Never mention "water", "liquid", "yellowish water", "bile in water", or anything about the fluid.
 
-If no stool is visible (urine only, empty bowl, unclear), return bristol_type: null and confidence: "low".
+If no stool is visible, return bristol_type: null and confidence: "low".
 
 Respond ONLY with valid JSON:
 {
   "bristol_type": 1-7 or null,
   "color": "brown|yellow|green|black|red|pale|other",
-  "assessment": "one clinical sentence about the stool itself (do not comment on urine or water colour)",
+  "assessment": "one clinical sentence about the stool shape and consistency only",
   "flags": ["blood", "mucus", "undigested_food"] or [],
   "confidence": "high|medium|low"
 }`
@@ -64,7 +67,17 @@ Respond ONLY with valid JSON:
   })
   const data = await res.json()
   const text = data.content?.[0]?.text || '{}'
-  try { return JSON.parse(text.replace(/```json|```/g, '').trim()) }
+  try {
+    const result = JSON.parse(text.replace(/```json|```/g, '').trim())
+    // Strip any water/liquid references from assessment as a safety net
+    if (result.assessment) {
+      result.assessment = result.assessment
+        .replace(/[^.]*(?:yellowish?|water|liquid|fluid|bile in|bowl water)[^.]*/gi, '')
+        .replace(/\s{2,}/g, ' ').trim()
+        .replace(/^[,;.\s]+/, '')
+    }
+    return result
+  }
   catch { return null }
 }
 
