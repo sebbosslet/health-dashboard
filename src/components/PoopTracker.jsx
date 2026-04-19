@@ -240,30 +240,35 @@ export default function PoopTracker({ session, date }) {
           )}
 
           {/* Time + photo icon row */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          <div style={{ display: 'flex', alignItems: 'flex-end', gap: 10 }}>
             <div className="field" style={{ flex: 1 }}>
               <label className="field-label">⏰ Time</label>
               <input className="field-input" type="time" value={time} onChange={e => setTime(e.target.value)} />
             </div>
 
-            {/* Photo library picker — tap icon to open library directly */}
+            {/* Photo picker — equal width to time */}
             <input ref={fileRef} type="file" accept="image/*" style={{ display: 'none' }} onChange={handlePhoto} />
-            <button onClick={() => fileRef.current?.click()} disabled={analysing} style={{
-              width: 44, height: 44, borderRadius: 10, flexShrink: 0,
-              border: analysis ? '1.5px solid var(--green)' : '1.5px solid var(--border)',
-              background: analysis ? 'var(--green-light)' : 'var(--surface2)',
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-              cursor: analysing ? 'default' : 'pointer', padding: 0,
-            }}>
-              {analysing
-                ? <div style={{ width: 18, height: 18, borderRadius: '50%', border: '2px solid var(--border)', borderTopColor: 'var(--green)', animation: 'spin 0.8s linear infinite' }} />
-                : <svg width="20" height="20" viewBox="0 0 22 22" fill="none">
-                    <rect x="1" y="4" width="20" height="15" rx="3" stroke={analysis ? 'var(--green)' : 'var(--text3)'} strokeWidth="1.5"/>
-                    <circle cx="11" cy="11.5" r="4" stroke={analysis ? 'var(--green)' : 'var(--text3)'} strokeWidth="1.5"/>
-                    <path d="M7.5 4L8.5 2h5l1 2" stroke={analysis ? 'var(--green)' : 'var(--text3)'} strokeWidth="1.5" strokeLinecap="round"/>
-                  </svg>
-              }
-            </button>
+            <div style={{ flex: 1 }}>
+              <label className="field-label" style={{ fontSize: 10, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.05em', display: 'block', marginBottom: 4 }}>
+                📷 {lang === 'de' ? 'Foto' : 'Photo'}
+              </label>
+              <button onClick={() => fileRef.current?.click()} disabled={analysing} style={{
+                width: '100%', height: 40, borderRadius: 10,
+                border: analysis ? '1.5px solid var(--green)' : '1.5px solid var(--border)',
+                background: analysis ? 'var(--green-light)' : 'var(--surface2)',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                cursor: analysing ? 'default' : 'pointer', padding: 0,
+              }}>
+                {analysing
+                  ? <div style={{ width: 18, height: 18, borderRadius: '50%', border: '2px solid var(--border)', borderTopColor: 'var(--green)', animation: 'spin 0.8s linear infinite' }} />
+                  : <svg width="20" height="20" viewBox="0 0 22 22" fill="none">
+                      <rect x="1" y="4" width="20" height="15" rx="3" stroke={analysis ? 'var(--green)' : 'var(--text3)'} strokeWidth="1.5"/>
+                      <circle cx="11" cy="11.5" r="4" stroke={analysis ? 'var(--green)' : 'var(--text3)'} strokeWidth="1.5"/>
+                      <path d="M7.5 4L8.5 2h5l1 2" stroke={analysis ? 'var(--green)' : 'var(--text3)'} strokeWidth="1.5" strokeLinecap="round"/>
+                    </svg>
+                }
+              </button>
+            </div>
           </div>
 
           {/* Actions */}
