@@ -3,6 +3,9 @@ import { supabase } from './lib/supabase'
 import { LangProvider } from './lib/LangContext'
 import AuthPage from './pages/AuthPage'
 import MainApp from './pages/MainApp'
+import TripApp from './trip/TripApp'
+
+const TRIP_EMAILS = ['trip@sebs.health']
 
 export default function App() {
   const [session, setSession] = useState(null)
@@ -53,7 +56,12 @@ export default function App() {
 
   return (
     <LangProvider>
-      {!session ? <AuthPage /> : <MainApp session={session} whoopCode={whoopCode} whoopError={whoopError} />}
+      {!session
+        ? <AuthPage />
+        : TRIP_EMAILS.includes(session.user.email)
+          ? <TripApp session={session} />
+          : <MainApp session={session} whoopCode={whoopCode} whoopError={whoopError} />
+      }
     </LangProvider>
   )
 }

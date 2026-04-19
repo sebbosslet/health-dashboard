@@ -1,0 +1,11 @@
+.trip-btn { font-family: inherit; border: none; border-radius: 10px; padding: 10px 18px; font-size: 14px; font-weight: 600; cursor: pointer; }
+.trip-btn:disabled { opacity: 0.4; cursor: default; }
+.trip-btn-primary { background: #1c1c1e; color: white; }
+.trip-btn-secondary { background: #f5f5f7; color: #1c1c1e; }
+.trip-card { background: white; border-radius: 14px; margin: 0 16px 12px; box-shadow: 0 1px 3px rgba(0,0,0,0.08); overflow: hidden; }
+.trip-input { width: 100%; padding: 9px 12px; border: 1.5px solid #e5e5ea; border-radius: 9px; font-size: 14px; color: #1c1c1e; background: #f5f5f7; outline: none; font-family: inherit; box-sizing: border-box; }
+.trip-input:focus { border-color: #1c1c1e; background: white; }
+textarea.trip-input { resize: vertical; min-height: 60px; }
+.trip-label { font-size: 11px; font-weight: 700; color: #aeaeb2; text-transform: uppercase; letter-spacing: 0.05em; display: block; margin-bottom: 5px; }
+
+.trip-spinner { width: 20px; height: 20px; border: 2px solid #e5e5ea; border-top-color: #1c1c1e; border-radius: 50%; animation: spin 0.7s linear infinite; }
