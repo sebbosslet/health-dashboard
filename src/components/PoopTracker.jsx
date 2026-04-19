@@ -32,54 +32,23 @@ const BRISTOL_TYPES = [
 ]
 
 async function analysePoopPhoto(base64, mimeType) {
-  const prompt = `You are a gastroenterologist. Analyse this toilet photo clinically and objectively.
+  const prompt = `You are a gastroenterologist reviewing a toilet bowl photo. The image will contain both stool and urine together — this is normal for a toilet photo.
 
-CRITICAL RULES:
-1. Toilet water is ALWAYS coloured by urine — the water colour tells you NOTHING about stool health. Do NOT mention water colour, water appearance, or anything about the liquid in the bowl.
-2. Analyse ONLY the solid stool matter itself — its shape, texture, and consistency.
-3. Your assessment sentence must describe only the stool. Never mention "water", "liquid", "yellowish water", "bile in water", or anything about the fluid.
-
-If no stool is visible, return bristol_type: null and confidence: "low".
+Your job is to analyse what you see accurately:
+- Urine colour (clear, yellow, dark yellow, orange) is a separate indicator from stool and should be noted if clinically relevant
+- Stool should be assessed on its own merits: shape, texture, consistency, colour
+- If the water appears yellow, that is likely urine — assess whether that urine colour itself is worth flagging (e.g. dark orange = dehydration) but do not confuse it with stool colour
+- Assess both components honestly if both are visible
 
 Respond ONLY with valid JSON:
 {
   "bristol_type": 1-7 or null,
   "color": "brown|yellow|green|black|red|pale|other",
-  "assessment": "one clinical sentence about the stool shape and consistency only",
+  "assessment": "one clinical sentence about the stool. If urine colour is also clinically notable, add a second sentence about that separately.",
+  "urine_color": "clear|pale_yellow|yellow|dark_yellow|orange|brown|not_visible",
   "flags": ["blood", "mucus", "undigested_food"] or [],
   "confidence": "high|medium|low"
 }`
-
-  const res = await fetch('/.netlify/functions/claude-proxy', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      model: CLAUDE_MODEL,
-      max_tokens: 300,
-      messages: [{
-        role: 'user',
-        content: [
-          { type: 'image', source: { type: 'base64', media_type: mimeType, data: base64 } },
-          { type: 'text', text: prompt }
-        ]
-      }]
-    })
-  })
-  const data = await res.json()
-  const text = data.content?.[0]?.text || '{}'
-  try {
-    const result = JSON.parse(text.replace(/```json|```/g, '').trim())
-    // Strip any water/liquid references from assessment as a safety net
-    if (result.assessment) {
-      result.assessment = result.assessment
-        .replace(/[^.]*(?:yellowish?|water|liquid|fluid|bile in|bowl water)[^.]*/gi, '')
-        .replace(/\s{2,}/g, ' ').trim()
-        .replace(/^[,;.\s]+/, '')
-    }
-    return result
-  }
-  catch { return null }
-}
 
 export default function PoopTracker({ session, date }) {
   const { lang } = useLang()
@@ -225,7 +194,13 @@ export default function PoopTracker({ session, date }) {
                 ✨ {lang === 'de' ? 'KI-Analyse' : 'AI analysis'}
               </div>
               <div style={{ fontSize: 12, color: 'var(--text)', lineHeight: 1.5 }}>{analysis.assessment}</div>
-              {analysis.color && <div style={{ fontSize: 11, color: 'var(--text2)' }}>Colour: {analysis.color}</div>}
+              {analysis.color && <div style={{ fontSize: 11, color: 'var(--text2)' }}>Stool colour: {analysis.color}</div>}
+              {analysis.urine_color && analysis.urine_color !== 'not_visible' && (
+                <div style={{ fontSize: 11, color: analysis.urine_color === 'orange' || analysis.urine_color === 'brown' ? 'var(--amber)' : 'var(--text2)' }}>
+                  Urine: {analysis.urine_color.replace(/_/g, ' ')}
+                  {(analysis.urine_color === 'dark_yellow' || analysis.urine_color === 'orange') && ' — consider hydrating more'}
+                </div>
+              )}
               {analysis.flags?.length > 0 && (
                 <div style={{ fontSize: 11, color: 'var(--red)', fontWeight: 600 }}>⚠️ {fmtFlags(analysis.flags)}</div>
               )}
