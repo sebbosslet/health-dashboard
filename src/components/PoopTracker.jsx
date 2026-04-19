@@ -241,45 +241,55 @@ export default function PoopTracker({ session, date }) {
             </div>
           )}
 
-          {/* Time + photo row */}
-          <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+          {/* Time + photo icon row */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
             <div className="field" style={{ flex: 1 }}>
               <label className="field-label">⏰ Time</label>
               <input className="field-input" type="time" value={time} onChange={e => setTime(e.target.value)} />
             </div>
-            <div style={{ flex: 1 }}>
-              <label className="field-label" style={{ fontSize: 10, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.05em', display: 'block', marginBottom: 4 }}>
-                📷 {lang === 'de' ? 'Foto (optional)' : 'Photo (optional)'}
-              </label>
-              {/* Camera — direct capture */}
-              <input ref={cameraRef} type="file" accept="image/*" capture="environment" style={{ display: 'none' }} onChange={e => { setShowPhotoSheet(false); handlePhoto(e) }} />
-              {/* Library — file picker */}
-              <input ref={fileRef} type="file" accept="image/*" style={{ display: 'none' }} onChange={e => { setShowPhotoSheet(false); handlePhoto(e) }} />
-              <button onClick={() => setShowPhotoSheet(v => !v)} disabled={analysing} style={{
-                width: '100%', padding: '8px', borderRadius: 8, border: '1px dashed var(--border)',
-                background: 'var(--surface2)', color: analysing ? 'var(--text3)' : 'var(--text2)', fontSize: 11, cursor: analysing ? 'default' : 'pointer', fontFamily: 'inherit'
-              }}>
-                {analysing ? (lang === 'de' ? 'Analysiere...' : 'Analysing...') : (lang === 'de' ? '📷 Foto hinzufügen' : '📷 Add photo')}
-              </button>
-              {showPhotoSheet && !analysing && (
-                <div style={{ display: 'flex', gap: 6, marginTop: 6 }}>
-                  <button onClick={() => { cameraRef.current?.click() }} style={{
-                    flex: 1, padding: '8px 4px', borderRadius: 8, border: '1px solid var(--border)',
-                    background: 'var(--surface)', color: 'var(--text)', fontSize: 11, cursor: 'pointer', fontFamily: 'inherit', fontWeight: 600
-                  }}>📸 {lang === 'de' ? 'Kamera' : 'Camera'}</button>
-                  <button onClick={() => { fileRef.current?.click() }} style={{
-                    flex: 1, padding: '8px 4px', borderRadius: 8, border: '1px solid var(--border)',
-                    background: 'var(--surface)', color: 'var(--text)', fontSize: 11, cursor: 'pointer', fontFamily: 'inherit', fontWeight: 600
-                  }}>🖼 {lang === 'de' ? 'Bibliothek' : 'Library'}</button>
-                </div>
-              )}
-            </div>
+
+            {/* Camera icon button — same as meal logger */}
+            <input ref={cameraRef} type="file" accept="image/*" capture="environment" style={{ display: 'none' }} onChange={e => { setShowPhotoSheet(false); handlePhoto(e) }} />
+            <input ref={fileRef} type="file" accept="image/*" style={{ display: 'none' }} onChange={e => { setShowPhotoSheet(false); handlePhoto(e) }} />
+            <button onClick={() => setShowPhotoSheet(v => !v)} disabled={analysing} style={{
+              width: 44, height: 44, borderRadius: 10, flexShrink: 0,
+              border: analysis ? '1.5px solid var(--green)' : '1.5px solid var(--border)',
+              background: analysis ? 'var(--green-light)' : 'var(--surface2)',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              cursor: analysing ? 'default' : 'pointer', padding: 0,
+            }}>
+              {analysing
+                ? <div style={{ width: 18, height: 18, borderRadius: '50%', border: '2px solid var(--border)', borderTopColor: 'var(--green)', animation: 'spin 0.8s linear infinite' }} />
+                : <svg width="20" height="20" viewBox="0 0 22 22" fill="none">
+                    <rect x="1" y="4" width="20" height="15" rx="3" stroke={analysis ? 'var(--green)' : 'var(--text3)'} strokeWidth="1.5"/>
+                    <circle cx="11" cy="11.5" r="4" stroke={analysis ? 'var(--green)' : 'var(--text3)'} strokeWidth="1.5"/>
+                    <path d="M7.5 4L8.5 2h5l1 2" stroke={analysis ? 'var(--green)' : 'var(--text3)'} strokeWidth="1.5" strokeLinecap="round"/>
+                  </svg>
+              }
+            </button>
           </div>
 
-          {/* Note */}
-          <input className="field-input" value={note} onChange={e => setNote(e.target.value)}
-            placeholder={lang === 'de' ? 'Notiz (optional)...' : 'Note (optional)...'}
-            style={{ fontSize: 12 }} />
+          {/* Photo sheet */}
+          {showPhotoSheet && !analysing && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 6, padding: '12px', background: 'var(--surface2)', borderRadius: 12, border: '0.5px solid var(--border)' }}>
+              <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 2 }}>
+                {lang === 'de' ? 'Foto hinzufügen' : 'Add photo'}
+              </div>
+              <div style={{ display: 'flex', gap: 8 }}>
+                <button onClick={() => { cameraRef.current?.click(); setShowPhotoSheet(false) }} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, padding: '12px 8px', borderRadius: 10, border: '1px solid var(--green-border)', background: 'var(--green-light)', cursor: 'pointer', fontFamily: 'inherit' }}>
+                  <svg width="22" height="22" viewBox="0 0 22 22" fill="none"><rect x="1" y="4" width="20" height="15" rx="3" stroke="var(--green)" strokeWidth="1.5"/><circle cx="11" cy="11.5" r="4" stroke="var(--green)" strokeWidth="1.5"/><path d="M7.5 4L8.5 2h5l1 2" stroke="var(--green)" strokeWidth="1.5" strokeLinecap="round"/></svg>
+                  <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--green)' }}>{lang === 'de' ? 'Kamera' : 'Camera'}</span>
+                </button>
+                <button onClick={() => { fileRef.current?.click(); setShowPhotoSheet(false) }} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, padding: '12px 8px', borderRadius: 10, border: '0.5px solid var(--border)', background: 'var(--surface)', cursor: 'pointer', fontFamily: 'inherit' }}>
+                  <svg width="22" height="22" viewBox="0 0 22 22" fill="none"><path d="M4 6h14M4 11h10M4 16h7" stroke="var(--text2)" strokeWidth="1.5" strokeLinecap="round"/></svg>
+                  <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--text2)' }}>{lang === 'de' ? 'Bibliothek' : 'Library'}</span>
+                </button>
+              </div>
+              <button onClick={() => setShowPhotoSheet(false)} style={{ alignSelf: 'center', background: 'none', border: 'none', color: 'var(--text3)', fontSize: 11, cursor: 'pointer', fontFamily: 'inherit', marginTop: 2 }}>
+                {lang === 'de' ? 'Abbrechen' : 'Cancel'}
+              </button>
+            </div>
+          )}
 
           {/* Actions */}
           <div style={{ display: 'flex', gap: 8 }}>
