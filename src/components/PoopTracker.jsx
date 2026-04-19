@@ -50,6 +50,27 @@ Respond ONLY with valid JSON:
   "confidence": "high|medium|low"
 }`
 
+  const res = await fetch('/.netlify/functions/claude-proxy', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      model: CLAUDE_MODEL,
+      max_tokens: 400,
+      messages: [{
+        role: 'user',
+        content: [
+          { type: 'image', source: { type: 'base64', media_type: mimeType, data: base64 } },
+          { type: 'text', text: prompt }
+        ]
+      }]
+    })
+  })
+  const data = await res.json()
+  const text = data.content?.[0]?.text || '{}'
+  try { return JSON.parse(text.replace(/```json|```/g, '').trim()) }
+  catch { return null }
+}
+
 export default function PoopTracker({ session, date }) {
   const { lang } = useLang()
   const [logs, setLogs] = useState([])
