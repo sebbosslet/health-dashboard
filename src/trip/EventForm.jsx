@@ -33,6 +33,7 @@ export default function EventForm({ trip, event, defaultDate, onSave, onCancel, 
   const [location, setLocation] = useState(event?.location || '')
   const [details, setDetails] = useState(event?.details || '')
   const [confirmation, setConfirmation] = useState(event?.confirmation || '')
+  const [mapsUrl, setMapsUrl] = useState(event?.maps_url || '')
   const [saving, setSaving] = useState(false)
 
   const ph = PLACEHOLDERS[type] || PLACEHOLDERS.note
@@ -45,6 +46,7 @@ export default function EventForm({ trip, event, defaultDate, onSave, onCancel, 
       start_time: startTime || null, end_time: endTime || null,
       location: location.trim() || null, details: details.trim() || null,
       confirmation: confirmation.trim() || null,
+      maps_url: mapsUrl.trim() || null,
     })
     setSaving(false)
   }
@@ -110,6 +112,12 @@ export default function EventForm({ trip, event, defaultDate, onSave, onCancel, 
           <div>
             <label className="trip-label">Location / From → To</label>
             <input className="trip-input" value={location} onChange={e => setLocation(e.target.value)} placeholder={ph.location} />
+          </div>
+
+          {/* Maps URL */}
+          <div>
+            <label className="trip-label">Google Maps link</label>
+            <input className="trip-input" value={mapsUrl} onChange={e => setMapsUrl(e.target.value)} placeholder="https://maps.google.com/..." />
           </div>
 
           {/* Details */}

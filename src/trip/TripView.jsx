@@ -152,6 +152,11 @@ export default function TripView({ trip, session, onBack }) {
                                 </div>
                               )}
                               {ev.location && <div style={{ fontSize: 12, color: 'var(--text2)', marginTop: 2 }}>📍 {ev.location}</div>}
+                              {ev.maps_url && (
+                                <a href={ev.maps_url} target="_blank" rel="noopener noreferrer" style={{ fontSize: 12, color: '#0071e3', marginTop: 2, display: 'flex', alignItems: 'center', gap: 4, textDecoration: 'none' }}>
+                                  🗺 <span style={{ textDecoration: 'underline' }}>Google Maps</span>
+                                </a>
+                              )}
                               {ev.details && <div style={{ fontSize: 12, color: 'var(--text2)', marginTop: 4, lineHeight: 1.5 }}>{ev.details}</div>}
                               {ev.confirmation && <div style={{ fontSize: 11, color: 'var(--text3)', marginTop: 3 }}>Ref: {ev.confirmation}</div>}
                             </div>
