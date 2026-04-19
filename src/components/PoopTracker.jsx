@@ -243,7 +243,7 @@ export default function PoopTracker({ session, date }) {
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
             <div>
               <label className="field-label">⏰ Time</label>
-              <input className="field-input" type="time" value={time} onChange={e => setTime(e.target.value)} />
+              <input className="field-input" type="time" value={time} onChange={e => setTime(e.target.value)} style={{ width: '100%', boxSizing: 'border-box' }} />
             </div>
             <div>
               <label className="field-label">📷 {lang === 'de' ? 'Foto' : 'Photo'}</label>
