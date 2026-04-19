@@ -1,5 +1,4 @@
 import { useState } from 'react'
-import { supabase } from '../lib/supabase'
 import TripList from './TripList'
 import TripView from './TripView'
 import './trip.css'
@@ -7,8 +6,12 @@ import './trip.css'
 export default function TripApp({ session }) {
   const [activeTrip, setActiveTrip] = useState(null)
 
-  if (activeTrip) return (
-    <TripView trip={activeTrip} session={session} onBack={() => setActiveTrip(null)} />
+  return (
+    <div style={{ position: 'fixed', inset: 0, overflowY: 'auto', overflowX: 'hidden', background: '#f5f5f7', WebkitOverflowScrolling: 'touch' }}>
+      {activeTrip
+        ? <TripView trip={activeTrip} session={session} onBack={() => setActiveTrip(null)} />
+        : <TripList session={session} onSelectTrip={setActiveTrip} />
+      }
+    </div>
   )
-  return <TripList session={session} onSelectTrip={setActiveTrip} />
 }
