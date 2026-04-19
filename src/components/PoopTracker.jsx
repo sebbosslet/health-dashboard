@@ -32,20 +32,16 @@ const BRISTOL_TYPES = [
 ]
 
 async function analysePoopPhoto(base64, mimeType) {
-  const prompt = `You are a gastroenterologist reviewing a toilet bowl photo. The image will contain both stool and urine together — this is normal for a toilet photo.
+  const prompt = `You are a gastroenterologist. Analyse this toilet bowl photo. The bowl contains stool and possibly urine — assess each separately based only on what you can actually see.
 
-Your job is to analyse what you see accurately:
-- Urine colour (clear, yellow, dark yellow, orange) is a separate indicator from stool and should be noted if clinically relevant
-- Stool should be assessed on its own merits: shape, texture, consistency, colour
-- If the water appears yellow, that is likely urine — assess whether that urine colour itself is worth flagging (e.g. dark orange = dehydration) but do not confuse it with stool colour
-- Assess both components honestly if both are visible
+Describe only what is visually present. Do not infer or assume conditions not visible in the image.
 
 Respond ONLY with valid JSON:
 {
   "bristol_type": 1-7 or null,
   "color": "brown|yellow|green|black|red|pale|other",
-  "assessment": "one clinical sentence about the stool. If urine colour is also clinically notable, add a second sentence about that separately.",
-  "urine_color": "clear|pale_yellow|yellow|dark_yellow|orange|brown|not_visible",
+  "assessment": "one sentence describing the stool's visible shape and consistency",
+  "urine_color": "clear|pale_yellow|yellow|dark_yellow|orange|not_visible",
   "flags": ["blood", "mucus", "undigested_food"] or [],
   "confidence": "high|medium|low"
 }`
