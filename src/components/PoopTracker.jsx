@@ -75,6 +75,8 @@ export default function PoopTracker({ session, date }) {
   const [analysis, setAnalysis] = useState(null)
   const [saving, setSaving] = useState(false)
   const fileRef = useRef()
+  const cameraRef = useRef()
+  const [showPhotoSheet, setShowPhotoSheet] = useState(false)
 
   const dateStr = format(date || new Date(), 'yyyy-MM-dd')
 
@@ -223,13 +225,28 @@ export default function PoopTracker({ session, date }) {
               <label className="field-label" style={{ fontSize: 10, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.05em', display: 'block', marginBottom: 4 }}>
                 📷 {lang === 'de' ? 'Foto (optional)' : 'Photo (optional)'}
               </label>
-              <input ref={fileRef} type="file" accept="image/*" capture="environment" style={{ display: 'none' }} onChange={handlePhoto} />
-              <button onClick={() => fileRef.current?.click()} disabled={analysing} style={{
+              {/* Camera — direct capture */}
+              <input ref={cameraRef} type="file" accept="image/*" capture="environment" style={{ display: 'none' }} onChange={e => { setShowPhotoSheet(false); handlePhoto(e) }} />
+              {/* Library — file picker */}
+              <input ref={fileRef} type="file" accept="image/*" style={{ display: 'none' }} onChange={e => { setShowPhotoSheet(false); handlePhoto(e) }} />
+              <button onClick={() => setShowPhotoSheet(v => !v)} disabled={analysing} style={{
                 width: '100%', padding: '8px', borderRadius: 8, border: '1px dashed var(--border)',
-                background: 'var(--surface2)', color: 'var(--text2)', fontSize: 11, cursor: 'pointer', fontFamily: 'inherit'
+                background: 'var(--surface2)', color: analysing ? 'var(--text3)' : 'var(--text2)', fontSize: 11, cursor: analysing ? 'default' : 'pointer', fontFamily: 'inherit'
               }}>
-                {analysing ? (lang === 'de' ? 'Analysiere...' : 'Analysing...') : (lang === 'de' ? 'Foto aufnehmen' : 'Take photo')}
+                {analysing ? (lang === 'de' ? 'Analysiere...' : 'Analysing...') : (lang === 'de' ? '📷 Foto hinzufügen' : '📷 Add photo')}
               </button>
+              {showPhotoSheet && !analysing && (
+                <div style={{ display: 'flex', gap: 6, marginTop: 6 }}>
+                  <button onClick={() => { cameraRef.current?.click() }} style={{
+                    flex: 1, padding: '8px 4px', borderRadius: 8, border: '1px solid var(--border)',
+                    background: 'var(--surface)', color: 'var(--text)', fontSize: 11, cursor: 'pointer', fontFamily: 'inherit', fontWeight: 600
+                  }}>📸 {lang === 'de' ? 'Kamera' : 'Camera'}</button>
+                  <button onClick={() => { fileRef.current?.click() }} style={{
+                    flex: 1, padding: '8px 4px', borderRadius: 8, border: '1px solid var(--border)',
+                    background: 'var(--surface)', color: 'var(--text)', fontSize: 11, cursor: 'pointer', fontFamily: 'inherit', fontWeight: 600
+                  }}>🖼 {lang === 'de' ? 'Bibliothek' : 'Library'}</button>
+                </div>
+              )}
             </div>
           </div>
 
