@@ -32,15 +32,14 @@ const BRISTOL_TYPES = [
 ]
 
 async function analysePoopPhoto(base64, mimeType) {
-  const prompt = `You are a gastroenterologist. Analyse this toilet bowl photo. The bowl contains stool and possibly urine — assess each separately based only on what you can actually see.
+  const prompt = `You are a gastroenterologist. Analyse this toilet bowl photo. The bowl may contain stool and urine together.
 
-Describe only what is visually present. Do not infer or assume conditions not visible in the image.
+Only report what you can clearly see. Do not infer conditions or diagnose.
 
 Respond ONLY with valid JSON:
 {
-  "bristol_type": 1-7 or null,
   "color": "brown|yellow|green|black|red|pale|other",
-  "assessment": "one sentence describing the stool's visible shape and consistency",
+  "assessment": "one sentence describing only the stool's visible colour and any notable characteristics",
   "urine_color": "clear|pale_yellow|yellow|dark_yellow|orange|not_visible",
   "flags": ["blood", "mucus", "undigested_food"] or [],
   "confidence": "high|medium|low"
@@ -102,7 +101,6 @@ export default function PoopTracker({ session, date }) {
       const result = await analysePoopPhoto(base64, mimeType)
       if (result) {
         setAnalysis(result)
-        if (result.bristol_type) setSelectedType(result.bristol_type)
         showToast(lang === 'de' ? 'Analyse abgeschlossen' : 'Analysis complete')
       }
     } catch (e) {
@@ -208,7 +206,7 @@ export default function PoopTracker({ session, date }) {
           {analysis && (
             <div style={{ background: 'var(--surface2)', borderRadius: 10, padding: '10px 12px', display: 'flex', flexDirection: 'column', gap: 4 }}>
               <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--green)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-                ✨ {lang === 'de' ? 'KI-Analyse' : 'AI analysis'}
+                ✨ {lang === 'de' ? 'Foto-Analyse (Farbe & Flags)' : 'Photo analysis — colour & flags'}
               </div>
               <div style={{ fontSize: 12, color: 'var(--text)', lineHeight: 1.5 }}>{analysis.assessment}</div>
               {analysis.color && <div style={{ fontSize: 11, color: 'var(--text2)' }}>Stool colour: {analysis.color}</div>}
