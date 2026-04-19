@@ -488,12 +488,16 @@ export default function SleepDeepDive({ log, session }) {
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8, textAlign: 'center' }}>
               {[
                 { label: 'Stability', value: lastHr.stability_score, unit: '/10', color: lastHr.stability_score >= 7 ? 'var(--green)' : lastHr.stability_score >= 4 ? 'var(--amber)' : 'var(--red)', delta: stabilityDelta },
-                { label: 'Spikes', value: lastHr.spike_count, unit: '', color: lastHr.spike_count > 8 ? 'var(--red)' : lastHr.spike_count > 4 ? 'var(--amber)' : 'var(--green)' },
+                { label: 'Spikes', value: lastHr.spike_count, unit: '', color: lastHr.spike_count > 10 ? 'var(--red)' : lastHr.spike_count > 4 ? 'var(--amber)' : 'var(--green)',
+                  note: lastHr.spike_count > 10 ? 'notable (>10)' : lastHr.spike_count > 4 ? 'mildly elevated (5–10)' : 'normal (0–4)' },
                 { label: 'Deep', value: lastHr.deep_pct, unit: '%', color: lastHr.deep_pct >= 20 ? 'var(--purple)' : 'var(--amber)' },
+                { label: 'HR range', value: lastHr.hr_range, unit: 'bpm', color: lastHr.hr_range > 25 ? 'var(--red)' : lastHr.hr_range > 15 ? 'var(--amber)' : 'var(--green)',
+                  note: lastHr.hr_range > 25 ? 'wide (>25)' : lastHr.hr_range > 15 ? 'moderate' : 'normal (<15)' },
               ].filter(m => m.value != null).map(m => (
                 <div key={m.label}>
                   <div style={{ fontSize: 9, color: 'var(--text3)', textTransform: 'uppercase', marginBottom: 2 }}>{m.label}</div>
                   <div style={{ fontSize: 15, fontWeight: 700, fontFamily: 'var(--font-mono)', color: m.color }}>{m.value}{m.unit}</div>
+                  {m.note && <div style={{ fontSize: 9, color: m.color, opacity: 0.8, marginTop: 1 }}>{m.note}</div>}
                   {m.delta != null && <div style={{ fontSize: 9, color: m.delta >= 0 ? 'var(--green)' : 'var(--red)' }}>{m.delta >= 0 ? '+' : ''}{m.delta} vs avg</div>}
                 </div>
               ))}

@@ -194,6 +194,15 @@ CRITICAL — all times must be in 24-hour format (HH:MM):
 - "12:30 PM" → "12:30" (noon)
 Sleep onset is typically 22:xx-23:xx or 00:xx-02:xx. Wake time is typically 06:xx-09:xx.
 
+SPIKE DEFINITION (be precise — this drives medical interpretation):
+- A "spike" is a visible HR excursion ≥8 bpm above the local baseline lasting at least 1 minute, occurring during NREM sleep (light or deep stages)
+- HR elevations during REM are NORMAL and should NOT be counted as spikes
+- Normal range: 0–4 NREM spikes per night is typical; 5–10 is mildly elevated; >10 is notable
+- spike_avg_magnitude: average bpm rise above baseline for each spike
+- spike_max_magnitude: the single largest spike in bpm above baseline
+- stability_score: 1–10. 8–10 = excellent (0–3 spikes, HR range <15bpm), 5–7 = good, 3–4 = disrupted (5–12 spikes or range 15–25bpm), 1–2 = severely fragmented (>12 spikes or range >25bpm)
+- hr_range: difference between overnight min and max HR (key metric — normal NREM range is 10–20bpm)
+
 {"sleep_onset":"HH:MM or null","wake_time":"HH:MM or null","sleep_duration_h":number or null,"awake_pct":number or null,"light_pct":number or null,"deep_pct":number or null,"rem_pct":number or null,"hr_baseline":number or null,"hr_min":number or null,"hr_max":number or null,"hr_range":number or null,"axis_min":number or null,"axis_max":number or null,"spike_count":number or null,"spike_avg_magnitude":number or null,"spike_max_magnitude":number or null,"stable_pct":number or null,"fragmented_pct":number or null,"stability_score":number or null,"likely_cause":"thyroid|stress|apnea|temperature|food|caffeine|mixed|unclear","cause_confidence":"low|medium|high","cause_reasoning":"1-2 sentences","micro_arousals_likely":true or false,"micro_arousal_count":number or null,"analysis":"3-4 sentences","eye_bag_risk":"low|medium|high","recommendation":"one sentence"}`
       const r = await fetch('/.netlify/functions/claude-proxy', {
         method: 'POST',
