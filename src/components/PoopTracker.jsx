@@ -240,10 +240,10 @@ export default function PoopTracker({ session, date }) {
           )}
 
           {/* Time + photo icon row */}
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-            <div>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, overflow: 'hidden' }}>
+            <div style={{ minWidth: 0 }}>
               <label className="field-label">⏰ Time</label>
-              <input className="field-input" type="time" value={time} onChange={e => setTime(e.target.value)} style={{ width: '100%', boxSizing: 'border-box' }} />
+              <input type="time" value={time} onChange={e => setTime(e.target.value)} style={{ width: '100%', boxSizing: 'border-box', padding: '8px 10px', borderRadius: 8, border: '1px solid var(--border)', background: 'var(--surface2)', color: 'var(--text)', fontSize: 13, fontFamily: 'inherit' }} />
             </div>
             <div>
               <label className="field-label">📷 {lang === 'de' ? 'Foto' : 'Photo'}</label>
