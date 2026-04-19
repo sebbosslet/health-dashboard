@@ -61,6 +61,14 @@ function LogRow({ item, log, onToggle, onSaveTime, onSetQuantity, type, lang }) 
               {item.name}
             </span>
             {item.dose && <span style={{ fontSize: 11, color: 'var(--text3)', background: 'var(--surface2)', padding: '1px 6px', borderRadius: 10 }}>{item.dose}</span>}
+            {!item.dose && item.ingredients && (() => {
+              try {
+                const ings = typeof item.ingredients === 'string' ? JSON.parse(item.ingredients) : item.ingredients
+                return ings?.length > 0
+                  ? <span style={{ fontSize: 11, color: 'var(--text3)', background: 'var(--surface2)', padding: '1px 6px', borderRadius: 10 }}>{ings.length} ingredients</span>
+                  : null
+              } catch { return null }
+            })()}
           </div>
           {((isMed && (item.fasted_flag || item.instructions)) || (!isMed && item.with_food)) && (
             <div style={{ fontSize: 11, color: 'var(--text3)', marginTop: 1 }}>
