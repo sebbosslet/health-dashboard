@@ -292,7 +292,7 @@ Respond ONLY with valid JSON, no markdown:
             {presentTypes.map((type, ti) => (
               <div key={type}>
                 {/* Type divider */}
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 14px 4px', borderTop: ti > 0 ? '1px solid var(--border)' : 'none', background: 'var(--surface2)' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 14px 4px', borderTop: ti > 0 ? '1px solid var(--border)' : 'none' }}>
                   <span style={{ fontSize: 10, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>{typeLabels[type]}</span>
                   <div style={{ flex: 1, height: '0.5px', background: 'var(--border)' }} />
                   <span style={{ fontSize: 10, color: 'var(--text3)', fontFamily: 'var(--font-mono)' }}>
