@@ -93,6 +93,10 @@ export default function MealLogger({ session, date, dinnerTime: dinnerTimeProp =
   }, [dinnerTimeProp])
   const [reassessText, setReassessText] = useState('')
   const [reassessing, setReassessing] = useState(false)
+  const [editingMeal, setEditingMeal] = useState(null)
+  const [editFields, setEditFields] = useState(null)
+  const [editSaving, setEditSaving] = useState(false)
+  const [savedDish, setSavedDish] = useState(false)
 
   const dateStr = format(date || new Date(), 'yyyy-MM-dd')
 
@@ -276,42 +280,52 @@ Respond ONLY with valid JSON, no markdown:
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
 
-      {/* Meal list */}
-      {meals.length > 0 && (
-        <div style={{ borderBottom: '0.5px solid var(--border)' }}>
-          {meals.map(meal => (
-            <div key={meal.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '9px 14px', borderBottom: '0.5px solid var(--border)', background: meal.is_alcohol ? 'rgba(107,63,160,0.06)' : meal.is_caffeinated ? 'rgba(186,117,23,0.06)' : 'transparent', borderLeft: meal.is_alcohol ? '3px solid var(--purple)' : meal.is_caffeinated ? '3px solid var(--amber)' : '3px solid transparent' }}>
-              <div style={{ flex: 1 }}>
-                <div style={{ fontSize: 13, fontWeight: 600 }}>{meal.is_alcohol ? '🍷 ' : meal.is_caffeinated ? '☕ ' : ''}{meal.meal_name}</div>
-                <div style={{ fontSize: 11, color: 'var(--text2)', marginTop: 1, display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-                  <span>{mealTypeLabel(meal.meal_type)}</span>
-                  {meal.protein && <span>P {Math.round(meal.protein)}g</span>}
-                  {meal.carbs && <span>C {Math.round(meal.carbs)}g</span>}
-                  {meal.fat && <span>F {Math.round(meal.fat)}g</span>}
-                  {meal.is_caffeinated && meal.consumed_at && <span style={{ color: 'var(--amber)' }}>☕ {meal.consumed_at.slice(0,5)}</span>}
-                  {meal.is_alcohol && meal.consumed_at && <span style={{ color: 'var(--purple)' }}>🍷 {meal.consumed_at.slice(0,5)}</span>}
-                  {meal.source === 'ai_photo' && (
-                    <span style={{ color: 'var(--green)', display: 'flex', alignItems: 'center', gap: 2 }}>
-                      <svg width="10" height="10" viewBox="0 0 10 10" fill="none"><path d="M5 1l1 2 2.5.4-1.8 1.7.4 2.5L5 6.5l-2.1 1.1.4-2.5L1.5 3.4 4 3 5 1z" stroke="var(--green)" strokeWidth="0.8" strokeLinejoin="round"/></svg>
-                      AI
-                    </span>
-                  )}
+      {/* Meal list grouped by type */}
+      {meals.length > 0 && (() => {
+        const typeOrder = ['breakfast', 'lunch', 'dinner', 'snack']
+        const typeLabels = { breakfast: lang === 'de' ? 'Frühstück' : 'Breakfast', lunch: lang === 'de' ? 'Mittagessen' : 'Lunch', dinner: lang === 'de' ? 'Abendessen' : 'Dinner', snack: lang === 'de' ? 'Snack' : 'Snack' }
+        const grouped = {}
+        meals.forEach(m => { const t = m.meal_type || 'snack'; if (!grouped[t]) grouped[t] = []; grouped[t].push(m) })
+        const presentTypes = typeOrder.filter(t => grouped[t])
+        return (
+          <div style={{ borderBottom: '0.5px solid var(--border)' }}>
+            {presentTypes.map((type, ti) => (
+              <div key={type}>
+                {/* Type divider */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 14px 4px', borderTop: ti > 0 ? '1px solid var(--border)' : 'none', background: 'var(--surface2)' }}>
+                  <span style={{ fontSize: 10, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>{typeLabels[type]}</span>
+                  <div style={{ flex: 1, height: '0.5px', background: 'var(--border)' }} />
+                  <span style={{ fontSize: 10, color: 'var(--text3)', fontFamily: 'var(--font-mono)' }}>
+                    {grouped[type].reduce((s, m) => s + (m.calories || 0), 0)} kcal
+                  </span>
                 </div>
+                {grouped[type].map(meal => (
+                  <div key={meal.id} onClick={() => { setEditingMeal({ ...meal }); setEditFields({ ...meal }); setSavedDish(false) }}
+                    style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '9px 14px', borderBottom: '0.5px solid var(--border)', background: meal.is_alcohol ? 'rgba(107,63,160,0.06)' : meal.is_caffeinated ? 'rgba(186,117,23,0.06)' : 'transparent', borderLeft: meal.is_alcohol ? '3px solid var(--purple)' : meal.is_caffeinated ? '3px solid var(--amber)' : '3px solid transparent', cursor: 'pointer' }}>
+                    <div style={{ flex: 1 }}>
+                      <div style={{ fontSize: 13, fontWeight: 600 }}>{meal.is_alcohol ? '🍷 ' : meal.is_caffeinated ? '☕ ' : ''}{meal.meal_name}</div>
+                      <div style={{ fontSize: 11, color: 'var(--text2)', marginTop: 1, display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                        {meal.protein && <span>P {Math.round(meal.protein)}g</span>}
+                        {meal.carbs && <span>C {Math.round(meal.carbs)}g</span>}
+                        {meal.fat && <span>F {Math.round(meal.fat)}g</span>}
+                        {meal.is_caffeinated && meal.consumed_at && <span style={{ color: 'var(--amber)' }}>☕ {meal.consumed_at.slice(0,5)}</span>}
+                        {meal.is_alcohol && meal.consumed_at && <span style={{ color: 'var(--purple)' }}>🍷 {meal.consumed_at.slice(0,5)}</span>}
+                        {meal.source === 'ai_photo' && <span style={{ color: 'var(--green)' }}>✦ AI</span>}
+                      </div>
+                    </div>
+                    <div style={{ fontSize: 15, fontWeight: 700, fontFamily: 'var(--font-mono)', color: 'var(--amber)', marginRight: 4 }}>{meal.calories}</div>
+                    <svg width="12" height="12" viewBox="0 0 12 12" fill="none" style={{ color: 'var(--text3)', flexShrink: 0 }}><path d="M4.5 2.5l4 3.5-4 3.5" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round"/></svg>
+                  </div>
+                ))}
               </div>
-              <div style={{ fontSize: 16, fontWeight: 700, fontFamily: 'var(--font-mono)', color: 'var(--amber)' }}>
-                {meal.calories}
-              </div>
-              <button onClick={() => deleteMeal(meal.id)} style={{ width: 28, height: 28, border: 'none', background: 'none', cursor: 'pointer', color: 'var(--text3)', display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: 6, flexShrink: 0 }}>
-                <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M2 4h10M5 4V2.5h4V4M5.5 6.5v4M8.5 6.5v4M3 4l.7 7.5a1 1 0 001 .9h4.6a1 1 0 001-.9L11 4" stroke="currentColor" strokeWidth="1.1" strokeLinecap="round" strokeLinejoin="round"/></svg>
-              </button>
+            ))}
+            <div style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 14px', background: 'var(--surface2)' }}>
+              <span style={{ fontSize: 12, color: 'var(--text2)', fontWeight: 600 }}>{lang === 'de' ? 'Gesamt heute' : 'Total today'}</span>
+              <span style={{ fontSize: 14, fontWeight: 700, fontFamily: 'var(--font-mono)', color: 'var(--amber)' }}>{totalCals} kcal</span>
             </div>
-          ))}
-          <div style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 14px', background: 'var(--surface2)' }}>
-            <span style={{ fontSize: 12, color: 'var(--text2)', fontWeight: 600 }}>{lang === 'de' ? 'Gesamt heute' : 'Total today'}</span>
-            <span style={{ fontSize: 14, fontWeight: 700, fontFamily: 'var(--font-mono)', color: 'var(--amber)' }}>{totalCals} kcal</span>
           </div>
-        </div>
-      )}
+        )
+      })()}
 
             {/* Dinner time */}
       <div style={{ padding: '10px 14px 14px', borderTop: '0.5px solid var(--border)' }}>
@@ -551,6 +565,148 @@ Respond ONLY with valid JSON, no markdown:
             <button onClick={handleDescribeEstimate} disabled={!describeText.trim() || describeAnalysing} style={{ flex: 2, padding: '10px', borderRadius: 8, background: 'var(--green)', border: 'none', color: 'white', fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', opacity: !describeText.trim() ? 0.5 : 1 }}>
               {describeAnalysing ? (lang === 'de' ? 'Schätze...' : 'Estimating...') : (lang === 'de' ? '✨ Kalorien schätzen' : '✨ Estimate calories')}
             </button>
+          </div>
+        </div>
+      )}
+
+      {/* ── Edit meal modal ── */}
+      {editingMeal && editFields && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 200, display: 'flex', alignItems: 'flex-end', justifyContent: 'center' }}
+          onClick={e => { if (e.target === e.currentTarget) { setEditingMeal(null); setEditFields(null) } }}>
+          <div style={{ width: '100%', maxWidth: 480, background: 'var(--surface)', borderRadius: '20px 20px 0 0', padding: '20px 20px 40px', maxHeight: '90vh', overflowY: 'auto' }}>
+            <div style={{ width: 36, height: 4, background: 'var(--border)', borderRadius: 2, margin: '0 auto 16px' }} />
+            <div style={{ fontSize: 16, fontWeight: 700, marginBottom: 16 }}>{lang === 'de' ? 'Mahlzeit bearbeiten' : 'Edit meal'}</div>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+
+              {/* Name */}
+              <div>
+                <label className="field-label">{lang === 'de' ? 'Name' : 'Name'}</label>
+                <input className="field-input" value={editFields.meal_name || ''} onChange={e => setEditFields(f => ({ ...f, meal_name: e.target.value }))} />
+              </div>
+
+              {/* Meal type */}
+              <div>
+                <label className="field-label">{lang === 'de' ? 'Typ' : 'Meal type'}</label>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 6 }}>
+                  {MEAL_TYPES.map(t => (
+                    <button key={t} onClick={() => setEditFields(f => ({ ...f, meal_type: t }))} style={{
+                      padding: '7px 4px', borderRadius: 8, border: `1.5px solid ${editFields.meal_type === t ? 'var(--green)' : 'var(--border)'}`,
+                      background: editFields.meal_type === t ? 'var(--green-light)' : 'var(--surface2)',
+                      color: editFields.meal_type === t ? 'var(--green)' : 'var(--text2)',
+                      fontSize: 11, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit',
+                    }}>{mealTypeLabel(t)}</button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Calories */}
+              <div>
+                <label className="field-label">{lang === 'de' ? 'Kalorien (kcal)' : 'Calories (kcal)'}</label>
+                <input className="field-input" type="number" value={editFields.calories || ''} onChange={e => setEditFields(f => ({ ...f, calories: e.target.value ? parseInt(e.target.value) : null }))} />
+              </div>
+
+              {/* Macros */}
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 8 }}>
+                {[
+                  { key: 'protein', label: lang === 'de' ? 'Protein (g)' : 'Protein (g)' },
+                  { key: 'carbs',   label: lang === 'de' ? 'Kohlenhydrate (g)' : 'Carbs (g)' },
+                  { key: 'fat',     label: lang === 'de' ? 'Fett (g)' : 'Fat (g)' },
+                ].map(({ key, label }) => (
+                  <div key={key}>
+                    <label className="field-label">{label}</label>
+                    <input className="field-input" type="number" value={editFields[key] || ''} onChange={e => setEditFields(f => ({ ...f, [key]: e.target.value ? parseFloat(e.target.value) : null }))} style={{ fontSize: 13 }} />
+                  </div>
+                ))}
+              </div>
+
+              {/* Time */}
+              <div>
+                <label className="field-label">{lang === 'de' ? 'Uhrzeit' : 'Time eaten'}</label>
+                <input className="field-input" type="time" value={editFields.consumed_at?.slice(0,5) || ''} onChange={e => setEditFields(f => ({ ...f, consumed_at: e.target.value || null }))} />
+              </div>
+
+              {/* Toggles */}
+              <div style={{ display: 'flex', gap: 8 }}>
+                {[
+                  { key: 'is_caffeinated', label: '☕ Caffeine', color: 'var(--amber)', bg: 'rgba(186,117,23,0.08)' },
+                  { key: 'is_alcohol',     label: '🍷 Alcohol',  color: 'var(--purple)', bg: 'rgba(107,63,160,0.08)' },
+                ].map(({ key, label, color, bg }) => (
+                  <button key={key} onClick={() => setEditFields(f => ({ ...f, [key]: !f[key] }))} style={{
+                    flex: 1, padding: '8px', borderRadius: 8, cursor: 'pointer', fontFamily: 'inherit', fontSize: 12, fontWeight: 600,
+                    border: `1.5px solid ${editFields[key] ? color : 'var(--border)'}`,
+                    background: editFields[key] ? bg : 'var(--surface2)',
+                    color: editFields[key] ? color : 'var(--text2)',
+                  }}>{label}</button>
+                ))}
+              </div>
+
+              {/* Divider */}
+              <div style={{ height: '0.5px', background: 'var(--border)', margin: '2px 0' }} />
+
+              {/* Save to my dishes */}
+              <button onClick={async () => {
+                await supabase.from('saved_meals').upsert({
+                  user_id: session.user.id,
+                  meal_name: editFields.meal_name,
+                  meal_type: editFields.meal_type,
+                  calories: editFields.calories,
+                  protein: editFields.protein,
+                  carbs: editFields.carbs,
+                  fat: editFields.fat,
+                  updated_at: new Date().toISOString(),
+                }, { onConflict: 'user_id,meal_name' })
+                setSavedDish(true)
+              }} style={{
+                display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+                padding: '10px', borderRadius: 10, cursor: 'pointer', fontFamily: 'inherit', fontSize: 13, fontWeight: 600,
+                border: `1.5px solid ${savedDish ? 'var(--green)' : 'var(--border)'}`,
+                background: savedDish ? 'var(--green-light)' : 'var(--surface2)',
+                color: savedDish ? 'var(--green)' : 'var(--text2)',
+              }}>
+                {savedDish ? '✓ Saved to my dishes' : '＋ Save to my dishes'}
+              </button>
+
+              {/* Actions */}
+              <div style={{ display: 'flex', gap: 8 }}>
+                <button onClick={() => { setEditingMeal(null); setEditFields(null) }} className="btn-secondary" style={{ flex: 1, padding: 10 }}>
+                  {lang === 'de' ? 'Abbrechen' : 'Cancel'}
+                </button>
+                <button onClick={async () => {
+                  setEditSaving(true)
+                  await supabase.from('meal_logs').update({
+                    meal_name: editFields.meal_name,
+                    meal_type: editFields.meal_type,
+                    calories: editFields.calories,
+                    protein: editFields.protein,
+                    carbs: editFields.carbs,
+                    fat: editFields.fat,
+                    consumed_at: editFields.consumed_at,
+                    is_caffeinated: editFields.is_caffeinated,
+                    is_alcohol: editFields.is_alcohol,
+                    updated_at: new Date().toISOString(),
+                  }).eq('id', editingMeal.id)
+                  await fetchMeals()
+                  setEditingMeal(null)
+                  setEditFields(null)
+                  setEditSaving(false)
+                }} disabled={editSaving} className="btn-primary" style={{ flex: 2, padding: 10 }}>
+                  {editSaving ? (lang === 'de' ? 'Speichern...' : 'Saving...') : (lang === 'de' ? 'Speichern' : 'Save changes')}
+                </button>
+              </div>
+
+              {/* Delete */}
+              <button onClick={async () => {
+                if (!confirm(lang === 'de' ? 'Eintrag löschen?' : 'Delete this meal?')) return
+                await supabase.from('meal_logs').delete().eq('id', editingMeal.id)
+                await fetchMeals()
+                setEditingMeal(null)
+                setEditFields(null)
+              }} style={{ background: 'none', border: 'none', color: 'var(--red)', fontSize: 12, cursor: 'pointer', fontFamily: 'inherit', textAlign: 'center', padding: '4px' }}>
+                🗑 {lang === 'de' ? 'Eintrag löschen' : 'Delete meal'}
+              </button>
+
+            </div>
           </div>
         </div>
       )}
