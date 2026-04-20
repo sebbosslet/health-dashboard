@@ -2,13 +2,13 @@ import { useState, useEffect } from 'react'
 import { supabase } from '../lib/supabase'
 
 const EVENT_TYPES = [
-  { type: 'flight',    emoji: '✈️',  label: 'Flights',     hint: 'Total for all flights' },
-  { type: 'train',     emoji: '🚂',  label: 'Trains',      hint: 'Total for all trains' },
-  { type: 'hotel',     emoji: '🏨',  label: 'Hotels',      hint: 'Total hotel spend' },
-  { type: 'dinner',    emoji: '🍽',  label: 'Dining',      hint: 'Total food & drink' },
-  { type: 'activity',  emoji: '🎭',  label: 'Activities',  hint: 'Tours, tickets, experiences' },
-  { type: 'social',    emoji: '🥂',  label: 'Social',      hint: 'Events, nights out' },
-  { type: 'transport', emoji: '🚗',  label: 'Transport',   hint: 'Taxis, buses, etc.' },
+  { type: 'flight',    emoji: '✈️',  label: 'Flights',     hint: 'Cost per flight leg' },
+  { type: 'train',     emoji: '🚂',  label: 'Trains',      hint: 'Cost per train journey' },
+  { type: 'hotel',     emoji: '🏨',  label: 'Hotels',      hint: 'Cost per hotel night' },
+  { type: 'dinner',    emoji: '🍽',  label: 'Dining',      hint: 'Cost per meal/dining event' },
+  { type: 'activity',  emoji: '🎭',  label: 'Activities',  hint: 'Cost per activity' },
+  { type: 'social',    emoji: '🥂',  label: 'Social',      hint: 'Cost per social event' },
+  { type: 'transport', emoji: '🚗',  label: 'Transport',   hint: 'Cost per transport leg' },
 ]
 
 const CURRENCIES = ['€', '$', '£', '¥', 'CHF']
@@ -59,8 +59,8 @@ export default function BudgetTab({ trip, budgets, setBudgets, currency, setCurr
       {/* Budget per category */}
       <div style={{ background: 'white', borderRadius: 14, border: '1px solid #e5e5ea', overflow: 'hidden' }}>
         <div style={{ padding: '14px 16px 8px', borderBottom: '0.5px solid #e5e5ea' }}>
-          <div style={{ fontSize: 11, fontWeight: 700, color: '#888', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Budget by category</div>
-          <div style={{ fontSize: 12, color: '#aaa', marginTop: 3 }}>Set a total budget per type — cost is split evenly across events in that category</div>
+          <div style={{ fontSize: 11, fontWeight: 700, color: '#888', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Cost per event by type</div>
+          <div style={{ fontSize: 12, color: '#aaa', marginTop: 3 }}>Set the expected cost per event for each category — e.g. Hotel = €150 means each hotel night costs €150</div>
         </div>
 
         {EVENT_TYPES.map((t, i) => (
@@ -85,7 +85,7 @@ export default function BudgetTab({ trip, budgets, setBudgets, currency, setCurr
 
         {/* Total */}
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 16px', background: '#f5f5f7', borderTop: '1px solid #e5e5ea' }}>
-          <span style={{ fontSize: 13, fontWeight: 700 }}>Total budget</span>
+          <span style={{ fontSize: 13, fontWeight: 700 }}>Total forecast</span>
           <span style={{ fontSize: 18, fontWeight: 800, fontVariantNumeric: 'tabular-nums' }}>{currency}{total.toLocaleString('en-US', { maximumFractionDigits: 0 })}</span>
         </div>
       </div>
