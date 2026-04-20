@@ -2,6 +2,8 @@ import { useState, useEffect, useRef } from 'react'
 import { supabase } from '../lib/supabase'
 import { format, addDays, differenceInDays, parseISO } from 'date-fns'
 import EventForm from './EventForm'
+import CostTab from './CostTab'
+import BudgetTab from './BudgetTab'
 
 const EVENT_TYPES = [
   { type: 'flight',   emoji: '✈️',  label: 'Flight',        color: '#0071e3', bg: '#e8f0fb' },
@@ -29,16 +31,30 @@ export default function TripView({ trip, session, onBack }) {
   const [showForm, setShowForm] = useState(false)
   const [editEvent, setEditEvent] = useState(null)
   const [defaultDate, setDefaultDate] = useState(trip.start_date)
+  const [tab, setTab] = useState('itinerary')
+  const [budgets, setBudgets] = useState({})
+  const [currency, setCurrency] = useState(trip.currency || '€')
   const days = getDays(trip)
   const dayRefs = useRef({})
 
-  useEffect(() => { fetchEvents() }, [trip.id])
+  useEffect(() => { fetchEvents(); fetchBudgets() }, [trip.id])
 
   async function fetchEvents() {
     const { data } = await supabase.from('trip_events')
       .select('*').eq('trip_id', trip.id).order('event_date').order('start_time')
     setEvents(data || [])
     setLoading(false)
+  }
+
+  async function fetchBudgets() {
+    const { data } = await supabase.from('trip_budgets').select('*').eq('trip_id', trip.id)
+    if (data) {
+      const b = {}
+      data.forEach(r => { b[r.type] = r.amount })
+      setBudgets(b)
+    }
+    const { data: tripData } = await supabase.from('trips').select('currency').eq('id', trip.id).single()
+    if (tripData?.currency) setCurrency(tripData.currency)
   }
 
   function eventsForDay(date) {
@@ -60,130 +76,139 @@ export default function TripView({ trip, session, onBack }) {
     setEvents(prev => prev.filter(e => e.id !== id))
   }
 
+  const TABS = [
+    { key: 'itinerary', label: '📅 Itinerary' },
+    { key: 'costs',     label: '💰 Costs' },
+    { key: 'budget',    label: '⚙️ Budget' },
+  ]
+
   return (
     <div style={{ maxWidth: 480, margin: '0 auto', paddingBottom: 60 }}>
       {/* Header */}
-      <div style={{ position: 'sticky', top: 0, zIndex: 50, background: 'white', borderBottom: '1px solid var(--border)', padding: '12px 16px' }}>
+      <div style={{ position: 'sticky', top: 0, zIndex: 50, background: 'white', borderBottom: '1px solid #e5e5ea', padding: '12px 16px' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-          <button onClick={onBack} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 20, padding: '0 4px', color: 'var(--text2)' }}>←</button>
+          <button onClick={onBack} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 20, padding: '0 4px', color: '#636366' }}>←</button>
           <div style={{ flex: 1 }}>
             <div style={{ fontSize: 17, fontWeight: 700 }}>{trip.name}</div>
-            <div style={{ fontSize: 12, color: 'var(--text2)' }}>
+            <div style={{ fontSize: 12, color: '#636366' }}>
               {format(parseISO(trip.start_date), 'd MMM')} – {format(parseISO(trip.end_date), 'd MMM yyyy')} · {days.length} days
             </div>
           </div>
-          <button className="trip-btn trip-btn-primary" onClick={() => { setEditEvent(null); setDefaultDate(trip.start_date); setShowForm(true) }}
-            style={{ fontSize: 13, padding: '7px 14px' }}>+ Add</button>
+          {tab === 'itinerary' && (
+            <button onClick={() => { setEditEvent(null); setDefaultDate(trip.start_date); setShowForm(true) }}
+              style={{ fontSize: 13, padding: '7px 14px', background: '#1c1c1e', color: 'white', border: 'none', borderRadius: 10, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>+ Add</button>
+          )}
         </div>
 
-        {/* Day tabs */}
-        <div style={{ display: 'flex', gap: 6, marginTop: 10, overflowX: 'auto', paddingBottom: 2 }}>
-          {days.map(day => {
-            const key = format(day, 'yyyy-MM-dd')
-            const count = eventsForDay(day).length
-            const isToday = key === format(new Date(), 'yyyy-MM-dd')
-            return (
-              <button key={key} onClick={() => scrollToDay(day)} style={{
-                flexShrink: 0, padding: '5px 10px', borderRadius: 20, border: 'none', cursor: 'pointer', fontFamily: 'inherit',
-                background: isToday ? '#1c1c1e' : 'var(--surface2)',
-                color: isToday ? 'white' : 'var(--text2)',
-                fontSize: 12, fontWeight: 600,
-              }}>
-                {format(day, 'EEE d')}
-                {count > 0 && <span style={{ marginLeft: 4, background: isToday ? 'rgba(255,255,255,0.3)' : 'var(--border)', borderRadius: 10, padding: '0 5px', fontSize: 10 }}>{count}</span>}
-              </button>
-            )
-          })}
+        {/* Tab bar */}
+        <div style={{ display: 'flex', gap: 6, marginTop: 10 }}>
+          {TABS.map(t => (
+            <button key={t.key} onClick={() => setTab(t.key)} style={{
+              flex: 1, padding: '7px 4px', borderRadius: 20, border: 'none', cursor: 'pointer', fontFamily: 'inherit',
+              background: tab === t.key ? '#1c1c1e' : '#f5f5f7',
+              color: tab === t.key ? 'white' : '#636366',
+              fontSize: 12, fontWeight: 600,
+            }}>{t.label}</button>
+          ))}
         </div>
+
+        {/* Day tabs — itinerary only */}
+        {tab === 'itinerary' && (
+          <div style={{ display: 'flex', gap: 6, marginTop: 8, overflowX: 'auto', paddingBottom: 2 }}>
+            {days.map(day => {
+              const key = format(day, 'yyyy-MM-dd')
+              const count = eventsForDay(day).length
+              const isToday = key === format(new Date(), 'yyyy-MM-dd')
+              return (
+                <button key={key} onClick={() => scrollToDay(day)} style={{
+                  flexShrink: 0, padding: '5px 10px', borderRadius: 20, border: 'none', cursor: 'pointer', fontFamily: 'inherit',
+                  background: isToday ? '#2d7a4f' : '#f5f5f7',
+                  color: isToday ? 'white' : '#636366',
+                  fontSize: 12, fontWeight: 600,
+                }}>
+                  {format(day, 'EEE d')}
+                  {count > 0 && <span style={{ marginLeft: 4, background: isToday ? 'rgba(255,255,255,0.3)' : '#e5e5ea', borderRadius: 10, padding: '0 5px', fontSize: 10 }}>{count}</span>}
+                </button>
+              )
+            })}
+          </div>
+        )}
       </div>
 
-      {/* Days */}
-      {loading ? (
-        <div style={{ textAlign: 'center', padding: 60 }}><div className="trip-spinner" style={{ margin: '0 auto' }} /></div>
-      ) : (
-        <div style={{ paddingTop: 8 }}>
-          {days.map(day => {
-            const key = format(day, 'yyyy-MM-dd')
-            const dayEvents = eventsForDay(day)
-            const isToday = key === format(new Date(), 'yyyy-MM-dd')
-            return (
-              <div key={key} ref={el => dayRefs.current[key] = el} style={{ marginBottom: 4 }}>
-                {/* Day header */}
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '14px 16px 8px' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                    <div style={{
-                      width: 36, height: 36, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center',
-                      background: isToday ? '#1c1c1e' : 'var(--surface2)',
-                      color: isToday ? 'white' : 'var(--text)',
-                      fontWeight: 700, fontSize: 14,
-                    }}>{format(day, 'd')}</div>
-                    <div>
-                      <div style={{ fontSize: 15, fontWeight: 700 }}>{format(day, 'EEEE')}</div>
-                      <div style={{ fontSize: 12, color: 'var(--text2)' }}>{format(day, 'd MMMM yyyy')}</div>
-                    </div>
-                  </div>
-                  <button onClick={() => { setEditEvent(null); setDefaultDate(key); setShowForm(true) }}
-                    style={{ background: 'none', border: '1px dashed var(--border)', borderRadius: 8, padding: '5px 10px', cursor: 'pointer', fontSize: 12, color: 'var(--text2)', fontFamily: 'inherit' }}>
-                    + Add
-                  </button>
-                </div>
-
-                {/* Events */}
-                {dayEvents.length === 0 ? (
-                  <div style={{ margin: '0 16px 8px', padding: '16px', background: 'white', borderRadius: 12, border: '1px dashed var(--border)', textAlign: 'center', color: 'var(--text3)', fontSize: 13 }}>
-                    Nothing planned
-                  </div>
-                ) : (
-                  <div style={{ margin: '0 16px', display: 'flex', flexDirection: 'column', gap: 6 }}>
-                    {dayEvents.map(ev => {
-                      const t = getType(ev.type)
-                      return (
-                        <div key={ev.id} style={{ background: 'white', borderRadius: 12, padding: '12px 14px', border: '1px solid var(--border)', borderLeft: `4px solid ${t.color}` }}>
-                          <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10 }}>
-                            <span style={{ fontSize: 20, flexShrink: 0 }}>{t.emoji}</span>
-                            <div style={{ flex: 1, minWidth: 0 }}>
-                              <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
-                                <span style={{ fontSize: 14, fontWeight: 700 }}>{ev.title}</span>
-                                <span style={{ fontSize: 11, fontWeight: 600, color: t.color, background: t.bg, padding: '1px 7px', borderRadius: 10 }}>{t.label}</span>
-                              </div>
-                              {(ev.start_time || ev.end_time) && (
-                                <div style={{ fontSize: 12, color: 'var(--text2)', marginTop: 3 }}>
-                                  🕐 {ev.start_time?.slice(0,5)}{ev.end_time ? ` – ${ev.end_time.slice(0,5)}` : ''}
-                                </div>
-                              )}
-                              {ev.location && <div style={{ fontSize: 12, color: 'var(--text2)', marginTop: 2 }}>📍 {ev.location}</div>}
-                              {ev.maps_url && (
-                                <a href={ev.maps_url} target="_blank" rel="noopener noreferrer" style={{ fontSize: 12, color: '#0071e3', marginTop: 2, display: 'flex', alignItems: 'center', gap: 4, textDecoration: 'none' }}>
-                                  🗺 <span style={{ textDecoration: 'underline' }}>Google Maps</span>
-                                </a>
-                              )}
-                              {ev.details && <div style={{ fontSize: 12, color: 'var(--text2)', marginTop: 4, lineHeight: 1.5 }}>{ev.details}</div>}
-                              {ev.confirmation && <div style={{ fontSize: 11, color: 'var(--text3)', marginTop: 3 }}>Ref: {ev.confirmation}</div>}
-                            </div>
-                            <div style={{ display: 'flex', gap: 4, flexShrink: 0 }}>
-                              <button onClick={() => { setEditEvent(ev); setShowForm(true) }}
-                                style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 14, color: 'var(--text3)', padding: '2px 5px' }}>✏️</button>
-                              <button onClick={() => { if (confirm('Delete this event?')) deleteEvent(ev.id) }}
-                                style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 14, color: 'var(--text3)', padding: '2px 5px' }}>🗑</button>
-                            </div>
-                          </div>
-                        </div>
-                      )
-                    })}
-                  </div>
-                )}
-              </div>
-            )
-          })}
-        </div>
+      {/* Content */}
+      {tab === 'costs' && (
+        <CostTab trip={trip} events={events} budgets={budgets} currency={currency} />
       )}
 
-      {/* Event form modal */}
+      {tab === 'budget' && (
+        <BudgetTab trip={trip} budgets={budgets} setBudgets={setBudgets} currency={currency} setCurrency={setCurrency} />
+      )}
+
+      {tab === 'itinerary' && (
+        loading ? (
+          <div style={{ textAlign: 'center', padding: 60 }}><div style={{ width: 20, height: 20, borderRadius: '50%', border: '2px solid #e5e5ea', borderTopColor: '#1c1c1e', animation: 'spin 0.7s linear infinite', margin: '0 auto' }} /></div>
+        ) : (
+          <div style={{ paddingTop: 8 }}>
+            {days.map(day => {
+              const key = format(day, 'yyyy-MM-dd')
+              const dayEvents = eventsForDay(day)
+              const isToday = key === format(new Date(), 'yyyy-MM-dd')
+              return (
+                <div key={key} ref={el => dayRefs.current[key] = el} style={{ marginBottom: 4 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '14px 16px 8px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                      <div style={{ width: 36, height: 36, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', background: isToday ? '#1c1c1e' : '#f5f5f7', color: isToday ? 'white' : '#1c1c1e', fontWeight: 700, fontSize: 14 }}>{format(day, 'd')}</div>
+                      <div>
+                        <div style={{ fontSize: 15, fontWeight: 700 }}>{format(day, 'EEEE')}</div>
+                        <div style={{ fontSize: 12, color: '#636366' }}>{format(day, 'd MMMM yyyy')}</div>
+                      </div>
+                    </div>
+                    <button onClick={() => { setEditEvent(null); setDefaultDate(key); setShowForm(true) }}
+                      style={{ background: 'none', border: '1px dashed #e5e5ea', borderRadius: 8, padding: '5px 10px', cursor: 'pointer', fontSize: 12, color: '#636366', fontFamily: 'inherit' }}>
+                      + Add
+                    </button>
+                  </div>
+                  {dayEvents.length === 0 ? (
+                    <div style={{ margin: '0 16px 8px', padding: '16px', background: 'white', borderRadius: 12, border: '1px dashed #e5e5ea', textAlign: 'center', color: '#aeaeb2', fontSize: 13 }}>Nothing planned</div>
+                  ) : (
+                    <div style={{ margin: '0 16px', display: 'flex', flexDirection: 'column', gap: 6 }}>
+                      {dayEvents.map(ev => {
+                        const t = getType(ev.type)
+                        return (
+                          <div key={ev.id} style={{ background: 'white', borderRadius: 12, padding: '12px 14px', border: '1px solid #e5e5ea', borderLeft: `4px solid ${t.color}` }}>
+                            <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10 }}>
+                              <span style={{ fontSize: 20, flexShrink: 0 }}>{t.emoji}</span>
+                              <div style={{ flex: 1, minWidth: 0 }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+                                  <span style={{ fontSize: 14, fontWeight: 700 }}>{ev.title}</span>
+                                  <span style={{ fontSize: 11, fontWeight: 600, color: t.color, background: t.bg, padding: '1px 7px', borderRadius: 10 }}>{t.label}</span>
+                                </div>
+                                {(ev.start_time || ev.end_time) && <div style={{ fontSize: 12, color: '#636366', marginTop: 3 }}>🕐 {ev.start_time?.slice(0,5)}{ev.end_time ? ` – ${ev.end_time.slice(0,5)}` : ''}</div>}
+                                {ev.location && <div style={{ fontSize: 12, color: '#636366', marginTop: 2 }}>📍 {ev.location}</div>}
+                                {ev.maps_url && <a href={ev.maps_url} target="_blank" rel="noopener noreferrer" style={{ fontSize: 12, color: '#0071e3', marginTop: 2, display: 'flex', alignItems: 'center', gap: 4, textDecoration: 'none' }}>🗺 <span style={{ textDecoration: 'underline' }}>Google Maps</span></a>}
+                                {ev.details && <div style={{ fontSize: 12, color: '#636366', marginTop: 4, lineHeight: 1.5 }}>{ev.details}</div>}
+                                {ev.confirmation && <div style={{ fontSize: 11, color: '#aeaeb2', marginTop: 3 }}>Ref: {ev.confirmation}</div>}
+                              </div>
+                              <div style={{ display: 'flex', gap: 4, flexShrink: 0 }}>
+                                <button onClick={() => { setEditEvent(ev); setShowForm(true) }} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 14, color: '#aeaeb2', padding: '2px 5px' }}>✏️</button>
+                                <button onClick={() => { if (confirm('Delete this event?')) deleteEvent(ev.id) }} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 14, color: '#aeaeb2', padding: '2px 5px' }}>🗑</button>
+                              </div>
+                            </div>
+                          </div>
+                        )
+                      })}
+                    </div>
+                  )}
+                </div>
+              )
+            })}
+          </div>
+        )
+      )}
+
       {showForm && (
         <EventForm
-          trip={trip}
-          event={editEvent}
-          defaultDate={defaultDate}
+          trip={trip} event={editEvent} defaultDate={defaultDate}
           onSave={async (data) => {
             if (editEvent) {
               await supabase.from('trip_events').update({ ...data, updated_at: new Date().toISOString() }).eq('id', editEvent.id)
