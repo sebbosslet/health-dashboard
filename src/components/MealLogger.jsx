@@ -110,23 +110,36 @@ export default function MealLogger({ session, date, dinnerTime: dinnerTimeProp =
     setSavedMeals(data || [])
   }
 
-  async function logSavedMeal(saved) {
+  const [savedMealPending, setSavedMealPending] = useState(null)
+  const [savedMealTime, setSavedMealTime] = useState(format(new Date(), 'HH:mm'))
+  const [savedMealType, setSavedMealType] = useState('snack')
+
+  function selectSavedMeal(saved) {
+    setSavedMealPending(saved)
+    setSavedMealTime(format(new Date(), 'HH:mm'))
+    setSavedMealType(saved.meal_type || mealType)
+  }
+
+  async function confirmSavedMeal() {
+    const saved = savedMealPending
     const hasCaffeine = CAFFEINE_REGEX.test(saved.meal_name)
     const hasAlcohol = ALCOHOL_REGEX.test(saved.meal_name)
     await supabase.from('meal_logs').insert({
       user_id: session.user.id,
       date: dateStr,
       meal_name: saved.meal_name,
-      meal_type: saved.meal_type || mealType,
+      meal_type: savedMealType,
       calories: saved.calories,
       protein: saved.protein,
       carbs: saved.carbs,
       fat: saved.fat,
       source: 'saved',
+      consumed_at: savedMealTime || null,
       is_caffeinated: hasCaffeine,
       is_alcohol: hasAlcohol,
     })
     await fetchMeals()
+    setSavedMealPending(null)
     setShowAddSheet(false)
   }
 
@@ -782,7 +795,7 @@ Respond ONLY with valid JSON, no markdown:
                   </div>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
                     {savedMeals.map(saved => (
-                      <button key={saved.id} onClick={() => logSavedMeal(saved)} style={{
+                      <button key={saved.id} onClick={() => selectSavedMeal(saved)} style={{
                         display: 'flex', alignItems: 'center', justifyContent: 'space-between',
                         padding: '9px 12px', borderRadius: 10, border: '0.5px solid var(--border)',
                         background: 'var(--surface)', cursor: 'pointer', fontFamily: 'inherit', textAlign: 'left',
@@ -802,7 +815,34 @@ Respond ONLY with valid JSON, no markdown:
                   </div>
                 </div>
               )}
-              <button onClick={() => setShowAddSheet(false)} style={{ alignSelf: 'center', background: 'none', border: 'none', color: 'var(--text3)', fontSize: 11, cursor: 'pointer', fontFamily: 'inherit', marginTop: 2 }}>
+              {/* Saved meal time confirmation */}
+              {savedMealPending && (
+                <div style={{ marginTop: 6, padding: '12px', background: 'var(--surface)', borderRadius: 10, border: '1px solid var(--green-border)', display: 'flex', flexDirection: 'column', gap: 10 }}>
+                  <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--green)' }}>📌 {savedMealPending.meal_name}</div>
+                  <div style={{ display: 'flex', gap: 8 }}>
+                    <div style={{ flex: 1 }}>
+                      <label className="field-label">{lang === 'de' ? 'Uhrzeit' : 'Time'}</label>
+                      <input className="field-input" type="time" value={savedMealTime} onChange={e => setSavedMealTime(e.target.value)} />
+                    </div>
+                    <div style={{ flex: 1 }}>
+                      <label className="field-label">{lang === 'de' ? 'Typ' : 'Meal type'}</label>
+                      <select className="field-input" value={savedMealType} onChange={e => setSavedMealType(e.target.value)} style={{ cursor: 'pointer' }}>
+                        {MEAL_TYPES.map(t => <option key={t} value={t}>{mealTypeLabel(t)}</option>)}
+                      </select>
+                    </div>
+                  </div>
+                  <div style={{ display: 'flex', gap: 8 }}>
+                    <button onClick={() => setSavedMealPending(null)} style={{ flex: 1, padding: '9px', borderRadius: 8, background: 'var(--surface2)', border: '0.5px solid var(--border)', color: 'var(--text2)', fontSize: 13, cursor: 'pointer', fontFamily: 'inherit' }}>
+                      {lang === 'de' ? 'Zurück' : 'Back'}
+                    </button>
+                    <button onClick={confirmSavedMeal} style={{ flex: 2, padding: '9px', borderRadius: 8, background: 'var(--green)', border: 'none', color: 'white', fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>
+                      {lang === 'de' ? '+ Eintragen' : '+ Log it'}
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              <button onClick={() => { setShowAddSheet(false); setSavedMealPending(null) }} style={{ alignSelf: 'center', background: 'none', border: 'none', color: 'var(--text3)', fontSize: 11, cursor: 'pointer', fontFamily: 'inherit', marginTop: 2 }}>
                 {lang === 'de' ? 'Abbrechen' : 'Cancel'}
               </button>
             </div>
