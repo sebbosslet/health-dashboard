@@ -97,10 +97,38 @@ export default function MealLogger({ session, date, dinnerTime: dinnerTimeProp =
   const [editFields, setEditFields] = useState(null)
   const [editSaving, setEditSaving] = useState(false)
   const [savedDish, setSavedDish] = useState(false)
+  const [savedMeals, setSavedMeals] = useState([])
 
   const dateStr = format(date || new Date(), 'yyyy-MM-dd')
 
   useEffect(() => { fetchMeals() }, [dateStr, session.user.id])
+  useEffect(() => { fetchSavedMeals() }, [session.user.id])
+
+  async function fetchSavedMeals() {
+    const { data } = await supabase.from('saved_meals')
+      .select('*').eq('user_id', session.user.id).order('updated_at', { ascending: false }).limit(20)
+    setSavedMeals(data || [])
+  }
+
+  async function logSavedMeal(saved) {
+    const hasCaffeine = CAFFEINE_REGEX.test(saved.meal_name)
+    const hasAlcohol = ALCOHOL_REGEX.test(saved.meal_name)
+    await supabase.from('meal_logs').insert({
+      user_id: session.user.id,
+      date: dateStr,
+      meal_name: saved.meal_name,
+      meal_type: saved.meal_type || mealType,
+      calories: saved.calories,
+      protein: saved.protein,
+      carbs: saved.carbs,
+      fat: saved.fat,
+      source: 'saved',
+      is_caffeinated: hasCaffeine,
+      is_alcohol: hasAlcohol,
+    })
+    await fetchMeals()
+    setShowAddSheet(false)
+  }
 
 
   // Open add sheet when parent taps + Add
@@ -747,6 +775,33 @@ Respond ONLY with valid JSON, no markdown:
                   <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--text2)' }}>{lang === 'de' ? 'Beschreiben' : 'Describe'}</span>
                 </button>
               </div>
+              {savedMeals.length > 0 && (
+                <div style={{ marginTop: 4 }}>
+                  <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 6 }}>
+                    {lang === 'de' ? 'Gespeicherte Gerichte' : 'My saved dishes'}
+                  </div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                    {savedMeals.map(saved => (
+                      <button key={saved.id} onClick={() => logSavedMeal(saved)} style={{
+                        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                        padding: '9px 12px', borderRadius: 10, border: '0.5px solid var(--border)',
+                        background: 'var(--surface)', cursor: 'pointer', fontFamily: 'inherit', textAlign: 'left',
+                      }}>
+                        <div>
+                          <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)' }}>{saved.meal_name}</div>
+                          <div style={{ fontSize: 11, color: 'var(--text3)', marginTop: 1, display: 'flex', gap: 6 }}>
+                            {saved.calories && <span>{saved.calories} kcal</span>}
+                            {saved.protein && <span>P {Math.round(saved.protein)}g</span>}
+                            {saved.carbs && <span>C {Math.round(saved.carbs)}g</span>}
+                            {saved.fat && <span>F {Math.round(saved.fat)}g</span>}
+                          </div>
+                        </div>
+                        <span style={{ fontSize: 18, color: 'var(--green)', marginLeft: 8, flexShrink: 0 }}>+</span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
               <button onClick={() => setShowAddSheet(false)} style={{ alignSelf: 'center', background: 'none', border: 'none', color: 'var(--text3)', fontSize: 11, cursor: 'pointer', fontFamily: 'inherit', marginTop: 2 }}>
                 {lang === 'de' ? 'Abbrechen' : 'Cancel'}
               </button>
