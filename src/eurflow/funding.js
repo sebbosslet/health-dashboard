@@ -56,8 +56,24 @@ function fundingDates(today, horizonEnd, fundingDay) {
 
 const ceilTo = (n, step) => (step > 0 ? Math.ceil(n / step) * step : round2(n))
 
+/**
+ * The rate that actually costs you dollars: the mid-market reference plus
+ * whatever your transfer provider takes. Wise is typically 0.4–0.6%; a bank
+ * wire is more like 2–3%. Modelling the spread keeps the USD forecast honest
+ * rather than optimistic.
+ */
+export function effectiveFxRate(f = {}) {
+  const mid = f.fxMode === 'manual'
+    ? Number(f.fxManual ?? f.fxRate ?? 1.08)
+    : Number(f.fxLiveRate ?? f.fxRate ?? 1.08)
+  const spread = Number(f.fxSpreadPct ?? 0) / 100
+  return Math.round(mid * (1 + spread) * 10000) / 10000
+}
+
 export function computeFunding(doc, today, horizonEnd) {
-  const f = { minBalance: 0, fundingDay: 1, roundTo: 50, fxRate: 1.08, ...(doc.funding || {}) }
+  const f = { minBalance: 0, fundingDay: 1, roundTo: 50, fxRate: 1.08,
+    fxMode: 'live', fxSpreadPct: 0.5, ...(doc.funding || {}) }
+  const rate = effectiveFxRate(f)
   const anchor = doc.anchor || { date: today, balance: 0 }
   const from = cmp(anchor.date, today) < 0 ? anchor.date : today
   const events = eurEvents(doc, from, horizonEnd)
@@ -88,7 +104,7 @@ export function computeFunding(doc, today, horizonEnd) {
       transfers.push({
         date: start,
         amountEur: round2(amountEur),
-        amountUsd: round2(amountEur * (Number(f.fxRate) || 1)),
+        amountUsd: round2(amountEur * rate),
         reason: round2(worst),
       })
       carry = round2(carry + amountEur)
@@ -111,5 +127,5 @@ export function computeFunding(doc, today, horizonEnd) {
   })
 
   const min = days.reduce((a, b) => (b.balance < a.balance ? b : a), days[0] || { balance: 0, date: today })
-  return { days, transfers, settings: f, minBalance: min.balance, minDate: min.date }
+  return { days, transfers, settings: f, rate, minBalance: min.balance, minDate: min.date }
 }

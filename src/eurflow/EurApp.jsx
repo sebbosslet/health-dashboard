@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { loadEurflow, saveEurflow, seedEurflow } from './store'
-import { computeFunding } from './funding'
+import { computeFunding, effectiveFxRate } from './funding'
 import { connectBank, syncNow, fetchPlaidAccounts } from '../cashflow/plaid'
 import {
   addDays, addMonths, cmp, endOfMonth, monthStartOf, monthName, round2,
@@ -39,6 +39,15 @@ export default function EurApp({ session }) {
     timer.current = setTimeout(() => saveEurflow(session.user.id, doc), 600)
     return () => clearTimeout(timer.current)
   }, [doc, session.user.id])
+
+  const refreshRate = async () => {
+    try {
+      const res = await fetch('/.netlify/functions/fx-rate?from=EUR&to=USD')
+      const j = await res.json()
+      if (j?.rate) setDoc((d) => d && ({ ...d, funding: { ...d.funding, fxLiveRate: j.rate, fxLiveDate: j.date } }))
+    } catch { /* keep whatever we last stored */ }
+  }
+  useEffect(() => { refreshRate() }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   const refreshBanks = async () => {
     try {
@@ -152,8 +161,36 @@ export default function EurApp({ session }) {
             <Field lab="Never below €"><input type="number" value={f.minBalance} onChange={(e) => setFunding('minBalance', +e.target.value || 0)} /></Field>
             <Field lab="Transfer on day"><input type="number" min="1" max="28" value={f.fundingDay} onChange={(e) => setFunding('fundingDay', +e.target.value || 1)} /></Field>
             <Field lab="Round up to €"><input type="number" value={f.roundTo} onChange={(e) => setFunding('roundTo', +e.target.value || 0)} /></Field>
-            <Field lab="USD per EUR"><input type="number" step="0.01" value={f.fxRate} onChange={(e) => setFunding('fxRate', +e.target.value || 1)} /></Field>
+            <Field lab="Provider spread %"><input type="number" step="0.1" value={f.fxSpreadPct ?? 0.5} onChange={(e) => setFunding('fxSpreadPct', +e.target.value || 0)} /></Field>
           </div>
+          <div className="ratebar">
+            <div>
+              <div className="lab">Exchange rate</div>
+              <div className="when" style={{ marginTop: 2 }}>
+                {f.fxMode === 'manual'
+                  ? 'fixed rate you set'
+                  : f.fxLiveDate
+                    ? `ECB reference ${Number(f.fxLiveRate).toFixed(4)} · ${f.fxLiveDate}`
+                    : 'fetching reference rate…'}
+                {f.fxSpreadPct > 0 && f.fxMode !== 'manual' ? ` · +${f.fxSpreadPct}% spread` : ''}
+              </div>
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+              {f.fxMode === 'manual' && (
+                <input style={{ width: 100 }} type="number" step="0.0001"
+                  value={f.fxManual ?? f.fxRate} onChange={(e) => setFunding('fxManual', +e.target.value || 1)} />
+              )}
+              <div style={{ textAlign: 'right' }}>
+                <div className="num" style={{ fontSize: 18 }}>{plan.rate.toFixed(4)}</div>
+                <div className="when">used for planning</div>
+              </div>
+              <button className="ghost" onClick={() => setFunding('fxMode', f.fxMode === 'manual' ? 'live' : 'manual')}>
+                {f.fxMode === 'manual' ? 'Use live' : 'Set manually'}
+              </button>
+              {f.fxMode !== 'manual' && <button className="ghost" onClick={refreshRate}>Refresh</button>}
+            </div>
+          </div>
+
           <div className="eyebrow" style={{ marginTop: 14, marginBottom: 4 }}>Next transfers</div>
           {next12.length === 0 && <div style={{ color: 'var(--faint)', fontSize: 13 }}>
             The balance stays above {E(f.minBalance)} for the next year without any funding.
@@ -168,7 +205,8 @@ export default function EurApp({ session }) {
           ))}
           <div className="legend">
             Each transfer is sized to hold the floor until the next one, rounded up to the nearest {E(f.roundTo)}.
-            They appear on the USD side as scheduled outgoings, so both forecasts stay honest.
+            Dollar amounts are a forecast at today’s rate — the real cost lands when you transfer, and any
+            difference shows up in the normal USD reconciliation rather than being hidden here.
           </div>
         </section>
 

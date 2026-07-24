@@ -123,6 +123,9 @@ display:flex;height:100%;overflow-y:auto;overflow-x:hidden;-webkit-overflow-scro
 .paytable tr.sect td{padding-top:12px;font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--faint);font-weight:600;border-bottom:none;}
 .paytable tr.total td{font-weight:600;border-top:1px solid var(--line);border-bottom:none;padding-top:8px;}
 .modalfoot{display:flex;justify-content:space-between;align-items:center;gap:12px;margin-top:18px;flex-wrap:wrap;}
+.ratebar{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;
+margin-top:14px;padding:11px 14px;background:var(--bg);border:1px solid var(--line-soft);border-radius:10px;}
+.ratebar .lab{font-size:10.5px;letter-spacing:.06em;text-transform:uppercase;color:var(--faint);font-weight:600;}
 .editrow{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px;}
 .editor{margin-top:10px;padding:12px 14px;background:var(--bg);border:1px solid var(--line-soft);border-radius:10px;}
 .editnote{font-size:12.5px;color:var(--mut);margin-top:10px;line-height:1.6}
