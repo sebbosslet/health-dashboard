@@ -1,6 +1,6 @@
-const { plaid, requireUser, fail, ok, CORS, missingConfig } = require('./_plaid')
+import { plaid, requireUser, fail, ok, CORS, missingConfig } from './_plaid.js'
 
-exports.handler = async (event) => {
+export const handler = async (event) => {
   if (event.httpMethod === 'OPTIONS') return { statusCode: 200, headers: CORS, body: '' }
   try {
     const bad = missingConfig()
