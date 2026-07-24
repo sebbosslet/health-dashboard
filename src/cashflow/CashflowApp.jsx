@@ -1,5 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { loadCashflow, saveCashflow } from "./store";
+import { setCardBalance } from "./ops";
+import BanksTab from "./BanksTab";
 import "./cashflow.css";
 
 /* ============================================================
@@ -520,17 +522,6 @@ function Field({ lab, children }) {
 /* ---------------- shared operations ----------------
    One function per fact, called from wherever the user happens to be.
 ------------------------------------------------- */
-function setCardBalance(d, cardId, balance, date) {
-  return {
-    ...d,
-    cards: d.cards.map((c) => c.id === cardId
-      ? (cmp(date, c.balanceAsOf || "0000-01-01") >= 0 ? { ...c, currentBalance: balance, balanceAsOf: date } : c)
-      : c),
-    observations: [...(d.observations || []).filter((o) => !(o.cardId === cardId && o.date === date)),
-      { id: uid(), cardId, date, balance }],
-  };
-}
-
 function toggleCardCharge(d, charge) {
   const existing = (d.transactions || []).find((t) => t.type === "card_charge" && t.chargeKey === charge.key);
   if (existing) return { ...d, transactions: d.transactions.filter((t) => t.id !== existing.id) };
@@ -2131,7 +2122,7 @@ function Wealth({ data, setData, projection, today }) {
 }
 
 /* ---------------- setup ---------------- */
-function Setup({ data, setData, today }) {
+function Setup({ data, setData, today, session }) {
   const [tab, setTab] = useState("recurring");
   return (
     <>
@@ -2140,10 +2131,12 @@ function Setup({ data, setData, today }) {
         <div className="rbtns">
           <button className={tab === "recurring" ? "active" : "ghost"} onClick={() => setTab("recurring")}>Recurring</button>
           <button className={tab === "income" ? "active" : "ghost"} onClick={() => setTab("income")}>Income</button>
+          <button className={tab === "banks" ? "active" : "ghost"} onClick={() => setTab("banks")}>Banks</button>
         </div>
       </div>
-      {tab === "recurring" ? <Recurring data={data} setData={setData} embedded />
-        : <Income data={data} setData={setData} today={today} embedded />}
+      {tab === "recurring" && <Recurring data={data} setData={setData} embedded />}
+      {tab === "income" && <Income data={data} setData={setData} today={today} embedded />}
+      {tab === "banks" && <section className="panel"><BanksTab data={data} setData={setData} today={today} session={session} /></section>}
     </>
   );
 }
@@ -2210,7 +2203,7 @@ export default function CashflowApp({ session }) {
         {screen === "cards" && <Cards data={data} setData={setData} today={today} />}
         {screen === "spending" && <Spending data={data} setData={setData} today={today} />}
         {screen === "wealth" && <Wealth data={data} setData={setData} projection={projection} today={today} />}
-        {screen === "setup" && <Setup data={data} setData={setData} today={today} />}
+        {screen === "setup" && <Setup data={data} setData={setData} today={today} session={session} />}
       </main>
     </div>
   );

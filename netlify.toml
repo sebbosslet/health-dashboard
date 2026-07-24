@@ -19,3 +19,6 @@
 
 [functions."switchbot-poll"]
   schedule = "*/15 * * * *"
+
+[functions."plaid-sync"]
+  schedule = "0 11 * * *"
