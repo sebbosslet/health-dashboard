@@ -513,6 +513,10 @@ function seedData() {
   };
 }
 
+function Field({ lab, children }) {
+  return <label><div className="lab">{lab}</div>{children}</label>;
+}
+
 /* ---------------- shared operations ----------------
    One function per fact, called from wherever the user happens to be.
 ------------------------------------------------- */

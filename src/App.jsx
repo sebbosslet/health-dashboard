@@ -4,6 +4,7 @@ import { supabase } from './lib/supabase'
 import { LangProvider } from './lib/LangContext'
 import AuthPage from './pages/AuthPage'
 import HubPage from './hub/HubPage'
+import ErrorBoundary from './components/ErrorBoundary'
 
 // Each app is its own chunk — the hub stays instant.
 const MainApp = lazy(() => import('./pages/MainApp'))
@@ -73,6 +74,7 @@ export default function App() {
   return (
     <LangProvider>
       <BrowserRouter>
+        <ErrorBoundary>
         <Suspense fallback={<div className="loading-screen"><div className="spinner" /></div>}>
         <Routes>
           <Route path="/" element={tripOnly ? <Navigate to="/travel" replace /> : <HubPage session={session} />} />
@@ -82,6 +84,7 @@ export default function App() {
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
         </Suspense>
+        </ErrorBoundary>
       </BrowserRouter>
     </LangProvider>
   )

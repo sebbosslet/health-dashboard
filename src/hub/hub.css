@@ -2,7 +2,7 @@
 :root{--bg:#faf8f3;--surface:#ffffff;--line:#e7e3d9;--line-soft:#f0ece3;
 --ink:#1f2421;--mut:#6b6f6a;--faint:#9a9d96;--green:#2d6a4f;--green-soft:#52b788;
 --fd:'DM Sans',system-ui,sans-serif;--fs:'DM Serif Display',Georgia,serif;--fm:'DM Mono',ui-monospace,monospace;}
-.hub{background:var(--bg);color:var(--ink);font-family:var(--fd);min-height:100vh;
+.hub{background:var(--bg);color:var(--ink);font-family:var(--fd);height:100%;overflow-y:auto;-webkit-overflow-scrolling:touch;
 -webkit-font-smoothing:antialiased;padding:64px 24px 80px;display:flex;justify-content:center;}
 .hub *{box-sizing:border-box;margin:0;}
 .hub-inner{width:100%;max-width:940px;}
