@@ -14,6 +14,14 @@ export async function saveEurflow(userId, doc) {
   if (error) console.error('eurflow save failed', error)
 }
 
+export function emptyEurflow(today) {
+  return {
+    anchor: { date: today, balance: 0 },
+    funding: { minBalance: 0, fundingDay: 1, roundTo: 50, fxMode: 'live', fxSpreadPct: 0.5, fxDriftPct: 0 },
+    rules: [], transactions: [], realized: [], observations: [],
+  }
+}
+
 export function seedEurflow(today) {
   return {
     anchor: { date: today, balance: 420 },

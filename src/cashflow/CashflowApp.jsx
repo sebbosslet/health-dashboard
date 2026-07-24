@@ -460,6 +460,17 @@ function projectAsset(asset, monthlyContribution, months, useReturns = false) {
   return out;
 }
 
+/** A clean slate — what a new account gets. */
+function emptyData() {
+  const today = todayISO();
+  return {
+    anchor: { date: today, balance: 0 },
+    payroll: { ...DEFAULT_PAYROLL },
+    cards: [], rules: [], incomes: [], transactions: [],
+    observations: [], assumptions: [], simulations: [], assets: [],
+  };
+}
+
 /* ---------------- demo seed ---------------- */
 function seedData() {
   const today = todayISO();
@@ -2134,11 +2145,38 @@ function Setup({ data, setData, today, session }) {
           <button className={tab === "recurring" ? "active" : "ghost"} onClick={() => setTab("recurring")}>Recurring</button>
           <button className={tab === "income" ? "active" : "ghost"} onClick={() => setTab("income")}>Income</button>
           <button className={tab === "banks" ? "active" : "ghost"} onClick={() => setTab("banks")}>Banks</button>
+          <button className={tab === "data" ? "active" : "ghost"} onClick={() => setTab("data")}>Data</button>
         </div>
       </div>
       {tab === "recurring" && <Recurring data={data} setData={setData} embedded />}
       {tab === "income" && <Income data={data} setData={setData} today={today} embedded />}
       {tab === "banks" && <section className="panel"><BanksTab data={data} setData={setData} today={today} session={session} /></section>}
+      {tab === "data" && (
+        <section className="panel">
+          <div className="grouphead">
+            <div><span className="gname">Data</span><div className="when" style={{ marginTop: 1 }}>what this account currently holds</div></div>
+          </div>
+          <div className="detrow"><span className="dt" /><span className="dn">Cards</span><span className="amt da">{data.cards.length}</span></div>
+          <div className="detrow"><span className="dt" /><span className="dn">Recurring expenses</span><span className="amt da">{data.rules.length}</span></div>
+          <div className="detrow"><span className="dt" /><span className="dn">Income profiles</span><span className="amt da">{data.incomes.length}</span></div>
+          <div className="detrow"><span className="dt" /><span className="dn">Ledger entries</span><span className="amt da">{data.transactions.length}</span></div>
+          <div className="detrow"><span className="dt" /><span className="dn">Long-term accounts</span><span className="amt da">{(data.assets || []).length}</span></div>
+          <div style={{ display: "flex", gap: 8, marginTop: 16, flexWrap: "wrap" }}>
+            <button className="danger-btn" style={{ border: "1px solid var(--line)" }}
+              onClick={() => { if (confirm("Erase everything in the dollar cashflow and start from an empty account? This cannot be undone.")) setData(emptyData()); }}>
+              Erase everything
+            </button>
+            <button className="ghost"
+              onClick={() => { if (confirm("Replace what is here with sample data, for exploring?")) setData(seedData()); }}>
+              Load sample data
+            </button>
+          </div>
+          <div className="legend">
+            Bank connections are separate — remove those on the Banks tab. Erasing here does not
+            disconnect anything or touch your euro account.
+          </div>
+        </section>
+      )}
     </>
   );
 }
@@ -2155,7 +2193,7 @@ export default function CashflowApp({ session }) {
   const saveTimer = useRef(null);
   useEffect(() => {
     let alive = true;
-    loadCashflow(session.user.id).then((d) => { if (alive) setData(d || seedData()); });
+    loadCashflow(session.user.id).then((d) => { if (alive) setData(d || emptyData()); });
     loadEurflow(session.user.id).then((d) => { if (alive) setEurDoc(d); });
     return () => { alive = false; };
   }, [session.user.id]);
@@ -2214,7 +2252,7 @@ export default function CashflowApp({ session }) {
         <a className="navbtn" href="/eur" style={{ marginTop: 10, borderTop: "1px solid var(--line)", paddingTop: 12 }}>EUR account →</a>
         <div style={{ marginTop: "auto", padding: "0 8px" }}>
           <div className="when">{shortDate(today)} {today.slice(0, 4)}</div>
-          <button className="ghost" style={{ marginTop: 8, fontSize: 12 }} onClick={() => { if (confirm("Reset all data to the demo seed?")) setData(seedData()); }}>Reset demo data</button>
+          <a className="navbtn" href="/eur" style={{ display: "block", fontSize: 12, padding: "6px 0" }}>EUR account →</a>
         </div>
       </nav>
       <main className="main">

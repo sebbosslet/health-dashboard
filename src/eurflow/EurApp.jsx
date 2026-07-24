@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { loadEurflow, saveEurflow, seedEurflow } from './store'
+import { loadEurflow, saveEurflow, emptyEurflow } from './store'
 import { computeFunding } from './funding'
 import { connectBank, syncNow, fetchPlaidAccounts } from '../cashflow/plaid'
 import {
@@ -30,7 +30,7 @@ export default function EurApp({ session }) {
 
   useEffect(() => {
     let alive = true
-    loadEurflow(session.user.id).then((d) => { if (alive) setDoc(d || seedEurflow(today)) })
+    loadEurflow(session.user.id).then((d) => { if (alive) setDoc(d || emptyEurflow(today)) })
     return () => { alive = false }
   }, [session.user.id]) // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -143,6 +143,10 @@ export default function EurApp({ session }) {
         <div className="navbtn on">EUR</div>
         <div style={{ marginTop: 'auto', padding: '0 8px' }}>
           <div className="when">{shortDate(today)} {today.slice(0, 4)}</div>
+          <button className="ghost" style={{ marginTop: 8, fontSize: 12 }}
+            onClick={() => { if (confirm('Erase the euro cashflow and start empty?')) setDoc(emptyEurflow(today)) }}>
+            Erase euro data
+          </button>
         </div>
       </nav>
 
