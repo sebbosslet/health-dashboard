@@ -42,6 +42,7 @@ export const handler = async (event) => {
       current_balance: a.balances?.current ?? null,
       available_balance: a.balances?.available ?? null,
       limit_amount: a.balances?.limit ?? null,
+      currency: a.balances?.iso_currency_code || a.balances?.unofficial_currency_code || 'USD',
       mapping_kind: suggestMapping(a),
       balance_as_of: new Date().toISOString(),
     }))

@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { loadEurflow, saveEurflow, seedEurflow } from './store'
 import { computeFunding } from './funding'
-import { listInstitutions, startLink, syncBanks, fetchGcAccounts, fetchGcTransactions } from './gocardless'
+import { connectBank, syncNow, fetchPlaidAccounts } from '../cashflow/plaid'
 import {
   addDays, addMonths, cmp, endOfMonth, monthStartOf, monthName, round2,
   shortDate, todayISO, uid, weekday,
@@ -24,7 +24,7 @@ export default function EurApp({ session }) {
   const [showQuiet, setShowQuiet] = useState(false)
   const [actual, setActual] = useState('')
   const [entry, setEntry] = useState({ date: today, amount: '', description: '', kind: 'oneoff' })
-  const [banks, setBanks] = useState({ accounts: [], txs: [], institutions: [], busy: null, error: null, note: null })
+  const [banks, setBanks] = useState({ accounts: [], busy: null, error: null, note: null })
   const timer = useRef(null)
 
   useEffect(() => {
@@ -42,10 +42,8 @@ export default function EurApp({ session }) {
 
   const refreshBanks = async () => {
     try {
-      const [accounts, txs] = await Promise.all([
-        fetchGcAccounts(session.user.id), fetchGcTransactions(session.user.id, 10),
-      ])
-      setBanks((b) => ({ ...b, accounts, txs, error: null }))
+      const accounts = await fetchPlaidAccounts(session.user.id, 'EUR')
+      setBanks((b) => ({ ...b, accounts, error: null }))
     } catch (e) { setBanks((b) => ({ ...b, error: e.message })) }
   }
   useEffect(() => { refreshBanks() }, [session.user.id]) // eslint-disable-line react-hooks/exhaustive-deps
@@ -88,9 +86,8 @@ export default function EurApp({ session }) {
     setBanks((b) => ({ ...b, busy: label, error: null, note: null }))
     try {
       const r = await fn()
-      if (r?.institutions) setBanks((b) => ({ ...b, institutions: r.institutions }))
-      if (r?.link) { window.location.href = r.link; return }
       if (r?.synced != null) setBanks((b) => ({ ...b, note: `Synced ${r.synced} connection${r.synced === 1 ? '' : 's'}` }))
+      if (r?.institution) setBanks((b) => ({ ...b, note: `${r.institution} connected` }))
     } catch (e) { setBanks((b) => ({ ...b, error: e.message })) }
     finally { setBanks((b) => ({ ...b, busy: null })); refreshBanks() }
   }
@@ -261,57 +258,49 @@ export default function EurApp({ session }) {
         {/* ---- bank ---- */}
         <section className="panel" style={{ marginTop: 16 }}>
           <div className="grouphead">
-            <div><span className="gname">N26 connection</span><div className="when" style={{ marginTop: 1 }}>GoCardless bank account data · consent lasts 90 days</div></div>
+            <div>
+              <span className="gname">German bank</span>
+              <div className="when" style={{ marginTop: 1 }}>
+                connected through the same Plaid account as your dollar side · consent renews every 90 days
+              </div>
+            </div>
             <div style={{ display: 'flex', gap: 8 }}>
-              <button disabled={banks.busy === 'sync' || !banks.accounts.length} onClick={() => runBank('sync', syncBanks)}>
+              <button disabled={banks.busy === 'sync' || !banks.accounts.length} onClick={() => runBank('sync', syncNow)}>
                 {banks.busy === 'sync' ? 'Syncing…' : 'Sync now'}
               </button>
-              <button className="primary" disabled={banks.busy === 'list'} onClick={() => runBank('list', () => listInstitutions('DE'))}>
-                {banks.busy === 'list' ? 'Loading…' : '+ Connect a bank'}
+              <button className="primary" disabled={banks.busy === 'connect'}
+                onClick={() => runBank('connect', () => connectBank({ countryCodes: ['DE'] }))}>
+                {banks.busy === 'connect' ? 'Opening…' : '+ Connect N26'}
               </button>
             </div>
           </div>
-          {banks.error && <div className="notice bad" style={{ marginTop: 12 }}><span className="danger" style={{ fontWeight: 600 }}>{banks.error}</span></div>}
-          {banks.note && <div className="notice" style={{ marginTop: 12 }}><span style={{ color: 'var(--green)', fontWeight: 600 }}>{banks.note}</span></div>}
+          {banks.error && <div className="notice bad" style={{ marginTop: 12 }}>
+            <span className="danger" style={{ fontWeight: 600 }}>{banks.error}</span>
+          </div>}
+          {banks.note && <div className="notice" style={{ marginTop: 12 }}>
+            <span style={{ color: 'var(--green)', fontWeight: 600 }}>{banks.note}</span>
+          </div>}
 
-          {banks.institutions.length > 0 && banks.accounts.length === 0 && (
-            <>
-              <div className="eyebrow" style={{ marginTop: 12, marginBottom: 4 }}>Pick your bank</div>
-              {banks.institutions.filter((i) => /n26|dkb|sparkasse|commerz|deutsche/i.test(i.name)).slice(0, 8).map((i) => (
-                <div className="row" key={i.id}>
-                  <div style={{ flex: 1 }}><span>{i.name}</span><div className="when">{i.days} days of history</div></div>
-                  <button onClick={() => runBank('link', () => startLink(i.id))}>Connect</button>
-                </div>
-              ))}
-              <div className="legend">Showing common German banks. Connecting opens N26’s own login — credentials never touch this app.</div>
-            </>
+          {banks.accounts.length === 0 && !banks.error && (
+            <div style={{ color: 'var(--faint)', fontSize: 13.5, padding: '14px 0' }}>
+              No euro account connected. Connecting N26 replaces typing the balance each time —
+              everything below keeps working manually either way.
+            </div>
           )}
 
           {banks.accounts.map((a) => (
             <div className="row" key={a.account_id}>
               <div style={{ flex: 1 }}>
-                <span>{a.name || 'Account'}</span>
-                <span className="tag">{a.currency}</span>
-                <div className="when">{a.iban ? `····${String(a.iban).slice(-4)} · ` : ''}{E(a.balance)}</div>
+                <span>{a.name || 'Account'}{a.mask ? ` ····${a.mask}` : ''}</span>
+                <span className="tag">{a.subtype || a.type}</span>
+                <div className="when">{E(a.current_balance)}</div>
               </div>
-              <button className="ghost" onClick={() => { setDoc((d) => ({ ...d, anchor: { date: today, balance: Number(a.balance) || 0 } })); setBanks((b) => ({ ...b, note: 'Balance applied' })) }}>
-                Use balance
-              </button>
+              <button className="ghost" onClick={() => {
+                setDoc((d) => ({ ...d, anchor: { date: today, balance: Number(a.current_balance) || 0 } }))
+                setBanks((b) => ({ ...b, note: 'Balance applied' }))
+              }}>Use balance</button>
             </div>
           ))}
-
-          {banks.txs.length > 0 && (
-            <>
-              <div className="eyebrow" style={{ marginTop: 16, marginBottom: 2 }}>Latest transactions</div>
-              {banks.txs.map((t) => (
-                <div className="detrow" key={t.transaction_id} style={{ opacity: t.pending ? 0.6 : 1 }}>
-                  <span className="dt">{t.date.slice(5)}</span>
-                  <span className="dn">{t.counterparty || t.description || '—'}</span>
-                  <span className={`amt da ${Number(t.amount) > 0 ? 'pos' : ''}`}>{signedE(Number(t.amount))}</span>
-                </div>
-              ))}
-            </>
-          )}
         </section>
       </main>
     </div>

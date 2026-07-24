@@ -42,15 +42,16 @@ async function call(fn, body) {
   return json
 }
 
-export const createLinkToken = (access_token) => call('plaid-link-token', { access_token })
+export const createLinkToken = (access_token, country_codes) =>
+  call('plaid-link-token', { access_token, country_codes })
 export const exchangePublicToken = (public_token, institution) =>
   call('plaid-exchange', { public_token, institution })
 export const syncNow = () => call('plaid-sync', {})
 
 /** Open Plaid Link and resolve once the connection is stored. */
-export async function connectBank({ reauthToken } = {}) {
+export async function connectBank({ reauthToken, countryCodes } = {}) {
   const Plaid = await loadPlaidScript()
-  const { link_token } = await createLinkToken(reauthToken)
+  const { link_token } = await createLinkToken(reauthToken, countryCodes)
   return new Promise((resolve, reject) => {
     const handler = Plaid.create({
       token: link_token,
@@ -67,12 +68,10 @@ export async function connectBank({ reauthToken } = {}) {
   })
 }
 
-export async function fetchPlaidAccounts(userId) {
-  const { data, error } = await supabase
-    .from('plaid_accounts')
-    .select('*')
-    .eq('user_id', userId)
-    .order('type', { ascending: true })
+export async function fetchPlaidAccounts(userId, currency) {
+  let q = supabase.from('plaid_accounts').select('*').eq('user_id', userId)
+  if (currency) q = q.eq('currency', currency)
+  const { data, error } = await q.order('type', { ascending: true })
   if (error) throw error
   return data || []
 }
