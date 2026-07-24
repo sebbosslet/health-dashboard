@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { loadEurflow, saveEurflow, seedEurflow } from './store'
-import { computeFunding, effectiveFxRate } from './funding'
+import { computeFunding } from './funding'
 import { connectBank, syncNow, fetchPlaidAccounts } from '../cashflow/plaid'
 import {
   addDays, addMonths, cmp, endOfMonth, monthStartOf, monthName, round2,
@@ -24,6 +24,7 @@ export default function EurApp({ session }) {
   const [showQuiet, setShowQuiet] = useState(false)
   const [actual, setActual] = useState('')
   const [entry, setEntry] = useState({ date: today, amount: '', description: '', kind: 'oneoff' })
+  const [realTx, setRealTx] = useState({ date: today, eur: '', usd: '' })
   const [banks, setBanks] = useState({ accounts: [], busy: null, error: null, note: null })
   const timer = useRef(null)
 
@@ -44,7 +45,11 @@ export default function EurApp({ session }) {
     try {
       const res = await fetch('/.netlify/functions/fx-rate?from=EUR&to=USD')
       const j = await res.json()
-      if (j?.rate) setDoc((d) => d && ({ ...d, funding: { ...d.funding, fxLiveRate: j.rate, fxLiveDate: j.date } }))
+      if (j?.rate) setDoc((d) => d && ({ ...d, funding: {
+        ...d.funding, fxLiveRate: j.rate, fxLiveDate: j.date, fxSource: j.source,
+        // a provider quote already includes the spread — don't charge it twice
+        ...(j.source === 'Revolut quote' ? { fxSpreadPct: 0 } : {}),
+      } }))
     } catch { /* keep whatever we last stored */ }
   }
   useEffect(() => { refreshRate() }, []) // eslint-disable-line react-hooks/exhaustive-deps
@@ -58,7 +63,7 @@ export default function EurApp({ session }) {
   useEffect(() => { refreshBanks() }, [session.user.id]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const plan = useMemo(
-    () => doc && computeFunding(doc, today, addDays(today, 366 * 2)),
+    () => doc && computeFunding(doc, today, addDays(today, 366 * 5)),
     [doc, today],
   )
 
@@ -76,9 +81,38 @@ export default function EurApp({ session }) {
   const outflow = round2(monthDays.flatMap((d) => d.events).filter((e) => e.amount < 0).reduce((s, e) => s - e.amount, 0))
   const closing = monthDays.length ? monthDays[monthDays.length - 1].balance : 0
 
+  const fiveYearEur = round2(plan.transfers.reduce((s, t) => s + t.amountEur, 0))
+  const baseUsd = round2(plan.transfers.reduce((s, t) => s + t.amountUsd, 0))
+  const scenarios = [-20, -10, 0, 10, 20].map((pct) => ({
+    label: pct === 0 ? 'today’s rate' : `${pct > 0 ? '+' : ''}${pct}%`,
+    base: pct === 0,
+    usd: round2(baseUsd * (1 + pct / 100)),
+  }))
+
   const next12 = plan.transfers.filter((t) => cmp(t.date, addDays(today, 366)) <= 0)
   const yearEur = round2(next12.reduce((s, t) => s + t.amountEur, 0))
   const yearUsd = round2(next12.reduce((s, t) => s + t.amountUsd, 0))
+
+  const realized = doc.realized || []
+  const measured = useMemo(() => {
+    const rows = realized.filter((r) => r.eur > 0 && r.usd > 0 && r.reference > 0)
+    if (!rows.length) return null
+    const spreads = rows.map((r) => ((r.usd / r.eur) / r.reference - 1) * 100)
+    return {
+      count: rows.length,
+      avgSpread: Math.round((spreads.reduce((a, b) => a + b, 0) / spreads.length) * 100) / 100,
+      lastRate: Math.round((rows.at(-1).usd / rows.at(-1).eur) * 10000) / 10000,
+    }
+  }, [realized])
+
+  const addRealized = () => {
+    if (!realTx.eur || !realTx.usd) return
+    setDoc((d) => ({ ...d, realized: [...(d.realized || []), {
+      id: uid(), date: realTx.date, eur: +realTx.eur, usd: +realTx.usd,
+      reference: Number(d.funding?.fxLiveRate) || null,
+    }] }))
+    setRealTx({ ...realTx, eur: '', usd: '' })
+  }
 
   const addEntry = () => {
     if (!entry.amount) return
@@ -165,14 +199,15 @@ export default function EurApp({ session }) {
           </div>
           <div className="ratebar">
             <div>
-              <div className="lab">Exchange rate</div>
+              <div className="lab">Exchange rate · {f.fxSource || 'reference'}</div>
               <div className="when" style={{ marginTop: 2 }}>
                 {f.fxMode === 'manual'
                   ? 'fixed rate you set'
                   : f.fxLiveDate
-                    ? `ECB reference ${Number(f.fxLiveRate).toFixed(4)} · ${f.fxLiveDate}`
-                    : 'fetching reference rate…'}
-                {f.fxSpreadPct > 0 && f.fxMode !== 'manual' ? ` · +${f.fxSpreadPct}% spread` : ''}
+                    ? `${Number(f.fxLiveRate).toFixed(4)} · ${f.fxLiveDate}`
+                    : 'fetching rate…'}
+                {f.fxMode !== 'manual' && f.fxSpreadPct > 0 ? ` · +${f.fxSpreadPct}% spread` : ''}
+                {f.fxDriftPct ? ` · ${f.fxDriftPct > 0 ? '+' : ''}${f.fxDriftPct}%/yr drift` : ''}
               </div>
             </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
@@ -203,6 +238,63 @@ export default function EurApp({ session }) {
               <span className="amt da" style={{ minWidth: 90, color: 'var(--mut)' }}>{U(t.amountUsd)}</span>
             </div>
           ))}
+          <div className="fxscenario">
+            <div className="grouphead" style={{ borderBottom: 'none', paddingBottom: 2 }}>
+              <div>
+                <span className="gname">If the rate moves</span>
+                <div className="when" style={{ marginTop: 1 }}>five-year dollar cost of funding {E(fiveYearEur)}</div>
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <span className="when">drift %/yr</span>
+                <input style={{ width: 74 }} type="number" step="0.5" value={f.fxDriftPct ?? 0}
+                  onChange={(e) => setFunding('fxDriftPct', +e.target.value || 0)} />
+              </div>
+            </div>
+            <div className="fxgrid">
+              {scenarios.map((sc) => (
+                <div className={`fxcell${sc.base ? ' base' : ''}`} key={sc.label}>
+                  <div className="lab">{sc.label}</div>
+                  <div className="num" style={{ fontSize: 15 }}>{U(sc.usd)}</div>
+                  <div className="when">{sc.base ? 'as planned' : (sc.usd > baseUsd ? '+' : '') + U(round2(sc.usd - baseUsd))}</div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div className="realized">
+            <div className="grouphead" style={{ borderBottom: 'none', paddingBottom: 2 }}>
+              <div>
+                <span className="gname">What transfers actually cost</span>
+                <div className="when" style={{ marginTop: 1 }}>
+                  {measured
+                    ? `${measured.count} recorded · your real rate runs ${measured.avgSpread > 0 ? '+' : ''}${measured.avgSpread}% off the reference`
+                    : 'record a real transfer and the app learns your true spread'}
+                </div>
+              </div>
+              {measured && (
+                <button className="ghost" onClick={() => setFunding('fxSpreadPct', measured.avgSpread)}>
+                  Use {measured.avgSpread > 0 ? '+' : ''}{measured.avgSpread}%
+                </button>
+              )}
+            </div>
+            <div className="formgrid" style={{ marginTop: 8 }}>
+              <Field lab="Date"><input type="date" value={realTx.date} onChange={(e) => setRealTx({ ...realTx, date: e.target.value })} /></Field>
+              <Field lab="€ sent"><input type="number" value={realTx.eur} onChange={(e) => setRealTx({ ...realTx, eur: e.target.value })} /></Field>
+              <Field lab="$ debited"><input type="number" value={realTx.usd} onChange={(e) => setRealTx({ ...realTx, usd: e.target.value })} /></Field>
+              <div style={{ display: 'flex', alignItems: 'end' }}>
+                <button className="primary" disabled={!realTx.eur || !realTx.usd} onClick={addRealized}>Record</button>
+              </div>
+            </div>
+            {realized.slice().reverse().slice(0, 4).map((r) => (
+              <div className="detrow" key={r.id}>
+                <span className="dt">{shortDate(r.date)}</span>
+                <span className="dn">{E(r.eur)} → {U(r.usd)}</span>
+                <span className="amt da">{(r.usd / r.eur).toFixed(4)}</span>
+                <button className="danger-btn" onClick={() => setDoc((d) => ({ ...d, realized: d.realized.filter((x) => x.id !== r.id) }))}>✕</button>
+              </div>
+            ))}
+          </div>
+
           <div className="legend">
             Each transfer is sized to hold the floor until the next one, rounded up to the nearest {E(f.roundTo)}.
             Dollar amounts are a forecast at today’s rate — the real cost lands when you transfer, and any

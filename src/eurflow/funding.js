@@ -70,6 +70,22 @@ export function effectiveFxRate(f = {}) {
   return Math.round(mid * (1 + spread) * 10000) / 10000
 }
 
+/**
+ * The rate to assume for a transfer some years out.
+ *
+ * Default drift is zero, and that is a deliberate choice rather than laziness:
+ * for major currency pairs today's spot has repeatedly proven as good a
+ * predictor of future spot as any model. Drift exists here for stress-testing
+ * — "what if the dollar weakens 3% a year" — not for prediction.
+ */
+export function fxRateOn(f, today, date) {
+  const base = effectiveFxRate(f)
+  const drift = Number(f.fxDriftPct ?? 0) / 100
+  if (!drift) return base
+  const years = (Date.parse(date + 'T00:00:00Z') - Date.parse(today + 'T00:00:00Z')) / (365.25 * 86400000)
+  return Math.round(base * Math.pow(1 + drift, years) * 10000) / 10000
+}
+
 export function computeFunding(doc, today, horizonEnd) {
   const f = { minBalance: 0, fundingDay: 1, roundTo: 50, fxRate: 1.08,
     fxMode: 'live', fxSpreadPct: 0.5, ...(doc.funding || {}) }
@@ -101,10 +117,12 @@ export function computeFunding(doc, today, horizonEnd) {
     const worst = Math.min(...window.map((d) => d.unfunded)) + carry
     if (worst < f.minBalance) {
       const amountEur = ceilTo(f.minBalance - worst, Number(f.roundTo) || 0)
+      const rateThen = fxRateOn(f, today, start)
       transfers.push({
         date: start,
         amountEur: round2(amountEur),
-        amountUsd: round2(amountEur * rate),
+        amountUsd: round2(amountEur * rateThen),
+        rate: rateThen,
         reason: round2(worst),
       })
       carry = round2(carry + amountEur)
