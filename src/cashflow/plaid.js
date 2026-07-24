@@ -31,7 +31,14 @@ async function call(fn, body) {
     body: JSON.stringify(body || {}),
   })
   const json = await res.json().catch(() => ({}))
-  if (!res.ok) throw new Error(json.error || `${fn} failed (${res.status})`)
+  if (!res.ok) {
+    const bits = [json.error || `${fn} failed (${res.status})`]
+    if (json.error_code) bits.push(`[${json.error_code}]`)
+    if (json.env) bits.push(`env=${json.env}`)
+    if (json.has_client_id === false) bits.push('client id missing')
+    if (json.has_secret === false) bits.push('secret missing')
+    throw new Error(bits.join(' · '))
+  }
   return json
 }
 

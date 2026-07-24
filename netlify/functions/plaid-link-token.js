@@ -14,9 +14,7 @@ exports.handler = async (event) => {
       language: 'en',
       country_codes: ['US'],
       // Re-auth flow: pass an access_token to repair a broken connection
-      ...(access_token
-        ? { access_token }
-        : { products: ['transactions'], optional_products: ['investments'] }),
+      ...(access_token ? { access_token } : { products: ['transactions'] }),
     })
     return ok({ link_token: res.link_token, expiration: res.expiration })
   } catch (err) {

@@ -47,8 +47,20 @@ async function requireUser(event) {
 
 function fail(err) {
   const status = err.statusCode || 500
-  console.error('plaid function error:', err.message, err.plaid || '')
-  return { statusCode: status, headers: CORS, body: JSON.stringify({ error: err.message }) }
+  console.error('plaid function error:', err.message, JSON.stringify(err.plaid || {}))
+  return {
+    statusCode: status,
+    headers: CORS,
+    body: JSON.stringify({
+      error: err.message,
+      error_code: err.plaid?.error_code || null,
+      error_type: err.plaid?.error_type || null,
+      display_message: err.plaid?.display_message || null,
+      env: process.env.PLAID_ENV || 'unset',
+      has_client_id: !!process.env.PLAID_CLIENT_ID,
+      has_secret: !!process.env.PLAID_SECRET,
+    }),
+  }
 }
 
 const ok = (payload) => ({ statusCode: 200, headers: CORS, body: JSON.stringify(payload) })
