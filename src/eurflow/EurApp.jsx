@@ -32,7 +32,7 @@ export default function EurApp({ session }) {
     let alive = true
     loadEurflow(session.user.id).then((d) => { if (alive) setDoc(d || emptyEurflow(today)) })
     return () => { alive = false }
-  }, [session.user.id]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [session.user.id])
 
   useEffect(() => {
     if (!doc) return
@@ -52,7 +52,7 @@ export default function EurApp({ session }) {
       } }))
     } catch { /* keep whatever we last stored */ }
   }
-  useEffect(() => { refreshRate() }, []) // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { refreshRate() }, [])
 
   const refreshBanks = async () => {
     try {
@@ -60,7 +60,7 @@ export default function EurApp({ session }) {
       setBanks((b) => ({ ...b, accounts, error: null }))
     } catch (e) { setBanks((b) => ({ ...b, error: e.message })) }
   }
-  useEffect(() => { refreshBanks() }, [session.user.id]) // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { refreshBanks() }, [session.user.id])
 
   const plan = useMemo(
     () => doc && computeFunding(doc, today, addDays(today, 366 * 5)),
@@ -93,18 +93,14 @@ export default function EurApp({ session }) {
   const yearEur = round2(next12.reduce((s, t) => s + t.amountEur, 0))
   const yearUsd = round2(next12.reduce((s, t) => s + t.amountUsd, 0))
 
-  const realized = doc.realized || []
-  const measured = useMemo(() => {
-    const rows = realized.filter((r) => r.eur > 0 && r.usd > 0 && r.reference > 0)
-    if (!rows.length) return null
-    const spreads = rows.map((r) => ((r.usd / r.eur) / r.reference - 1) * 100)
-    return {
-      count: rows.length,
-      avgSpread: Math.round((spreads.reduce((a, b) => a + b, 0) / spreads.length) * 100) / 100,
-      lastRate: Math.round((rows.at(-1).usd / rows.at(-1).eur) * 10000) / 10000,
-    }
-  }, [realized])
+  const realizedRows = (doc.realized || []).filter((r) => r.eur > 0 && r.usd > 0 && r.reference > 0)
+  const measured = realizedRows.length ? {
+    count: realizedRows.length,
+    avgSpread: Math.round((realizedRows.map((r) => ((r.usd / r.eur) / r.reference - 1) * 100)
+      .reduce((a, b) => a + b, 0) / realizedRows.length) * 100) / 100,
+  } : null
 
+  const realized = doc.realized || []
   const addRealized = () => {
     if (!realTx.eur || !realTx.usd) return
     setDoc((d) => ({ ...d, realized: [...(d.realized || []), {
