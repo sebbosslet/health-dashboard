@@ -1,0 +1,115 @@
+import { addDays, addMonths, cmp, domIn, monthStartOf, round2 } from '../cashflow/dates'
+
+/**
+ * The EUR account has no income of its own — it is funded from USD.
+ *
+ * Rule: never let the balance fall below `minBalance`, and move money at most
+ * once per calendar month. Each month gets exactly one funding opportunity
+ * (the preferred funding day, or today if that day has already passed this
+ * month). For each window between opportunities we look at the worst balance
+ * that window would reach, and transfer just enough — rounded up — to keep the
+ * floor intact until the next opportunity.
+ */
+
+export function expandEurRule(rule, from, to) {
+  if (!rule.active) return []
+  const out = []
+  const dom = Number(rule.dueDay) || 1
+  let cursor = rule.startDate && cmp(rule.startDate, from) > 0 ? rule.startDate : from
+  let cand = domIn(cursor, dom)
+  if (cmp(cand, cursor) < 0) cand = domIn(addMonths(monthStartOf(cursor), 1), dom)
+  while (cmp(cand, to) <= 0) {
+    if ((!rule.startDate || cmp(cand, rule.startDate) >= 0) && (!rule.endDate || cmp(cand, rule.endDate) <= 0)) out.push(cand)
+    cand = domIn(addMonths(monthStartOf(cand), 1), dom)
+  }
+  return out
+}
+
+/** Every EUR event except funding: fixed payments and one-offs. */
+export function eurEvents(doc, from, to) {
+  const events = []
+  for (const r of doc.rules || []) {
+    for (const d of expandEurRule(r, from, to)) {
+      events.push({ date: d, amount: -Math.abs(Number(r.amount) || 0), description: r.name, type: 'fixed', ruleId: r.id })
+    }
+  }
+  for (const t of doc.transactions || []) {
+    if (t.skipped) continue
+    if (cmp(t.date, from) < 0 || cmp(t.date, to) > 0) continue
+    events.push({ date: t.date, amount: Number(t.amount), description: t.description || 'One-off', type: t.type || 'oneoff', ledgerId: t.id, status: t.status })
+  }
+  return events.sort((a, b) => cmp(a.date, b.date))
+}
+
+/** One funding opportunity per calendar month, never in the past. */
+function fundingDates(today, horizonEnd, fundingDay) {
+  const dates = []
+  let month = monthStartOf(today)
+  while (cmp(month, horizonEnd) <= 0) {
+    let d = domIn(month, fundingDay)
+    if (cmp(d, today) < 0) d = today            // this month's chance has passed — act now
+    if (cmp(d, horizonEnd) <= 0) dates.push(d)
+    month = addMonths(month, 1)
+  }
+  return [...new Set(dates)]
+}
+
+const ceilTo = (n, step) => (step > 0 ? Math.ceil(n / step) * step : round2(n))
+
+export function computeFunding(doc, today, horizonEnd) {
+  const f = { minBalance: 0, fundingDay: 1, roundTo: 50, fxRate: 1.08, ...(doc.funding || {}) }
+  const anchor = doc.anchor || { date: today, balance: 0 }
+  const from = cmp(anchor.date, today) < 0 ? anchor.date : today
+  const events = eurEvents(doc, from, horizonEnd)
+
+  // balance on each day with no funding at all
+  const byDate = new Map()
+  for (const e of events) byDate.set(e.date, [...(byDate.get(e.date) || []), e])
+  const base = []
+  let bal = Number(anchor.balance) || 0
+  for (let d = from; cmp(d, horizonEnd) <= 0; d = addDays(d, 1)) {
+    const evs = byDate.get(d) || []
+    bal = round2(bal + evs.reduce((s, e) => s + e.amount, 0))
+    base.push({ date: d, events: evs, unfunded: bal })
+  }
+
+  // one transfer per month, sized to hold the floor until the next one
+  const opportunities = fundingDates(today, horizonEnd, Number(f.fundingDay) || 1)
+  const transfers = []
+  let carry = 0
+  for (let i = 0; i < opportunities.length; i++) {
+    const start = opportunities[i]
+    const end = i + 1 < opportunities.length ? addDays(opportunities[i + 1], -1) : horizonEnd
+    const window = base.filter((d) => cmp(d.date, start) >= 0 && cmp(d.date, end) <= 0)
+    if (!window.length) continue
+    const worst = Math.min(...window.map((d) => d.unfunded)) + carry
+    if (worst < f.minBalance) {
+      const amountEur = ceilTo(f.minBalance - worst, Number(f.roundTo) || 0)
+      transfers.push({
+        date: start,
+        amountEur: round2(amountEur),
+        amountUsd: round2(amountEur * (Number(f.fxRate) || 1)),
+        reason: round2(worst),
+      })
+      carry = round2(carry + amountEur)
+    }
+  }
+
+  // final projection with funding applied
+  const transferOn = new Map(transfers.map((t) => [t.date, t]))
+  let running = 0
+  const days = base.map((d) => {
+    const t = transferOn.get(d.date)
+    if (t) running = round2(running + t.amountEur)
+    const balance = round2(d.unfunded + running)
+    return {
+      date: d.date,
+      events: t ? [{ date: d.date, amount: t.amountEur, description: 'Funding from USD', type: 'funding' }, ...d.events] : d.events,
+      balance,
+      belowFloor: balance < f.minBalance,
+    }
+  })
+
+  const min = days.reduce((a, b) => (b.balance < a.balance ? b : a), days[0] || { balance: 0, date: today })
+  return { days, transfers, settings: f, minBalance: min.balance, minDate: min.date }
+}

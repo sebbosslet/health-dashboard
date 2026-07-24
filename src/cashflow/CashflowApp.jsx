@@ -2,6 +2,8 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { loadCashflow, saveCashflow } from "./store";
 import { setCardBalance } from "./ops";
 import BanksTab from "./BanksTab";
+import { loadEurflow } from "../eurflow/store";
+import { computeFunding } from "../eurflow/funding";
 import "./cashflow.css";
 
 /* ============================================================
@@ -648,7 +650,7 @@ function CardCycle({ card, data, setData, today }) {
 const EVENT_LABEL = {
   paycheck: "income", recurring_instance: "fixed", implied_card_payment: "card payment",
   card_payment: "card payment", one_time_expense: "one-off", deposit: "deposit",
-  transfer: "transfer", adjustment: "adjustment",
+  transfer: "transfer", adjustment: "adjustment", eur_funding: "euro funding",
 };
 
 function Dashboard({ data, setData, projection, today }) {
@@ -2149,12 +2151,29 @@ export default function CashflowApp({ session }) {
   const [screen, setScreen] = useState("dashboard");
   const today = todayISO();
 
+  const [eurDoc, setEurDoc] = useState(null);
   const saveTimer = useRef(null);
   useEffect(() => {
     let alive = true;
     loadCashflow(session.user.id).then((d) => { if (alive) setData(d || seedData()); });
+    loadEurflow(session.user.id).then((d) => { if (alive) setEurDoc(d); });
     return () => { alive = false; };
   }, [session.user.id]);
+
+  // Funding the euro account is a real outgoing here. It is derived from the
+  // EUR plan rather than stored twice, so the two forecasts can never disagree.
+  const eurFunding = useMemo(() => {
+    if (!eurDoc) return [];
+    const horizon = addDays(today, 366 * 5);
+    return computeFunding(eurDoc, today, horizon).transfers.map((t) => ({
+      id: `eurfund-${t.date}`,
+      date: t.date,
+      amount: -Math.abs(t.amountUsd),
+      type: "eur_funding",
+      status: "scheduled",
+      description: `Fund euro account (€${t.amountEur.toFixed(0)})`,
+    }));
+  }, [eurDoc, today]);
 
   useEffect(() => {
     if (!data) return;
@@ -2174,10 +2193,10 @@ export default function CashflowApp({ session }) {
     viewStart: `${today.slice(0, 7)}-01`,
     rules: data.rules, incomes: data.incomes, cards: data.cards,
   };
-  const baseline = useMemo(() => data && project({ ...baseArgs, transactions: data.transactions }), [data, today]);
+  const baseline = useMemo(() => data && project({ ...baseArgs, transactions: [...data.transactions, ...eurFunding] }), [data, today, eurFunding]);
   const projection = useMemo(() => data && project({
-    ...baseArgs, transactions: [...data.transactions, ...simTxs], simCardCharges: activeSims,
-  }), [data, today, simTxs, activeSims]);
+    ...baseArgs, transactions: [...data.transactions, ...eurFunding, ...simTxs], simCardCharges: activeSims,
+  }), [data, today, simTxs, activeSims, eurFunding]);
 
   if (!data || !projection || !baseline) return (
     <div className="cf-root" style={{ alignItems: "center", justifyContent: "center" }}>
@@ -2192,6 +2211,7 @@ export default function CashflowApp({ session }) {
         {SCREENS.map(([id, label]) => (
           <button key={id} className={`navbtn ${screen === id ? "on" : ""}`} onClick={() => setScreen(id)}>{label}</button>
         ))}
+        <a className="navbtn" href="/eur" style={{ marginTop: 10, borderTop: "1px solid var(--line)", paddingTop: 12 }}>EUR account →</a>
         <div style={{ marginTop: "auto", padding: "0 8px" }}>
           <div className="when">{shortDate(today)} {today.slice(0, 4)}</div>
           <button className="ghost" style={{ marginTop: 8, fontSize: 12 }} onClick={() => { if (confirm("Reset all data to the demo seed?")) setData(seedData()); }}>Reset demo data</button>
