@@ -64,6 +64,25 @@ const APPS = [
       </>
     ),
   },
+  {
+    id: "attendance",
+    name: "attendance",
+    href: "/attendance",
+    tagline: "Office days, RTO compliance and PTO",
+    blurb: "Log each day as office, remote, PTO, sick or holiday; track the 60% target month by month.",
+    accent: "#1C1C1E",
+    stats: [
+      { label: "Target", value: "60% office" },
+      { label: "View", value: "month · year" },
+    ],
+    icon: (
+      <>
+        <rect x="4" y="5" width="16" height="16" rx="2" fill="none" strokeWidth="1.8" />
+        <path d="M4 9h16M8 3v4M16 3v4" fill="none" strokeWidth="1.8" strokeLinecap="round" />
+        <rect x="7.5" y="12" width="3" height="3" rx="0.5" fill="currentColor" stroke="none" />
+      </>
+    ),
+  },
 ];
 
 

@@ -11,6 +11,7 @@ const MainApp = lazy(() => import('./pages/MainApp'))
 const TripApp = lazy(() => import('./trip/TripApp'))
 const CashflowApp = lazy(() => import('./cashflow/CashflowApp'))
 const EurApp = lazy(() => import('./eurflow/EurApp'))
+const AttendanceApp = lazy(() => import('./attendance/AttendanceApp'))
 
 const TRIP_EMAILS = ['trip@sebs.health']
 
@@ -83,6 +84,7 @@ export default function App() {
           <Route path="/travel" element={<TripApp session={session} />} />
           <Route path="/cashflow" element={<CashflowApp session={session} />} />
           <Route path="/eur" element={<EurApp session={session} />} />
+          <Route path="/attendance" element={<AttendanceApp session={session} />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
         </Suspense>
