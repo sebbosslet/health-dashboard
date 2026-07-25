@@ -105,14 +105,9 @@ function computePaycheck(annualSalary, p) {
   const state = round2(stateBase + extraState);
   const car = perCheck(p.carMonthly);
   const legal = n(p.legal), hospital = n(p.hospital), critical = n(p.critical), accident = n(p.accident);
-  // 401(k) loan repayment: post-tax money. The principal returns to the 401(k)
-  // balance; only the interest is a true cost (though it too lands in your own
-  // account). We track them separately so the balance projection can add the
-  // principal back.
+  // 401(k) loan repayment: a post-tax deduction on the paycheck only. It does
+  // not touch the 401(k) balance — that comes straight from Plaid.
   const loanRepay = n(p.loanRepay);
-  const loanRate = n(p.loanRatePct) / 100;
-  const loanInterest = round2(loanRepay * loanRate / (1 + loanRate));
-  const loanPrincipal = round2(loanRepay - loanInterest);
   const postTax = roth + car + legal + hospital + critical + accident + loanRepay;
   const taxes = round2(fed + ss + medicare + state);
   const net = round2(gross - taxes - k401 - sec125 - postTax);
@@ -120,7 +115,7 @@ function computePaycheck(annualSalary, p) {
     annualSalary: n(annualSalary), regular, stipend, gross, k401, roth, match,
     hsa, medical, dental, vision, sec125: round2(sec125), fedTaxable, ficaBase,
     fed, fedBase, extraFed, ss, medicare, state, stateBase, extraState, taxes, car, legal, hospital, critical, accident,
-    loanRepay, loanPrincipal, loanInterest,
+    loanRepay,
     postTax: round2(postTax), net, fedAnnualTaxable: round2(fedAnnualTaxable),
   };
 }
@@ -131,7 +126,7 @@ const DEFAULT_PAYROLL = {
   hsa: 155.77, medical: 38.07, dental: 5.31, vision: 3.23,
   legal: 7.85, hospital: 4.84, critical: 4.80, accident: 2.30,
   imputedLife: 8.39, extraFed: 60, extraState: 20,
-  loanRepay: 0, loanRatePct: 0,
+  loanRepay: 0,
 };
 
 // Older saves stored stipend/car as per-check figures — migrate to monthly.
@@ -457,7 +452,7 @@ function contributionFor(asset, incomes) {
   const latest = [...(incomes || [])].sort((a, b) => cmp(b.effectiveDate, a.effectiveDate))[0];
   const b = latest && latest.breakdown;
   if (!b) return 0;
-  if (asset.kind === "retirement") return round2((Number(b.k401 || 0) + Number(b.roth || 0) + Number(b.match || 0) + Number(b.loanPrincipal || 0)) * PERIODS / 12);
+  if (asset.kind === "retirement") return round2((Number(b.k401 || 0) + Number(b.roth || 0) + Number(b.match || 0)) * PERIODS / 12);
   if (asset.kind === "hsa") return round2(Number(b.hsa || 0) * PERIODS / 12);
   return 0;
 }
@@ -1882,7 +1877,6 @@ function SalaryModal({ data, setData, today, onClose }) {
                   <Field lab="Add'l federal /check"><input type="number" value={p.extraFed} onChange={setP_("extraFed")} /></Field>
                   <Field lab="Add'l state /check"><input type="number" value={p.extraState} onChange={setP_("extraState")} /></Field>
                   <Field lab="401(k) loan /check"><input type="number" value={p.loanRepay} onChange={setP_("loanRepay")} /></Field>
-                  <Field lab="Loan rate %"><input type="number" step="0.1" value={p.loanRatePct} onChange={setP_("loanRatePct")} /></Field>
                 </div>
               )}
               <div style={{ fontSize: 12, color: "var(--faint)", marginTop: 8 }}>
@@ -1978,7 +1972,6 @@ function contributionDetail(kind, incomes) {
       { label: "Pre-tax 401(k)", perCheck: Number(b.k401 || 0) },
       { label: "Roth 401(k)", perCheck: Number(b.roth || 0) },
       { label: "Employer match", perCheck: Number(b.match || 0) },
-      { label: "Loan principal repaid", perCheck: Number(b.loanPrincipal || 0) },
     ].filter((l) => l.perCheck > 0);
     return { lines, salary: latest.annualSalary };
   }
