@@ -96,9 +96,13 @@ function computePaycheck(annualSalary, p) {
   const ss = round2(ficaBase * 0.062);
   const medicare = round2(ficaBase * 0.0145);
   const fedAnnualTaxable = Math.max(0, fedTaxable * PERIODS - FED_STD);
-  const fed = round2(taxFromBrackets(fedAnnualTaxable, FED_BRACKETS) / PERIODS + n(p.extraFed));
+  const fedBase = round2(taxFromBrackets(fedAnnualTaxable, FED_BRACKETS) / PERIODS);
+  const extraFed = n(p.extraFed);
+  const fed = round2(fedBase + extraFed);
   const vaAnnualTaxable = Math.max(0, fedTaxable * PERIODS - VA_STD);
-  const state = round2(taxFromBrackets(vaAnnualTaxable, VA_BRACKETS) / PERIODS + n(p.extraState));
+  const stateBase = round2(taxFromBrackets(vaAnnualTaxable, VA_BRACKETS) / PERIODS);
+  const extraState = n(p.extraState);
+  const state = round2(stateBase + extraState);
   const car = perCheck(p.carMonthly);
   const legal = n(p.legal), hospital = n(p.hospital), critical = n(p.critical), accident = n(p.accident);
   const postTax = roth + car + legal + hospital + critical + accident;
@@ -107,7 +111,7 @@ function computePaycheck(annualSalary, p) {
   return {
     annualSalary: n(annualSalary), regular, stipend, gross, k401, roth, match,
     hsa, medical, dental, vision, sec125: round2(sec125), fedTaxable, ficaBase,
-    fed, ss, medicare, state, taxes, car, legal, hospital, critical, accident,
+    fed, fedBase, extraFed, ss, medicare, state, stateBase, extraState, taxes, car, legal, hospital, critical, accident,
     postTax: round2(postTax), net, fedAnnualTaxable: round2(fedAnnualTaxable),
   };
 }
@@ -546,13 +550,21 @@ function toggleCardCharge(d, charge) {
 }
 
 /** Confirm / skip a checking event that should already have happened. */
-function confirmCashEvent(d, e, skipped) {
+function confirmCashEvent(d, e, skipped, actualAmount) {
+  const amount = actualAmount != null && !isNaN(+actualAmount) ? Number(actualAmount) : e.amount;
+  // Editing an existing ledger row: keep it, just update status / real amount.
   if (e.ledgerId) return { ...d, transactions: d.transactions.map((t) =>
-    t.id === e.ledgerId ? { ...t, ...(skipped ? { skipped: true } : { status: "paid" }) } : t) };
+    t.id === e.ledgerId
+      ? { ...t, amount, status: skipped ? t.status : "paid", ...(skipped ? { skipped: true } : {}) }
+      : t) };
+  // Materialising a virtual event (recurring instance or a projected paycheck)
+  // as a real, dated transaction at the amount that actually happened.
   return { ...d, transactions: [...d.transactions, {
-    id: uid(), date: e.date, amount: e.amount, type: "recurring_instance",
+    id: uid(), date: e.date, amount, type: e.type === "paycheck" ? "paycheck" : "recurring_instance",
     status: skipped ? "scheduled" : "paid", skipped, description: e.description,
-    recurringExpenseId: e.recurringExpenseId, occurrenceDate: e.date,
+    recurringExpenseId: e.recurringExpenseId,
+    ...(e.type === "paycheck" ? {} : { occurrenceDate: e.date }),
+    ...(actualAmount != null && Number(actualAmount) !== Number(e.amount) ? { planned: e.amount } : {}),
   }] };
 }
 
@@ -657,6 +669,53 @@ function CardCycle({ card, data, setData, today }) {
   );
 }
 
+/** One row in the confirm queue. Checking events allow correcting the amount
+    to what actually happened before confirming; cards just post or skip. */
+function ConfirmRow({ item, onConfirm, onDismiss }) {
+  const [editing, setEditing] = useState(false);
+  const [val, setVal] = useState(Math.abs(Number(item.amount)).toFixed(2));
+  if (item.kind === "card") {
+    return (
+      <div className="row">
+        <div style={{ flex: 1 }}>
+          <span>{item.name}</span><span className="tag">{item.cardName}</span>
+          <div className="when">{shortDate(item.date)}</div>
+        </div>
+        <span className="amt">{money(item.amount)}</span>
+        <button onClick={() => onConfirm(item)}>Posted</button>
+        <button className="ghost" onClick={() => onDismiss(item)}>Didn’t happen</button>
+      </div>
+    );
+  }
+  const sign = Number(item.amount) < 0 ? -1 : 1;
+  return (
+    <div className="row">
+      <div style={{ flex: 1 }}>
+        <span>{item.description}</span><span className="tag">checking</span>
+        <div className="when">{shortDate(item.date)}{item.type === "paycheck" ? " · planned net" : ""}</div>
+      </div>
+      {editing ? (
+        <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+          <span className="when">actual</span>
+          <input type="number" step="0.01" value={val} onChange={(e) => setVal(e.target.value)}
+            style={{ width: 104 }} autoFocus />
+          <button className="primary" onClick={() => onConfirm(item, sign * Math.abs(+val))}>Confirm</button>
+          <button className="ghost" onClick={() => setEditing(false)}>Cancel</button>
+        </div>
+      ) : (
+        <>
+          <span className="amt">{signed(item.amount)}</span>
+          <button onClick={() => onConfirm(item)}>{sign > 0 ? "Received" : "Paid"}</button>
+          <button className="ghost" onClick={() => { setVal(Math.abs(Number(item.amount)).toFixed(2)); setEditing(true); }}>
+            Different amount
+          </button>
+          <button className="ghost" onClick={() => onDismiss(item)}>Didn’t happen</button>
+        </>
+      )}
+    </div>
+  );
+}
+
 /* ---------------- dashboard: the month timeline ---------------- */
 const EVENT_LABEL = {
   paycheck: "income", recurring_instance: "fixed", implied_card_payment: "card payment",
@@ -710,8 +769,8 @@ function Dashboard({ data, setData, projection, today }) {
     ...cardAwaiting,
   ].sort((x, y) => cmp(x.date, y.date));
 
-  const confirm_ = (item) => setData((d) => item.kind === "card"
-    ? toggleCardCharge(d, item) : confirmCashEvent(d, item, false));
+  const confirm_ = (item, actual) => setData((d) => item.kind === "card"
+    ? toggleCardCharge(d, item) : confirmCashEvent(d, item, false, actual));
   const dismiss = (item) => setData((d) => item.kind === "card"
     ? { ...d, transactions: [...d.transactions, { id: uid(), type: "card_charge", chargeKey: item.key,
         creditCardId: item.cardId, date: item.date, amount: 0, description: item.name,
@@ -778,18 +837,7 @@ function Dashboard({ data, setData, projection, today }) {
             </div>
             <span className="tag overdue">{queue.length}</span>
           </div>
-          {queue.map((item, i) => (
-            <div className="row" key={i}>
-              <div style={{ flex: 1 }}>
-                <span>{item.kind === "card" ? item.name : item.description}</span>
-                <span className="tag">{item.kind === "card" ? item.cardName : "checking"}</span>
-                <div className="when">{shortDate(item.date)}</div>
-              </div>
-              <span className="amt">{item.kind === "card" ? money(item.amount) : signed(item.amount)}</span>
-              <button onClick={() => confirm_(item)}>{item.kind === "card" ? "Posted" : "Paid"}</button>
-              <button className="ghost" onClick={() => dismiss(item)}>Didn’t happen</button>
-            </div>
-          ))}
+          {queue.map((item, i) => <ConfirmRow key={i} item={item} onConfirm={confirm_} onDismiss={dismiss} />)}
         </section>
       )}
 
@@ -1773,10 +1821,14 @@ function SalaryModal({ data, setData, today, onClose }) {
                 <Line label={`Stipend (${money0(p.stipendMonthly)}/mo)`} cur={cur?.stipend} next={next.stipend} />
                 <Line label="Gross pay" cur={cur?.gross} next={next.gross} bold />
                 <tr className="sect"><td colSpan={3}>Statutory deductions</td></tr>
-                <Line label="Federal income tax" cur={cur?.fed} next={next.fed} negative />
+                <Line label="Federal income tax" cur={cur?.fedBase} next={next.fedBase} negative />
+                {(Number(p.extraFed) > 0 || (cur && cur.extraFed > 0)) &&
+                  <Line label="Additional federal withholding" cur={cur?.extraFed} next={next.extraFed} negative />}
                 <Line label="Social Security" cur={cur?.ss} next={next.ss} negative />
                 <Line label="Medicare" cur={cur?.medicare} next={next.medicare} negative />
-                <Line label="VA state income tax" cur={cur?.state} next={next.state} negative />
+                <Line label="VA state income tax" cur={cur?.stateBase} next={next.stateBase} negative />
+                {(Number(p.extraState) > 0 || (cur && cur.extraState > 0)) &&
+                  <Line label="Additional state withholding" cur={cur?.extraState} next={next.extraState} negative />}
                 <tr className="sect"><td colSpan={3}>Pre-tax benefits</td></tr>
                 <Line label={`401(k) — ${p.k401Pct}% of base`} cur={cur?.k401} next={next.k401} negative />
                 <Line label="HSA" cur={cur?.hsa} next={next.hsa} negative />
@@ -1815,8 +1867,8 @@ function SalaryModal({ data, setData, today, onClose }) {
                   <Field lab="Critical illness"><input type="number" value={p.critical} onChange={setP_("critical")} /></Field>
                   <Field lab="Accident"><input type="number" value={p.accident} onChange={setP_("accident")} /></Field>
                   <Field lab="Imputed life"><input type="number" value={p.imputedLife} onChange={setP_("imputedLife")} /></Field>
-                  <Field lab="Extra federal"><input type="number" value={p.extraFed} onChange={setP_("extraFed")} /></Field>
-                  <Field lab="Extra state"><input type="number" value={p.extraState} onChange={setP_("extraState")} /></Field>
+                  <Field lab="Add'l federal /check"><input type="number" value={p.extraFed} onChange={setP_("extraFed")} /></Field>
+                  <Field lab="Add'l state /check"><input type="number" value={p.extraState} onChange={setP_("extraState")} /></Field>
                 </div>
               )}
               <div style={{ fontSize: 12, color: "var(--faint)", marginTop: 8 }}>
