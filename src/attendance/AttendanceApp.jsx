@@ -7,6 +7,7 @@ const DAY_TYPES = {
   remote: { label: "Remote", color: "#1565C0", bg: "#DBEAFE", accent: "#3B82F6", emoji: "🏠" },
   pto: { label: "PTO", color: "#7B2D8B", bg: "#F3E8FF", accent: "#A855F7", emoji: "🌴" },
   sick: { label: "Sick Day", color: "#C0392B", bg: "#FEE2E2", accent: "#EF4444", emoji: "🤒" },
+  medical: { label: "Medical Leave", color: "#0F766E", bg: "#CCFBF1", accent: "#14B8A6", emoji: "🩺" },
   holiday: { label: "Holiday", color: "#B45309", bg: "#FEF3C7", accent: "#F59E0B", emoji: "🎉" },
   none: { label: "Unlogged", color: "#6B7280", bg: "#F3F4F6", accent: "#D1D5DB", emoji: "" },
 };
@@ -105,7 +106,7 @@ function getUSHolidays(year) {
 
 function computeMonthStats(year, month, data) {
   const daysInMonth = getDaysInMonth(year, month);
-  let workdays = 0, office = 0, remote = 0, pto = 0, sick = 0, holiday = 0, unlogged = 0;
+  let workdays = 0, office = 0, remote = 0, pto = 0, sick = 0, medical = 0, holiday = 0, unlogged = 0;
   for (let d = 1; d <= daysInMonth; d++) {
     if (isWeekend(year, month, d)) continue;
     const key = toKey(year, month, d);
@@ -116,11 +117,12 @@ function computeMonthStats(year, month, data) {
     else if (type === "remote") remote++;
     else if (type === "pto") pto++;
     else if (type === "sick") sick++;
+    else if (type === "medical") medical++;
     else unlogged++;
   }
-  const eligibleDays = workdays - pto - sick;
+  const eligibleDays = workdays - pto - sick - medical;
   const pct = eligibleDays > 0 ? Math.round((office / eligibleDays) * 100) : 0;
-  return { workdays, office, remote, pto, sick, holiday, unlogged, eligibleDays, pct };
+  return { workdays, office, remote, pto, sick, medical, holiday, unlogged, eligibleDays, pct };
 }
 
 export default function AttendanceApp({ session }) {
@@ -280,7 +282,7 @@ export default function AttendanceApp({ session }) {
         const type = data[key] || "none";
         if (type === "holiday") continue;
         eligible++;
-        if (type === "pto" || type === "sick") { eligible--; continue; }
+        if (type === "pto" || type === "sick" || type === "medical") { eligible--; continue; }
         if (type === "office") office++;
       }
     }
@@ -610,7 +612,8 @@ export default function AttendanceApp({ session }) {
                 { label: "Remote", val: yearStats.reduce((a,r)=>a+r.remote,0), color: "#3B82F6" },
                 { label: "PTO", val: yearStats.reduce((a,r)=>a+r.pto,0), color: "#A855F7" },
                 { label: "Sick", val: yearStats.reduce((a,r)=>a+r.sick,0), color: "#EF4444" },
-              ].map(({ label, val, color }) => (
+                { label: "Medical", val: yearStats.reduce((a,r)=>a+r.medical,0), color: "#14B8A6" },
+              ].filter(t => t.label !== "Medical" || t.val > 0).map(({ label, val, color }) => (
                 <div key={label} style={{ textAlign: "center" }}>
                   <div style={{ color, fontWeight: 800, fontSize: 22, fontFamily: "DM Mono, monospace" }}>{val}</div>
                   <div style={{ color: "#6B7280", fontSize: 11, fontWeight: 500 }}>{label}</div>
@@ -621,8 +624,8 @@ export default function AttendanceApp({ session }) {
 
           {/* Monthly rows */}
           <div style={{ background: "white", borderRadius: 16, overflow: "hidden", boxShadow: "0 2px 12px rgba(0,0,0,0.06)" }}>
-            <div style={{ display: "grid", gridTemplateColumns: "120px 1fr 80px 80px 70px 70px 70px 90px", padding: "10px 20px", borderBottom: "1px solid #F3F4F6", gap: 8 }}>
-              {["Month", "Compliance", "🏢 Office", "🏠 Remote", "🌴 PTO", "🤒 Sick", "🎉 Hols", "Status"].map(h => (
+            <div style={{ display: "grid", gridTemplateColumns: "120px 1fr 80px 80px 66px 66px 66px 66px 90px", padding: "10px 20px", borderBottom: "1px solid #F3F4F6", gap: 8 }}>
+              {["Month", "Compliance", "🏢 Office", "🏠 Remote", "🌴 PTO", "🤒 Sick", "🩺 Med", "🎉 Hols", "Status"].map(h => (
                 <div key={h} style={{ fontSize: 11, fontWeight: 700, color: "#9CA3AF", letterSpacing: "0.05em" }}>{h}</div>
               ))}
             </div>
@@ -643,7 +646,7 @@ export default function AttendanceApp({ session }) {
                 <div key={row.month}
                   onClick={() => { setMonth(idx); setView("calendar"); }}
                   style={{
-                    display: "grid", gridTemplateColumns: "120px 1fr 80px 80px 70px 70px 70px 90px",
+                    display: "grid", gridTemplateColumns: "120px 1fr 80px 80px 66px 66px 66px 66px 90px",
                     padding: "12px 20px", gap: 8, cursor: "pointer",
                     background: isCurrentMonth ? "#F0FDF4" : (idx % 2 === 0 ? "white" : "#FAFAFA"),
                     borderBottom: "1px solid #F3F4F6",
@@ -674,6 +677,7 @@ export default function AttendanceApp({ session }) {
                   <div style={{ fontSize: 14, fontWeight: 600, fontFamily: "DM Mono, monospace", color: "#1565C0" }}>{showBlank ? "—" : row.remote}</div>
                   <div style={{ fontSize: 14, fontWeight: 600, fontFamily: "DM Mono, monospace", color: "#7B2D8B" }}>{showBlank ? "—" : row.pto}</div>
                   <div style={{ fontSize: 14, fontWeight: 600, fontFamily: "DM Mono, monospace", color: "#C0392B" }}>{showBlank ? "—" : row.sick}</div>
+                  <div style={{ fontSize: 14, fontWeight: 600, fontFamily: "DM Mono, monospace", color: "#0F766E" }}>{showBlank ? "—" : row.medical}</div>
                   <div style={{ fontSize: 14, fontWeight: 600, fontFamily: "DM Mono, monospace", color: "#B45309" }}>{showBlank ? "—" : row.holiday}</div>
                   <div style={{
                     display: "inline-flex", alignItems: "center", justifyContent: "center",
