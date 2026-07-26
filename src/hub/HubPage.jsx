@@ -83,9 +83,50 @@ const APPS = [
       </>
     ),
   },
+  {
+    id: "home",
+    name: "home",
+    href: "/home",
+    external: true,
+    tagline: "SwitchBot temperature & humidity",
+    blurb: "Live readings from the SwitchBot sensors, recent history and comfort status at a glance.",
+    accent: "#0284C7",
+    stats: [
+      { label: "Source", value: "SwitchBot" },
+      { label: "Updates", value: "live" },
+    ],
+    icon: (
+      <>
+        <path d="M4 12l8-7 8 7" fill="none" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+        <path d="M6 10.5V19h12v-8.5" fill="none" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+      </>
+    ),
+  },
 ];
 
 
+
+function CardBody({ a }) {
+  return (
+    <>
+      <div className="badge">
+        <svg width="22" height="22" viewBox="0 0 24 24" stroke={a.accent} fill="none">{a.icon}</svg>
+      </div>
+      <div className="cname"><b>sebs.</b>{a.name}</div>
+      <div className="ctag">{a.tagline}</div>
+      <div className="cblurb">{a.blurb}</div>
+      <div className="cstats">
+        {a.stats.map((s) => (
+          <div className="cstat" key={s.label}>
+            <div className="l">{s.label}</div>
+            <div className="v">{s.value}</div>
+          </div>
+        ))}
+      </div>
+      <div className="enter">Open →</div>
+    </>
+  );
+}
 
 export default function HubPage({ session }) {
   const now = useMemo(() => new Date().toLocaleDateString("en-US", {
@@ -108,25 +149,11 @@ export default function HubPage({ session }) {
         </header>
 
         <div className="cards">
-          {APPS.map((a) => (
-            <Link className="card" key={a.id} to={a.href}>
-              <div className="badge">
-                <svg width="22" height="22" viewBox="0 0 24 24" stroke={a.accent} fill="none">{a.icon}</svg>
-              </div>
-              <div className="cname"><b>sebs.</b>{a.name}</div>
-              <div className="ctag">{a.tagline}</div>
-              <div className="cblurb">{a.blurb}</div>
-              <div className="cstats">
-                {a.stats.map((s) => (
-                  <div className="cstat" key={s.label}>
-                    <div className="l">{s.label}</div>
-                    <div className="v">{s.value}</div>
-                  </div>
-                ))}
-              </div>
-              <div className="enter">Open →</div>
-            </Link>
-          ))}
+          {APPS.map((a) => (a.external ? (
+            <a className="card" key={a.id} href={a.href}><CardBody a={a} /></a>
+          ) : (
+            <Link className="card" key={a.id} to={a.href}><CardBody a={a} /></Link>
+          )))}
         </div>
 
         <footer className="foot">

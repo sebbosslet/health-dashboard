@@ -3,6 +3,13 @@
   publish = "dist"
   functions = "netlify/functions"
 
+# Clean route for the standalone SwitchBot monitor (must precede the SPA catch-all)
+[[redirects]]
+  from = "/home"
+  to = "/temp-monitor.html"
+  status = 200
+
+# SPA fallback for the React app — keep last so specific rules win
 [[redirects]]
   from = "/*"
   to = "/index.html"
