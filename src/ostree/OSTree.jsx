@@ -9,6 +9,21 @@ import { loadOstree, saveOstree } from "./store";
 // Click any status chip to cycle: idea → planned → doing → tried → idea
 // ────────────────────────────────────────────────────────────
 
+function defaultDoc() {
+  return {
+    outcome: DEFAULT_OUTCOME,
+    branches: DEFAULT_TREE.map((b, bi) => ({
+      id: b.id, title: b.title, subtitle: b.subtitle, sort: bi + 1,
+      opportunities: b.opportunities.map((o, oi) => ({
+        id: o.id, problem: o.problem, sort: oi + 1,
+        solutions: o.solutions.map((sol, si) => ({
+          id: sol.id, label: sol.label, status: sol.seed || "idea", sort: si + 1,
+        })),
+      })),
+    })),
+  };
+}
+
 const STATUSES = ["idea", "planned", "doing", "tried"];
 const STATUS_META = {
   idea:    { label: "Idea",    bg: "#ECEAE4", fg: "#5F5E5A" },
@@ -17,12 +32,12 @@ const STATUS_META = {
   tried:   { label: "Tried",   bg: "#FAEEDA", fg: "#854F0B" },
 };
 
-const OUTCOME = {
+const DEFAULT_OUTCOME = {
   title: "Grow recurring Audi Connect revenue",
   meta: "Prime $36/mo · $360/yr — Plus $49/mo · $490/yr · App + dealer (all used cars) · One-time 6-month trial per VIN · Max 20% discount",
 };
 
-const TREE = [
+const DEFAULT_TREE = [
   {
     id: "sales",
     title: "Increase new sales",
@@ -161,20 +176,8 @@ const TREE = [
   },
 ];
 
-function seedDefaults() {
-  const seeded = {};
-  TREE.forEach((b) =>
-    b.opportunities.forEach((o) =>
-      o.solutions.forEach((s) => {
-        if (s.seed) seeded[s.id] = s.seed;
-      })
-    )
-  );
-  return seeded;
-}
-
 export default function OSTree({ session }) {
-  const [statuses, setStatuses] = useState(() => seedDefaults());
+  const [doc, setDoc] = useState(null);
   const [filter, setFilter] = useState(null);
   const loaded = useRef(false);
   const saveTimer = useRef(null);
@@ -182,46 +185,66 @@ export default function OSTree({ session }) {
   useEffect(() => {
     let alive = true;
     loadOstree(session.user.id).then((stored) => {
-      if (alive) { setStatuses({ ...seedDefaults(), ...(stored || {}) }); loaded.current = true; }
+      if (!alive) return;
+      // A stored doc with branches wins; otherwise fall back to the built-in tree.
+      setDoc(stored && stored.branches ? stored : defaultDoc());
+      loaded.current = true;
     });
     return () => { alive = false; };
   }, [session.user.id]);
 
   useEffect(() => {
-    if (!loaded.current) return;
+    if (!loaded.current || !doc) return;
     clearTimeout(saveTimer.current);
-    saveTimer.current = setTimeout(() => saveOstree(session.user.id, statuses), 500);
+    saveTimer.current = setTimeout(() => saveOstree(session.user.id, doc), 500);
     return () => clearTimeout(saveTimer.current);
-  }, [statuses, session.user.id]);
+  }, [doc, session.user.id]);
 
-  const cycle = (id) => {
-    setStatuses((prev) => {
-      const current = prev[id] || "idea";
-      const next = STATUSES[(STATUSES.indexOf(current) + 1) % STATUSES.length];
-      return { ...prev, [id]: next };
-    });
+  const cycle = (solId) => {
+    setDoc((prev) => ({
+      ...prev,
+      branches: prev.branches.map((b) => ({
+        ...b,
+        opportunities: b.opportunities.map((o) => ({
+          ...o,
+          solutions: o.solutions.map((sol) => sol.id === solId
+            ? { ...sol, status: STATUSES[(STATUSES.indexOf(sol.status || "idea") + 1) % STATUSES.length] }
+            : sol),
+        })),
+      })),
+    }));
   };
+
+  const branches = useMemo(() => {
+    if (!doc) return [];
+    const bySort = (a, b) => (a.sort ?? 0) - (b.sort ?? 0);
+    return [...doc.branches].sort(bySort).map((b) => ({
+      ...b,
+      opportunities: [...b.opportunities].sort(bySort).map((o) => ({
+        ...o, solutions: [...o.solutions].sort(bySort),
+      })),
+    }));
+  }, [doc]);
 
   const counts = useMemo(() => {
     const c = { idea: 0, planned: 0, doing: 0, tried: 0 };
-    TREE.forEach((b) =>
-      b.opportunities.forEach((o) =>
-        o.solutions.forEach((s) => {
-          c[statuses[s.id] || "idea"] += 1;
-        })
-      )
-    );
+    branches.forEach((b) => b.opportunities.forEach((o) => o.solutions.forEach((s) => {
+      c[s.status || "idea"] += 1;
+    })));
     return c;
-  }, [statuses]);
+  }, [branches]);
 
   const exportJson = () => {
-    const blob = new Blob([JSON.stringify(statuses, null, 2)], { type: "application/json" });
+    const blob = new Blob([JSON.stringify(doc, null, 2)], { type: "application/json" });
     const a = document.createElement("a");
     a.href = URL.createObjectURL(blob);
-    a.download = "ostree-status.json";
+    a.download = "ostree.json";
     a.click();
     URL.revokeObjectURL(a.href);
   };
+
+  if (!doc) return <div className="ost"><style>{css}</style><p className="ost-meta" style={{ textAlign: "center", marginTop: "3rem" }}>Loading…</p></div>;
+  const outcome = doc.outcome || DEFAULT_OUTCOME;
 
   return (
     <div className="ost">
@@ -230,8 +253,8 @@ export default function OSTree({ session }) {
       <header className="ost-header">
         <button className="ost-signout" onClick={() => import("../lib/supabase").then(m => m.supabase.auth.signOut())}>Sign out</button>
         <p className="ost-eyebrow">Opportunity solution tree</p>
-        <h1>{OUTCOME.title}</h1>
-        <p className="ost-meta">{OUTCOME.meta}</p>
+        <h1>{outcome.title}</h1>
+        <p className="ost-meta">{outcome.meta}</p>
       </header>
 
       <div className="ost-toolbar" role="toolbar" aria-label="Filter by status">
@@ -251,7 +274,7 @@ export default function OSTree({ session }) {
       <div className="ost-trunk" aria-hidden="true" />
 
       <div className="ost-branches">
-        {TREE.map((branch) => (
+        {branches.map((branch) => (
           <section key={branch.id} className="ost-branch">
             <div className="ost-branch-head">
               <h2>{branch.title}</h2>
@@ -260,7 +283,7 @@ export default function OSTree({ session }) {
 
             {branch.opportunities.map((opp) => {
               const visible = filter
-                ? opp.solutions.some((s) => (statuses[s.id] || "idea") === filter)
+                ? opp.solutions.some((s) => (s.status || "idea") === filter)
                 : true;
               if (!visible) return null;
               return (
@@ -268,7 +291,7 @@ export default function OSTree({ session }) {
                   <p className="ost-problem">{opp.problem}</p>
                   <ul>
                     {opp.solutions.map((sol) => {
-                      const st = statuses[sol.id] || "idea";
+                      const st = sol.status || "idea";
                       const dim = filter && st !== filter;
                       return (
                         <li key={sol.id} className={dim ? "is-dim" : ""}>
