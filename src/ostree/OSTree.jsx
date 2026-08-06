@@ -176,9 +176,39 @@ const DEFAULT_TREE = [
   },
 ];
 
+function ProblemEditor({ initial, onSave, onCancel }) {
+  const [v, setV] = useState(initial);
+  return (
+    <div className="ost-editor">
+      <textarea className="ost-textarea" value={v} autoFocus rows={2}
+        onChange={(e) => setV(e.target.value)}
+        onKeyDown={(e) => { if (e.key === "Escape") onCancel(); if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) onSave(v); }} />
+      <div className="ost-editor-btns">
+        <button className="ost-save" onClick={() => onSave(v)}>Save</button>
+        <button className="ost-cancel" onClick={onCancel}>Cancel</button>
+      </div>
+    </div>
+  );
+}
+
+function SolutionEditor({ initial, onSave, onCancel }) {
+  const [v, setV] = useState(initial);
+  return (
+    <span className="ost-editor inline">
+      <input className="ost-input" value={v} autoFocus
+        onChange={(e) => setV(e.target.value)}
+        onKeyDown={(e) => { if (e.key === "Escape") onCancel(); if (e.key === "Enter") onSave(v); }} />
+      <button className="ost-save" onClick={() => onSave(v)}>Save</button>
+      <button className="ost-cancel" onClick={onCancel}>Cancel</button>
+    </span>
+  );
+}
+
 export default function OSTree({ session }) {
   const [doc, setDoc] = useState(null);
   const [filter, setFilter] = useState(null);
+  const [editingProblem, setEditingProblem] = useState(null);
+  const [editingSolution, setEditingSolution] = useState(null);
   const loaded = useRef(false);
   const saveTimer = useRef(null);
 
@@ -215,6 +245,53 @@ export default function OSTree({ session }) {
     }));
   };
 
+  // ---- editing: every change is an immutable update to the doc ----
+  const mutate = (fn) => setDoc((prev) => fn(structuredClone(prev)));
+
+  const setStatus = (solId, status) => mutate((d) => {
+    for (const b of d.branches) for (const o of b.opportunities)
+      for (const sol of o.solutions) if (sol.id === solId) sol.status = status;
+    return d;
+  });
+
+  const editSolution = (solId, label) => mutate((d) => {
+    for (const b of d.branches) for (const o of b.opportunities)
+      for (const sol of o.solutions) if (sol.id === solId) sol.label = label;
+    return d;
+  });
+
+  const deleteSolution = (solId) => mutate((d) => {
+    for (const b of d.branches) for (const o of b.opportunities)
+      o.solutions = o.solutions.filter((sol) => sol.id !== solId);
+    return d;
+  });
+
+  const addSolution = (oppId) => mutate((d) => {
+    for (const b of d.branches) for (const o of b.opportunities) if (o.id === oppId) {
+      const maxSort = Math.max(0, ...o.solutions.map((x) => x.sort ?? 0));
+      o.solutions.push({ id: `sol-${Date.now().toString(36)}`, label: "New solution", status: "idea", sort: maxSort + 1 });
+    }
+    return d;
+  });
+
+  const editProblem = (oppId, problem) => mutate((d) => {
+    for (const b of d.branches) for (const o of b.opportunities) if (o.id === oppId) o.problem = problem;
+    return d;
+  });
+
+  const deleteOpportunity = (oppId) => mutate((d) => {
+    for (const b of d.branches) b.opportunities = b.opportunities.filter((o) => o.id !== oppId);
+    return d;
+  });
+
+  const addOpportunity = (branchId) => mutate((d) => {
+    for (const b of d.branches) if (b.id === branchId) {
+      const maxSort = Math.max(0, ...b.opportunities.map((x) => x.sort ?? 0));
+      b.opportunities.push({ id: `opp-${Date.now().toString(36)}`, problem: "New problem statement", sort: maxSort + 1, solutions: [] });
+    }
+    return d;
+  });
+
   const branches = useMemo(() => {
     if (!doc) return [];
     const bySort = (a, b) => (a.sort ?? 0) - (b.sort ?? 0);
@@ -249,6 +326,7 @@ export default function OSTree({ session }) {
   return (
     <div className="ost">
       <style>{css}</style>
+      <div className="ost-inner">
 
       <header className="ost-header">
         <button className="ost-signout" onClick={() => import("../lib/supabase").then(m => m.supabase.auth.signOut())}>Sign out</button>
@@ -288,38 +366,75 @@ export default function OSTree({ session }) {
               if (!visible) return null;
               return (
                 <div key={opp.id} className="ost-opp">
-                  <p className="ost-problem">{opp.problem}</p>
+                  <div className="ost-problem-row">
+                    {editingProblem === opp.id ? (
+                      <ProblemEditor
+                        initial={opp.problem}
+                        onSave={(v) => { editProblem(opp.id, v); setEditingProblem(null); }}
+                        onCancel={() => setEditingProblem(null)}
+                      />
+                    ) : (
+                      <>
+                        <p className="ost-problem">{opp.problem}</p>
+                        <div className="ost-rowtools">
+                          <button className="ost-icon" title="Edit problem" onClick={() => setEditingProblem(opp.id)}>✎</button>
+                          <button className="ost-icon danger" title="Delete problem"
+                            onClick={() => { if (confirm("Delete this problem and its solutions?")) deleteOpportunity(opp.id); }}>✕</button>
+                        </div>
+                      </>
+                    )}
+                  </div>
                   <ul>
                     {opp.solutions.map((sol) => {
                       const st = sol.status || "idea";
                       const dim = filter && st !== filter;
                       return (
                         <li key={sol.id} className={dim ? "is-dim" : ""}>
-                          <button
-                            className="ost-status"
+                          <select
+                            className="ost-select"
+                            value={st}
+                            onChange={(e) => setStatus(sol.id, e.target.value)}
                             style={{ background: STATUS_META[st].bg, color: STATUS_META[st].fg }}
-                            onClick={() => cycle(sol.id)}
-                            aria-label={`${sol.label} — status ${STATUS_META[st].label}, click to change`}
+                            aria-label={`Status for ${sol.label}`}
                           >
-                            {STATUS_META[st].label}
-                          </button>
-                          <span>{sol.label}</span>
+                            {STATUSES.map((k) => <option key={k} value={k}>{STATUS_META[k].label}</option>)}
+                          </select>
+                          {editingSolution === sol.id ? (
+                            <SolutionEditor
+                              initial={sol.label}
+                              onSave={(v) => { editSolution(sol.id, v); setEditingSolution(null); }}
+                              onCancel={() => setEditingSolution(null)}
+                            />
+                          ) : (
+                            <>
+                              <span className="ost-sol-label">{sol.label}</span>
+                              <span className="ost-rowtools">
+                                <button className="ost-icon" title="Edit solution" onClick={() => setEditingSolution(sol.id)}>✎</button>
+                                <button className="ost-icon danger" title="Delete solution"
+                                  onClick={() => { if (confirm("Delete this solution?")) deleteSolution(sol.id); }}>✕</button>
+                              </span>
+                            </>
+                          )}
                         </li>
                       );
                     })}
                   </ul>
+                  <button className="ost-add" onClick={() => addSolution(opp.id)}>+ Add solution</button>
                 </div>
               );
             })}
+            <button className="ost-add ost-add-opp" onClick={() => addOpportunity(branch.id)}>+ Add problem</button>
           </section>
         ))}
+      </div>
       </div>
     </div>
   );
 }
 
 const css = `
-.ost { max-width: 1180px; margin: 0 auto; padding: 2.5rem 1.25rem 4rem; font-family: inherit; color: #2C2C2A; }
+.ost { height: 100%; overflow-y: auto; -webkit-overflow-scrolling: touch; font-family: inherit; color: #2C2C2A; }
+.ost-inner { max-width: 1180px; margin: 0 auto; padding: 2.5rem 1.25rem 4rem; }
 .ost-header { text-align: center; margin-bottom: 1.5rem; }
 .ost-eyebrow { font-size: 12px; letter-spacing: 0.08em; text-transform: uppercase; color: #888780; margin: 0 0 6px; }
 .ost-header h1 { font-size: 26px; font-weight: 600; margin: 0; }
@@ -342,8 +457,32 @@ const css = `
 .ost-signout { position: absolute; right: 1.25rem; top: 2.5rem; border: 1px solid #D3D1C7; background: transparent; border-radius: 999px; font-size: 12px; padding: 4px 12px; cursor: pointer; color: #5F5E5A; }
 .ost-status { flex: none; border: none; border-radius: 6px; font-size: 11px; font-weight: 600; padding: 2px 8px; cursor: pointer; margin-top: 1px; }
 @media (max-width: 900px) { .ost-branches { grid-template-columns: 1fr; } .ost-branch::before { display: none; } .ost-trunk { display: none; } }
+
+.ost-problem-row { display: flex; align-items: flex-start; justify-content: space-between; gap: 8px; margin-bottom: 10px; }
+.ost-problem-row .ost-problem { margin: 0; }
+.ost-rowtools { display: inline-flex; gap: 2px; flex: none; opacity: 0; transition: opacity 0.12s; }
+.ost-opp:hover .ost-rowtools, .ost-problem-row:hover .ost-rowtools, li:hover .ost-rowtools { opacity: 1; }
+.ost-icon { border: none; background: transparent; color: #9C9A92; cursor: pointer; font-size: 13px; padding: 1px 5px; border-radius: 5px; line-height: 1.4; }
+.ost-icon:hover { background: #ECEAE4; color: #2C2C2A; }
+.ost-icon.danger:hover { background: #FAE3DD; color: #A23B22; }
+.ost-select { flex: none; border: none; border-radius: 6px; font-size: 11px; font-weight: 600; padding: 2px 6px; cursor: pointer; margin-top: 1px; font-family: inherit; -webkit-appearance: none; appearance: none; }
+.ost-sol-label { flex: 1; }
+.ost-add { border: 1px dashed #D3D1C7; background: transparent; color: #7A7970; border-radius: 8px; font-size: 12.5px; padding: 6px 12px; cursor: pointer; margin-top: 4px; width: 100%; }
+.ost-add:hover { border-color: #A9A79C; color: #2C2C2A; }
+.ost-add-opp { margin-top: 6px; border-style: solid; }
+.ost-editor { display: flex; flex-direction: column; gap: 6px; width: 100%; }
+.ost-editor.inline { flex-direction: row; align-items: center; flex: 1; }
+.ost-textarea, .ost-input { width: 100%; border: 1px solid #C9C7BD; border-radius: 6px; padding: 6px 8px; font-family: inherit; font-size: 13.5px; color: #2C2C2A; background: #fff; resize: vertical; }
+.ost-editor-btns { display: flex; gap: 6px; }
+.ost-save { border: none; background: #2D6A4F; color: #fff; border-radius: 6px; font-size: 12px; padding: 4px 12px; cursor: pointer; }
+.ost-cancel { border: 1px solid #D3D1C7; background: transparent; color: #5F5E5A; border-radius: 6px; font-size: 12px; padding: 4px 12px; cursor: pointer; }
 @media (prefers-color-scheme: dark) {
   .ost { color: #E6E4DD; }
+  .ost-icon:hover { background: #333330; color: #E6E4DD; }
+  .ost-textarea, .ost-input { background: #1E1E1C; border-color: #46453F; color: #E6E4DD; }
+  .ost-cancel { color: #9C9A92; border-color: #46453F; }
+  .ost-add { border-color: #46453F; color: #9C9A92; }
+
   .ost-opp { background: #262624; border-color: #3A3A37; }
   .ost-opp li { color: #C2C0B6; }
   .ost-branch-head p, .ost-meta, .ost-export { color: #9C9A92; }
