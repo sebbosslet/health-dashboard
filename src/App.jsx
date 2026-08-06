@@ -11,9 +11,11 @@ const MainApp = lazy(() => import('./pages/MainApp'))
 const TripApp = lazy(() => import('./trip/TripApp'))
 const CashflowApp = lazy(() => import('./cashflow/CashflowApp'))
 const EurApp = lazy(() => import('./eurflow/EurApp'))
+const OSTree = lazy(() => import('./ostree/OSTree'))
 const AttendanceApp = lazy(() => import('./attendance/AttendanceApp'))
 
 const TRIP_EMAILS = ['trip@sebs.health']
+const OSTREE_EMAILS = ['ostree@sebs.health']
 
 export default function App() {
   const [session, setSession] = useState(null)
@@ -72,6 +74,7 @@ export default function App() {
 
   // The trip-only account still lands straight in the travel app.
   const tripOnly = TRIP_EMAILS.includes(session.user.email)
+  const ostreeOnly = OSTREE_EMAILS.includes(session.user.email)
 
   return (
     <LangProvider>
@@ -79,7 +82,14 @@ export default function App() {
         <ErrorBoundary>
         <Suspense fallback={<div className="loading-screen"><div className="spinner" /></div>}>
         <Routes>
-          <Route path="/" element={tripOnly ? <Navigate to="/travel" replace /> : <HubPage session={session} />} />
+          <Route path="/" element={
+            ostreeOnly ? <Navigate to="/ostree" replace />
+              : tripOnly ? <Navigate to="/travel" replace />
+              : <HubPage session={session} />
+          } />
+          <Route path="/ostree" element={
+            ostreeOnly ? <OSTree session={session} /> : <Navigate to="/" replace />
+          } />
           <Route path="/health" element={<MainApp session={session} whoopCode={whoopCode} whoopError={whoopError} />} />
           <Route path="/travel" element={<TripApp session={session} />} />
           <Route path="/cashflow" element={<CashflowApp session={session} />} />
