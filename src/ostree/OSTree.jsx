@@ -24,12 +24,13 @@ function defaultDoc() {
   };
 }
 
-const STATUSES = ["idea", "planned", "doing", "tried"];
+const STATUSES = ["idea", "planned", "doing", "tried", "infeasible"];
 const STATUS_META = {
   idea:    { label: "Idea",    bg: "#ECEAE4", fg: "#5F5E5A" },
   planned: { label: "Planned", bg: "#DCE9F7", fg: "#185FA5" },
   doing:   { label: "Doing",   bg: "#DFF0E6", fg: "#0F6E56" },
   tried:   { label: "Tried",   bg: "#FAEEDA", fg: "#854F0B" },
+  infeasible: { label: "Not feasible", bg: "#F3E4E0", fg: "#9A3B22" },
 };
 
 const DEFAULT_OUTCOME = {
@@ -304,7 +305,7 @@ export default function OSTree({ session }) {
   }, [doc]);
 
   const counts = useMemo(() => {
-    const c = { idea: 0, planned: 0, doing: 0, tried: 0 };
+    const c = { idea: 0, planned: 0, doing: 0, tried: 0, infeasible: 0 };
     branches.forEach((b) => b.opportunities.forEach((o) => o.solutions.forEach((s) => {
       c[s.status || "idea"] += 1;
     })));
