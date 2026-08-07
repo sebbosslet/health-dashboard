@@ -107,7 +107,7 @@ const APPS = [
     name: "tax",
     href: "/tax",
     tagline: "Return projection & document vault",
-    blurb: "Live refund/owed estimate from your latest paycheck, LLC loss offset, and a categorised document store to share with your advisor.",
+    blurb: "Enter your latest paycheck for a live refund/owed estimate, fold in your LLC, and store documents to share with your advisor.",
     accent: "#7C3AED",
     stats: [
       { label: "Projects", value: "refund/owed" },

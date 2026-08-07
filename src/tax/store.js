@@ -46,20 +46,3 @@ export async function deleteTaxDoc(doc) {
   const { error } = await supabase.from('tax_documents').delete().eq('id', doc.id)
   if (error) throw error
 }
-
-// Pull the current paycheck straight from the cashflow doc so the projection
-// reflects the latest salary without re-entering it.
-export async function loadPaycheckBasis(userId) {
-  const { data } = await supabase.from('cashflow_state').select('doc').eq('user_id', userId).maybeSingle()
-  const incomes = data?.doc?.incomes || []
-  const latest = [...incomes].sort((a, b) => (a.effectiveDate < b.effectiveDate ? 1 : -1))[0]
-  const b = latest?.breakdown
-  if (!b) return null
-  return {
-    grossPerCheck: Number(b.gross || 0),
-    fedPerCheck: Number(b.fed || 0),
-    statePerCheck: Number(b.state || 0),
-    pretaxPerCheck: Number(b.k401 || 0) + Number(b.hsa || 0) + Number(b.section125 || 0),
-    periodsPerYear: 26,
-  }
-}

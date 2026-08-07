@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { projectTax, DOC_TYPES } from './engine'
-import { loadTaxState, saveTaxState, uploadTaxDoc, listTaxDocs, signedUrl, deleteTaxDoc, loadPaycheckBasis } from './store'
-import '../cashflow/cashflow.css'
+import { loadTaxState, saveTaxState, uploadTaxDoc, listTaxDocs, signedUrl, deleteTaxDoc } from './store'
+import '../cashflow/cashflow.css' // shared design tokens only — no data crosses between apps
 
 const usd = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' })
 const M = (n) => usd.format(Number(n) || 0)
@@ -13,7 +13,6 @@ export default function TaxApp({ session, advisor = false }) {
   const year = new Date().getFullYear()
   const [doc, setDoc] = useState(null)
   const [docs, setDocs] = useState([])
-  const [basis, setBasis] = useState(null)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState(null)
   const timer = useRef(null)
@@ -23,8 +22,10 @@ export default function TaxApp({ session, advisor = false }) {
   useEffect(() => {
     let alive = true
     if (!advisor) {
-      loadTaxState(session.user.id).then((d) => { if (alive) setDoc(d || { llcNetIncome: 0, note: '' }) })
-      loadPaycheckBasis(session.user.id).then((b) => { if (alive) setBasis(b) })
+      loadTaxState(session.user.id).then((d) => { if (alive) setDoc(d || {
+        grossPerCheck: '', fedPerCheck: '', statePerCheck: '', pretaxPerCheck: '',
+        periodsPerYear: 26, llcNetIncome: 0,
+      }) })
     } else { setDoc({}) }
     refreshDocs(alive)
     return () => { alive = false }
@@ -42,10 +43,18 @@ export default function TaxApp({ session, advisor = false }) {
     return () => clearTimeout(timer.current)
   }, [doc, advisor, session.user.id])
 
+  const hasPay = doc && Number(doc.grossPerCheck) > 0
   const projection = useMemo(() => {
-    if (advisor || !basis) return null
-    return projectTax({ ...basis, llcNetIncome: Number(doc?.llcNetIncome) || 0 })
-  }, [basis, doc, advisor])
+    if (advisor || !hasPay) return null
+    return projectTax({
+      periodsPerYear: Number(doc.periodsPerYear) || 26,
+      grossPerCheck: Number(doc.grossPerCheck) || 0,
+      fedPerCheck: Number(doc.fedPerCheck) || 0,
+      statePerCheck: Number(doc.statePerCheck) || 0,
+      pretaxPerCheck: Number(doc.pretaxPerCheck) || 0,
+      llcNetIncome: Number(doc.llcNetIncome) || 0,
+    })
+  }, [doc, advisor, hasPay])
 
   const onUpload = async (e) => {
     const file = e.target.files?.[0]
@@ -95,12 +104,19 @@ export default function TaxApp({ session, advisor = false }) {
         {/* ---------- OWNER: projection ---------- */}
         {!advisor && (
           <>
-            {!basis && (
-              <div className="notice bad" style={{ marginBottom: 16 }}>
-                <span style={{ fontWeight: 600 }}>No paycheck found</span>
-                <span style={{ color: 'var(--mut)' }}>Set up your income in the cashflow app first — the projection reads your latest paycheck from there.</span>
+            <section className="panel" style={{ marginBottom: 16 }}>
+              <div className="grouphead">
+                <div><span className="gname">Your latest paycheck</span><div className="when" style={{ marginTop: 1 }}>enter the figures from your most recent payslip — the projection assumes it continues to year-end</div></div>
               </div>
-            )}
+              <div className="formgrid" style={{ marginTop: 8 }}>
+                <Field lab="Gross per check"><input type="number" value={doc?.grossPerCheck ?? ''} onChange={(e) => setDoc((d) => ({ ...d, grossPerCheck: e.target.value }))} /></Field>
+                <Field lab="Federal withheld / check"><input type="number" value={doc?.fedPerCheck ?? ''} onChange={(e) => setDoc((d) => ({ ...d, fedPerCheck: e.target.value }))} /></Field>
+                <Field lab="State withheld / check"><input type="number" value={doc?.statePerCheck ?? ''} onChange={(e) => setDoc((d) => ({ ...d, statePerCheck: e.target.value }))} /></Field>
+                <Field lab="Pre-tax / check (401k, HSA…)"><input type="number" value={doc?.pretaxPerCheck ?? ''} onChange={(e) => setDoc((d) => ({ ...d, pretaxPerCheck: e.target.value }))} /></Field>
+                <Field lab="Paychecks per year"><input type="number" value={doc?.periodsPerYear ?? 26} onChange={(e) => setDoc((d) => ({ ...d, periodsPerYear: e.target.value }))} /></Field>
+              </div>
+              {!hasPay && <div className="when" style={{ marginTop: 8 }}>Enter your gross to see the projection.</div>}
+            </section>
 
             {projection && (
               <>
