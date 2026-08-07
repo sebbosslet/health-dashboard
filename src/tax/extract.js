@@ -1,61 +1,64 @@
-// Extract paycheck figures from an uploaded payslip using Claude vision,
 import { CLAUDE_MODEL } from '../lib/constants'
-// via the existing claude-proxy function. Returns numbers to pre-fill the
-// form — the user always confirms before they're used.
 
-function fileToBase64(file) {
-  return new Promise((resolve, reject) => {
+function toB64(file) {
+  return new Promise((res, rej) => {
     const r = new FileReader()
-    r.onload = () => resolve(String(r.result).split(',')[1])
-    r.onerror = () => reject(new Error('Could not read the file'))
+    r.onload = () => res(String(r.result).split(',')[1])
+    r.onerror = () => rej(new Error('Could not read file'))
     r.readAsDataURL(file)
   })
 }
 
-const PROMPT = `You are reading a single US payslip / pay stub. Extract these
-per-paycheck figures and reply with ONLY a JSON object, no prose, no code fence:
+const PROMPT = `You are a bookkeeping assistant reading ONE uploaded financial document
+for a person who has both a W-2 job and a single-member LLC. Classify it and
+extract ledger entries. Reply with ONLY JSON (no prose, no code fence):
 
 {
-  "grossPerCheck": number,      // gross pay for THIS pay period
-  "fedPerCheck": number,        // federal income tax withheld this period (include any additional federal withholding)
-  "statePerCheck": number,      // state income tax withheld this period (include any additional state withholding)
-  "pretaxPerCheck": number,     // sum of pre-tax deductions this period that reduce taxable wages: 401(k), HSA, and Section 125 (medical/dental/vision/FSA). Do NOT include Roth or after-tax items.
-  "periodsPerYear": number,     // 26 if biweekly, 24 if semi-monthly, 12 if monthly, 52 if weekly. Infer from pay period dates if shown, else 26.
-  "payDate": string             // the pay date in YYYY-MM-DD if visible, else ""
+  "doc_kind": "payslip|w2|1099|1095c|receipt|invoice|other",
+  "entries": [
+    {
+      "entry_date": "YYYY-MM-DD",           // transaction / pay / document date
+      "book": "llc|w2",                      // w2 = full-time job; llc = the business
+      "direction": "income|expense",
+      "category": "short category, e.g. Wages, Software, Meals, Contractor income, Office supplies",
+      "vendor": "merchant or payer name, or ''",
+      "amount": number,                       // positive, no $ or commas
+      "note": "",
+      "fed_withheld": number,                 // payslips only, else omit
+      "state_withheld": number,               // payslips only, else omit
+      "pretax": number,                       // payslips only: 401k+HSA+Section125, else omit
+      "periods_per_year": number,             // payslips only: 26/24/12/52, else omit
+      "confident": true                       // false if you are unsure of book/category
+    }
+  ]
 }
 
-Rules: numbers only (no $ or commas). If a value isn't present, use 0.
-If you are not confident this is a payslip, reply {"error":"not a payslip"}.`
+Guidance:
+- A payslip/pay stub -> book "w2", direction "income", category "Wages", amount = gross for the period, and fill the withholding fields.
+- A W-2 form -> book "w2", income, category "Wages", amount = box 1 wages.
+- A 1099 -> book "llc", income.
+- A receipt/invoice for the business -> book "llc", expense; guess a sensible category.
+- If you cannot tell whether an expense is business or personal, use book "llc" and confident:false.
+- Most receipts are LLC expenses. Default book to "llc" when unsure.
+- If you cannot read it, return {"doc_kind":"other","entries":[]}.`
 
-export async function extractPayslip(file) {
-  const b64 = await fileToBase64(file)
+export async function extractDocument(file) {
+  const b64 = await toB64(file)
   const isPdf = file.type === 'application/pdf'
-  const source = isPdf
-    ? { type: 'base64', media_type: 'application/pdf', data: b64 }
-    : { type: 'base64', media_type: file.type || 'image/jpeg', data: b64 }
-
+  const source = { type: 'base64', media_type: isPdf ? 'application/pdf' : (file.type || 'image/jpeg'), data: b64 }
   const res = await fetch('/.netlify/functions/claude-proxy', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
-      model: CLAUDE_MODEL,
-      max_tokens: 400,
-      messages: [{
-        role: 'user',
-        content: [
-          { type: isPdf ? 'document' : 'image', source },
-          { type: 'text', text: PROMPT },
-        ],
-      }],
+      model: CLAUDE_MODEL, max_tokens: 800,
+      messages: [{ role: 'user', content: [{ type: isPdf ? 'document' : 'image', source }, { type: 'text', text: PROMPT }] }],
     }),
   })
   const data = await res.json()
   if (!res.ok) throw new Error(data.error?.message || data.error || 'Extraction failed')
-
   const text = (data.content || []).filter((b) => b.type === 'text').map((b) => b.text).join('').trim()
   let parsed
   try { parsed = JSON.parse(text.replace(/```json|```/g, '').trim()) }
-  catch { throw new Error('Could not read the figures from that file') }
-  if (parsed.error) throw new Error(parsed.error === 'not a payslip' ? "That doesn't look like a payslip" : parsed.error)
+  catch { throw new Error('Could not read that document') }
   return parsed
 }

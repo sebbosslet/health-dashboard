@@ -1,310 +1,231 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { projectTax, DOC_TYPES } from './engine'
-import { extractPayslip } from './extract'
-import { loadTaxState, saveTaxState, uploadTaxDoc, listTaxDocs, signedUrl, deleteTaxDoc } from './store'
-import '../cashflow/cashflow.css' // shared design tokens only — no data crosses between apps
+import { summarise, predictEOY } from './engine'
+import { addEntry, updateEntry, deleteEntry, listEntries, uploadFile, signedUrl } from './store'
+import { extractDocument } from './extract'
+import '../cashflow/cashflow.css' // shared design tokens only
 
 const usd = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' })
 const M = (n) => usd.format(Number(n) || 0)
-const signed = (n) => (n >= 0 ? `+${M(n)}` : `−${M(Math.abs(n))}`)
-const Field = ({ lab, children }) => <label><div className="lab">{lab}</div>{children}</label>
+const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']
+const monthKey = (d) => d.slice(0, 7)
+const monthName = (k) => `${MONTHS[+k.slice(5,7)-1]} ${k.slice(0,4)}`
+const CATS = { llc: ['Software','Meals','Office supplies','Travel','Contractor income','Client income','Equipment','Marketing','Fees','Other'], w2: ['Wages','Bonus','Other'] }
 
 export default function TaxApp({ session, advisor = false }) {
   const year = new Date().getFullYear()
-  const [doc, setDoc] = useState(null)
-  const [docs, setDocs] = useState([])
+  const [tab, setTab] = useState(advisor ? 'ledger' : 'dump')
+  const [entries, setEntries] = useState([])
   const [busy, setBusy] = useState(false)
+  const [note, setNote] = useState(null)
   const [error, setError] = useState(null)
-  const timer = useRef(null)
   const fileRef = useRef(null)
-  const payslipRef = useRef(null)
-  const [reading, setReading] = useState(false)
-  const [readNote, setReadNote] = useState(null)
-  const [form, setForm] = useState({ category: 'llc', doc_type: 'receipt', year_end: false, note: '' })
 
-  useEffect(() => {
-    let alive = true
-    if (!advisor) {
-      loadTaxState(session.user.id).then((d) => { if (alive) setDoc(d || {
-        grossPerCheck: '', fedPerCheck: '', statePerCheck: '', pretaxPerCheck: '',
-        periodsPerYear: 26, llcNetIncome: 0,
-      }) })
-    } else { setDoc({}) }
-    refreshDocs(alive)
-    return () => { alive = false }
-  }, [session.user.id]) // eslint-disable-line
+  const refresh = async () => setEntries(await listEntries(advisor ? null : session.user.id, year))
+  useEffect(() => { refresh() }, [session.user.id]) // eslint-disable-line
 
-  const refreshDocs = async (alive = true) => {
-    const rows = await listTaxDocs(advisor ? null : session.user.id, year)
-    if (alive) setDocs(rows)
-  }
-
-  useEffect(() => {
-    if (advisor || !doc) return
-    clearTimeout(timer.current)
-    timer.current = setTimeout(() => saveTaxState(session.user.id, doc), 500)
-    return () => clearTimeout(timer.current)
-  }, [doc, advisor, session.user.id])
-
-  const hasPay = doc && Number(doc.grossPerCheck) > 0
-  const projection = useMemo(() => {
-    if (advisor || !hasPay) return null
-    return projectTax({
-      periodsPerYear: Number(doc.periodsPerYear) || 26,
-      grossPerCheck: Number(doc.grossPerCheck) || 0,
-      fedPerCheck: Number(doc.fedPerCheck) || 0,
-      statePerCheck: Number(doc.statePerCheck) || 0,
-      pretaxPerCheck: Number(doc.pretaxPerCheck) || 0,
-      llcNetIncome: Number(doc.llcNetIncome) || 0,
-    })
-  }, [doc, advisor, hasPay])
-
-  const onReadPayslip = async (e) => {
-    const file = e.target.files?.[0]
-    if (!file) return
-    setReading(true); setReadNote(null); setError(null)
+  const onDump = async (e) => {
+    const file = e.target.files?.[0]; if (!file) return
+    setBusy(true); setError(null); setNote(null)
     try {
-      const f = await extractPayslip(file)
-      setDoc((d) => ({
-        ...d,
-        grossPerCheck: f.grossPerCheck ?? d.grossPerCheck,
-        fedPerCheck: f.fedPerCheck ?? d.fedPerCheck,
-        statePerCheck: f.statePerCheck ?? d.statePerCheck,
-        pretaxPerCheck: f.pretaxPerCheck ?? d.pretaxPerCheck,
-        periodsPerYear: f.periodsPerYear || d.periodsPerYear || 26,
-      }))
-      setReadNote('Figures read from the payslip — check them below, then they feed the projection.')
-      // also file the payslip itself, tagged employment
-      try { await uploadTaxDoc(session.user.id, file, { category: 'employment', doc_type: 'payslip', year_end: false, tax_year: year, note: 'auto-read' }); refreshDocs() } catch { /* keep the figures even if storing fails */ }
-    } catch (err) { setError(err.message) }
-    finally { setReading(false); if (payslipRef.current) payslipRef.current.value = '' }
-  }
-
-  const onUpload = async (e) => {
-    const file = e.target.files?.[0]
-    if (!file) return
-    setBusy(true); setError(null)
-    try {
-      const dt = DOC_TYPES.find((t) => t.id === form.doc_type)
-      await uploadTaxDoc(session.user.id, file, {
-        ...form, year_end: form.year_end || !!dt?.yearEnd, tax_year: year,
-      })
-      await refreshDocs()
+      const result = await extractDocument(file)
+      const stored = await uploadFile(session.user.id, file, result.doc_kind, year)
+      const rows = result.entries?.length ? result.entries : [{ entry_date: new Date().toISOString().slice(0,10), book: 'llc', direction: 'expense', category: 'Other', amount: 0, confident: false }]
+      for (const r of rows) {
+        await addEntry(session.user.id, {
+          entry_date: r.entry_date || new Date().toISOString().slice(0,10),
+          book: r.book === 'w2' ? 'w2' : 'llc',
+          direction: r.direction === 'income' ? 'income' : 'expense',
+          category: r.category || null, vendor: r.vendor || null, amount: Math.abs(Number(r.amount) || 0),
+          note: r.note || null, fed_withheld: r.fed_withheld ?? null, state_withheld: r.state_withheld ?? null,
+          pretax: r.pretax ?? null, periods_per_year: r.periods_per_year ?? null,
+          source_doc: stored.id, needs_review: r.confident === false, tax_year: year,
+        })
+      }
+      setNote(`Added ${rows.length} ${rows.length === 1 ? 'entry' : 'entries'} from ${file.name}${result.doc_kind ? ` (${result.doc_kind})` : ''}`)
+      await refresh()
     } catch (err) { setError(err.message) }
     finally { setBusy(false); if (fileRef.current) fileRef.current.value = '' }
   }
 
-  const open = async (d) => { const u = await signedUrl(d.storage_path); if (u) window.open(u, '_blank') }
-  const remove = async (d) => { if (confirm(`Delete ${d.file_name}?`)) { await deleteTaxDoc(d); refreshDocs() } }
+  const patch = async (id, p) => { setEntries((es) => es.map((e) => e.id === id ? { ...e, ...p } : e)); await updateEntry(id, p) }
+  const remove = async (id) => { if (confirm('Delete this entry?')) { await deleteEntry(id); refresh() } }
+  const openDoc = async (e) => { if (!e.source_doc) return; const path = e._path; if (path) { const u = await signedUrl(path); if (u) window.open(u, '_blank') } }
 
-  const llcDocs = docs.filter((d) => d.category === 'llc')
-  const empDocs = docs.filter((d) => d.category === 'employment')
+  const summary = useMemo(() => summarise(entries), [entries])
+  const eoy = useMemo(() => predictEOY(summary), [summary])
 
   return (
     <div className="cf-root">
       <nav className="side">
         <Link className="wordmark" to="/" title="All apps">sebs<span>.</span>tax</Link>
         {!advisor && <Link className="navbtn" to="/">← apps</Link>}
-        <div className="navbtn on">{advisor ? 'Advisor view' : `Tax ${year}`}</div>
+        {!advisor && <button className={`navbtn ${tab==='dump'?'on':''}`} onClick={()=>setTab('dump')}>Add documents</button>}
+        <button className={`navbtn ${tab==='ledger'?'on':''}`} onClick={()=>setTab('ledger')}>Ledger</button>
+        <button className={`navbtn ${tab==='summary'?'on':''}`} onClick={()=>setTab('summary')}>Summary</button>
         <div style={{ marginTop: 'auto', padding: '0 8px' }}>
-          <button className="ghost" style={{ fontSize: 12 }}
-            onClick={() => import('../lib/supabase').then((m) => m.supabase.auth.signOut())}>Sign out</button>
+          <button className="ghost" style={{ fontSize: 12 }} onClick={()=>import('../lib/supabase').then(m=>m.supabase.auth.signOut())}>Sign out</button>
         </div>
       </nav>
 
       <main className="main">
-        <div className="screenhead">
-          <h1>{advisor ? `LLC documents · ${year}` : `Tax projection · ${year}`}</h1>
-        </div>
+        {advisor && <div className="notice" style={{ marginBottom: 16 }}><span style={{ color:'var(--mut)' }}>Advisor view — LLC income and expenses, and W-2 income totals. Ongoing payslips are not shared.</span></div>}
 
-        {advisor && (
-          <div className="notice" style={{ marginBottom: 16 }}>
-            <span style={{ color: 'var(--mut)' }}>
-              You're seeing LLC receipts and year-end tax documents only. Ongoing payslips are not shared.
-            </span>
-          </div>
-        )}
-
-        {/* ---------- OWNER: projection ---------- */}
-        {!advisor && (
-          <>
-            <section className="panel" style={{ marginBottom: 16 }}>
-              <div className="grouphead">
-                <div><span className="gname">Your latest paycheck</span><div className="when" style={{ marginTop: 1 }}>upload a payslip to read the figures automatically, or type them in — the projection assumes it continues to year-end</div></div>
-                <button className="primary" disabled={reading} onClick={() => payslipRef.current?.click()}>
-                  {reading ? 'Reading…' : 'Read from payslip'}
-                </button>
-                <input ref={payslipRef} type="file" hidden accept=".pdf,.png,.jpg,.jpeg,.webp,.heic" onChange={onReadPayslip} />
-              </div>
-              {readNote && <div className="notice" style={{ marginTop: 10, marginBottom: 2 }}><span style={{ color: 'var(--green)', fontWeight: 600 }}>{readNote}</span></div>}
-              <div className="formgrid" style={{ marginTop: 8 }}>
-                <Field lab="Gross per check"><input type="number" value={doc?.grossPerCheck ?? ''} onChange={(e) => setDoc((d) => ({ ...d, grossPerCheck: e.target.value }))} /></Field>
-                <Field lab="Federal withheld / check"><input type="number" value={doc?.fedPerCheck ?? ''} onChange={(e) => setDoc((d) => ({ ...d, fedPerCheck: e.target.value }))} /></Field>
-                <Field lab="State withheld / check"><input type="number" value={doc?.statePerCheck ?? ''} onChange={(e) => setDoc((d) => ({ ...d, statePerCheck: e.target.value }))} /></Field>
-                <Field lab="Pre-tax / check (401k, HSA…)"><input type="number" value={doc?.pretaxPerCheck ?? ''} onChange={(e) => setDoc((d) => ({ ...d, pretaxPerCheck: e.target.value }))} /></Field>
-                <Field lab="Paychecks per year"><input type="number" value={doc?.periodsPerYear ?? 26} onChange={(e) => setDoc((d) => ({ ...d, periodsPerYear: e.target.value }))} /></Field>
-              </div>
-              {!hasPay && <div className="when" style={{ marginTop: 8 }}>Enter your gross to see the projection.</div>}
-            </section>
-
-            {projection && (
-              <>
-                <div className="statgrid">
-                  <section className="panel">
-                    <div className="eyebrow">Projected {projection.owes ? 'balance owed' : 'refund'}</div>
-                    <div className="bignum" style={{ color: projection.owes ? 'var(--red)' : 'var(--green)' }}>
-                      {projection.owes ? M(Math.abs(projection.totalRefund)) : M(projection.totalRefund)}
-                    </div>
-                    <div className="when">if this paycheck continues to year-end</div>
-                  </section>
-                  <section className="panel">
-                    <div className="eyebrow">Total withheld</div>
-                    <div className="bignum">{M(projection.totalWithheld)}</div>
-                    <div className="when">federal + state, annualised</div>
-                  </section>
-                  <section className="panel">
-                    <div className="eyebrow">Total liability</div>
-                    <div className="bignum">{M(projection.totalLiability)}</div>
-                    <div className="when">what you actually owe</div>
-                  </section>
-                </div>
-
-                <section className="panel" style={{ marginTop: 16 }}>
-                  <div className="grouphead">
-                    <div><span className="gname">LLC net income</span><div className="when" style={{ marginTop: 1 }}>Schedule C — a loss lowers your taxable income and increases the refund</div></div>
-                  </div>
-                  <div className="formgrid" style={{ marginTop: 8 }}>
-                    <Field lab="Projected annual net ($, negative for a loss)">
-                      <input type="number" value={doc?.llcNetIncome ?? 0}
-                        onChange={(e) => setDoc((d) => ({ ...d, llcNetIncome: e.target.value }))} />
-                    </Field>
-                  </div>
-                  {Number(doc?.llcNetIncome) < 0 && (
-                    <div className="when" style={{ marginTop: 8, color: 'var(--green)' }}>
-                      The {M(Math.abs(Number(doc.llcNetIncome)))} loss offsets your W-2 income — reflected in the tables below.
-                    </div>
-                  )}
-                </section>
-
-                <TaxTable projection={projection} llcNet={Number(doc?.llcNetIncome) || 0} />
-
-                <div className="legend" style={{ marginTop: 12 }}>
-                  Estimate only, not tax advice. 2025 brackets, single filer, Virginia, standard deduction.
-                  Ignores credits, itemised deductions, QBI, and other income. The employment side annualises
-                  your current paycheck; the LLC side is your projected Schedule C net.
-                </div>
-              </>
-            )}
-          </>
-        )}
-
-        {/* ---------- documents ---------- */}
-        {!advisor && (
-          <section className="panel" style={{ marginTop: 16 }}>
-            <div className="grouphead">
-              <div><span className="gname">Upload a document</span><div className="when" style={{ marginTop: 1 }}>payslips, W-2, 1095-C, LLC receipts, 1099s</div></div>
-            </div>
-            <div className="formgrid" style={{ marginTop: 8 }}>
-              <Field lab="Goes towards">
-                <select value={form.category} onChange={(e) => setForm({ ...form, category: e.target.value })}>
-                  <option value="llc">LLC</option>
-                  <option value="employment">Full-time employment</option>
-                </select>
-              </Field>
-              <Field lab="Type">
-                <select value={form.doc_type} onChange={(e) => {
-                  const dt = DOC_TYPES.find((t) => t.id === e.target.value)
-                  setForm({ ...form, doc_type: e.target.value, category: dt?.cat || form.category, year_end: !!dt?.yearEnd })
-                }}>
-                  {DOC_TYPES.map((t) => <option key={t.id} value={t.id}>{t.label}</option>)}
-                </select>
-              </Field>
-              <Field lab="Note (optional)"><input value={form.note} onChange={(e) => setForm({ ...form, note: e.target.value })} /></Field>
-              <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12.5, color: 'var(--mut)', alignSelf: 'end' }}>
-                <input type="checkbox" checked={form.year_end} onChange={(e) => setForm({ ...form, year_end: e.target.checked })} style={{ width: 'auto' }} />
-                year-end doc (advisor can see)
-              </label>
-              <div style={{ display: 'flex', alignItems: 'end' }}>
-                <button className="primary" disabled={busy} onClick={() => fileRef.current?.click()}>{busy ? 'Uploading…' : 'Choose file'}</button>
-                <input ref={fileRef} type="file" hidden onChange={onUpload}
-                  accept=".pdf,.png,.jpg,.jpeg,.heic,.webp" />
-              </div>
-            </div>
-            {error && <div className="notice bad" style={{ marginTop: 10 }}><span className="danger">{error}</span></div>}
-          </section>
-        )}
-
-        <DocList title={advisor ? 'LLC & year-end documents' : 'LLC documents'} docs={llcDocs} onOpen={open} onRemove={advisor ? null : remove} />
-        {!advisor && <DocList title="Employment documents" docs={empDocs} onOpen={open} onRemove={remove} />}
+        {tab === 'dump' && !advisor && <DumpView {...{ busy, note, error, fileRef, onDump, entries, patch, remove, year }} />}
+        {tab === 'ledger' && <LedgerView entries={entries} patch={advisor ? null : patch} remove={advisor ? null : remove} />}
+        {tab === 'summary' && <SummaryView summary={summary} eoy={eoy} advisor={advisor} />}
       </main>
     </div>
   )
 }
 
-function TaxTable({ projection: p, llcNet }) {
-  const rows = [
-    { label: 'Gross income (annualised)', emp: p.annualGross, llc: llcNet, comb: p.annualGross + llcNet },
-    { label: 'Pre-tax deductions', emp: -p.annualPretax, llc: 0, comb: -p.annualPretax },
-    { label: 'Half of SE tax deduction', emp: 0, llc: -p.halfSE, comb: -p.halfSE },
-    { label: 'Adjusted gross income', emp: p.w2Taxable, llc: llcNet - p.halfSE, comb: p.agi, strong: true },
-  ]
-  const liab = [
-    { label: 'Federal income tax', emp: null, llc: null, comb: p.fed.incomeTax },
-    { label: 'Self-employment tax', emp: 0, llc: p.seTax, comb: p.seTax },
-    { label: 'State income tax (VA)', emp: null, llc: null, comb: p.state.liability },
-    { label: 'Total tax liability', emp: null, llc: null, comb: p.totalLiability, strong: true },
-  ]
-  const settle = [
-    { label: 'Federal withheld', comb: p.fed.withheld },
-    { label: 'State withheld', comb: p.state.withheld },
-    { label: 'Total withheld', comb: p.totalWithheld, strong: true },
-    { label: p.owes ? 'Balance owed' : 'Refund', comb: Math.abs(p.totalRefund), accent: p.owes ? 'red' : 'green', strong: true },
-  ]
-  const Cell = ({ v }) => <span className="num">{v == null ? '—' : M(v)}</span>
+const Field = ({ lab, children }) => <label><div className="lab">{lab}</div>{children}</label>
+
+function EntryRow({ e, patch, remove, showBook }) {
+  const editable = !!patch
   return (
-    <section className="panel" style={{ marginTop: 16 }}>
-      <div className="grouphead"><div><span className="gname">Breakdown</span><div className="when" style={{ marginTop: 1 }}>employment · LLC · combined</div></div></div>
-      <div className="taxhead"><span>Line</span><span>Employment</span><span>LLC</span><span>Combined</span></div>
-      {rows.map((r) => (
-        <div className={`taxrow${r.strong ? ' strong' : ''}`} key={r.label}>
-          <span className="tl">{r.label}</span><Cell v={r.emp} /><Cell v={r.llc} /><Cell v={r.comb} />
-        </div>
-      ))}
-      <div className="taxsub">Tax liability</div>
-      {liab.map((r) => (
-        <div className={`taxrow${r.strong ? ' strong' : ''}`} key={r.label}>
-          <span className="tl">{r.label}</span><Cell v={r.emp} /><Cell v={r.llc} /><Cell v={r.comb} />
-        </div>
-      ))}
-      <div className="taxsub">Settlement</div>
-      {settle.map((r) => (
-        <div className={`taxrow${r.strong ? ' strong' : ''}`} key={r.label}>
-          <span className="tl">{r.label}</span><span /><span />
-          <span className="num" style={{ color: r.accent === 'red' ? 'var(--red)' : r.accent === 'green' ? 'var(--green)' : undefined, fontWeight: r.strong ? 600 : 400 }}>{M(r.comb)}</span>
-        </div>
-      ))}
-    </section>
+    <div className={`taxrow${e.needs_review ? ' review' : ''}`} style={{ gridTemplateColumns: showBook ? '80px 92px 1fr 120px 96px 30px' : '92px 1fr 130px 100px 30px' }}>
+      {showBook && (editable
+        ? <select className="mini" value={e.book} onChange={(ev)=>patch(e.id,{book:ev.target.value})}><option value="llc">LLC</option><option value="w2">W-2</option></select>
+        : <span className="tag">{e.book==='w2'?'W-2':'LLC'}</span>)}
+      {editable
+        ? <input className="mini" type="date" value={e.entry_date} onChange={(ev)=>patch(e.id,{entry_date:ev.target.value})} />
+        : <span className="when">{e.entry_date}</span>}
+      <span className="tl">{e.vendor || e.category || '—'}{e.vendor && e.category ? <span className="when"> · {e.category}</span> : ''}{e.needs_review && <span className="tag review-tag">review</span>}</span>
+      {editable
+        ? <select className="mini" value={e.category || ''} onChange={(ev)=>patch(e.id,{category:ev.target.value})}>
+            <option value="">Category…</option>
+            {(CATS[e.book]||CATS.llc).map(c=><option key={c} value={c}>{c}</option>)}
+          </select>
+        : <span className="when">{e.category}</span>}
+      <span className="num" style={{ color: e.direction==='income'?'var(--green)':'var(--ink)', textAlign:'right' }}>
+        {e.direction==='income'?'+':'−'}{M(e.amount)}
+      </span>
+      {editable ? <button className="danger-btn" onClick={()=>remove(e.id)}>✕</button> : <span />}
+    </div>
   )
 }
 
-function DocList({ title, docs, onOpen, onRemove }) {
+function DumpView({ busy, note, error, fileRef, onDump, entries, patch, remove, year }) {
+  const recent = [...entries].sort((a,b)=>(a.created_at<b.created_at?1:-1)).slice(0,15)
+  const review = recent.filter((e)=>e.needs_review)
   return (
-    <section className="panel" style={{ marginTop: 16 }}>
-      <div className="grouphead"><div><span className="gname">{title}</span><div className="when" style={{ marginTop: 1 }}>{docs.length} file{docs.length === 1 ? '' : 's'}</div></div></div>
-      {docs.length === 0 && <div style={{ color: 'var(--faint)', fontSize: 13, paddingTop: 8 }}>Nothing here yet.</div>}
-      {docs.map((d) => (
-        <div className="row" key={d.id}>
-          <div style={{ flex: 1 }}>
-            <span>{d.file_name}</span>
-            {d.doc_type && <span className="tag">{d.doc_type}</span>}
-            {d.year_end && <span className="tag good">year-end</span>}
-            <div className="when">{d.note ? d.note + ' · ' : ''}{(d.size_bytes / 1024).toFixed(0)} KB · {new Date(d.uploaded_at).toLocaleDateString()}</div>
-          </div>
-          <button className="ghost" onClick={() => onOpen(d)}>Open</button>
-          {onRemove && <button className="danger-btn" onClick={() => onRemove(d)}>✕</button>}
+    <>
+      <div className="screenhead"><h1>Add documents</h1></div>
+      <section className="panel" style={{ marginBottom: 16, textAlign: 'center', padding: '32px 20px' }}>
+        <div className="eyebrow" style={{ marginBottom: 8 }}>Drop a payslip, W-2, 1099, receipt or invoice</div>
+        <button className="primary" disabled={busy} onClick={()=>fileRef.current?.click()} style={{ fontSize: 15, padding: '10px 22px' }}>
+          {busy ? 'Reading…' : 'Upload a document'}
+        </button>
+        <input ref={fileRef} type="file" hidden accept=".pdf,.png,.jpg,.jpeg,.webp,.heic" onChange={onDump} />
+        <div className="when" style={{ marginTop: 10 }}>It's read automatically, categorised, and added to your ledger. Fix anything below.</div>
+      </section>
+      {note && <div className="notice" style={{ marginBottom: 12 }}><span style={{ color:'var(--green)', fontWeight:600 }}>{note}</span></div>}
+      {error && <div className="notice bad" style={{ marginBottom: 12 }}><span className="danger">{error}</span></div>}
+
+      {review.length > 0 && (
+        <section className="panel" style={{ marginBottom: 16 }}>
+          <div className="grouphead"><div><span className="gname">Needs review</span><div className="when" style={{marginTop:1}}>the detection wasn't sure — confirm the book and category</div></div></div>
+          {review.map((e)=><EntryRow key={e.id} e={e} patch={patch} remove={remove} showBook />)}
+        </section>
+      )}
+
+      <section className="panel">
+        <div className="grouphead"><div><span className="gname">Recently added</span></div></div>
+        {recent.length===0 && <div style={{color:'var(--faint)',fontSize:13,paddingTop:8}}>Nothing yet — upload your first document.</div>}
+        {recent.map((e)=><EntryRow key={e.id} e={e} patch={patch} remove={remove} showBook />)}
+      </section>
+    </>
+  )
+}
+
+function LedgerView({ entries, patch, remove }) {
+  const [book, setBook] = useState('llc')
+  const rows = entries.filter((e)=>e.book===book).sort((a,b)=>(a.entry_date<b.entry_date?-1:1))
+  const byMonth = useMemo(()=>{
+    const m = new Map()
+    for (const e of rows) { const k=monthKey(e.entry_date); if(!m.has(k))m.set(k,[]); m.get(k).push(e) }
+    return [...m.entries()].sort((a,b)=>(a[0]<b[0]?-1:1))
+  }, [rows])
+  const inc = (a)=>a.filter(e=>e.direction==='income').reduce((s,e)=>s+Number(e.amount),0)
+  const exp = (a)=>a.filter(e=>e.direction==='expense').reduce((s,e)=>s+Number(e.amount),0)
+  return (
+    <>
+      <div className="screenhead">
+        <h1>Ledger</h1>
+        <div className="rbtns">
+          <button className={book==='llc'?'active':'ghost'} onClick={()=>setBook('llc')}>LLC (business)</button>
+          <button className={book==='w2'?'active':'ghost'} onClick={()=>setBook('w2')}>W-2 (employment)</button>
         </div>
+      </div>
+      {byMonth.length===0 && <section className="panel"><div style={{color:'var(--faint)',fontSize:13}}>No {book==='llc'?'business':'employment'} entries yet.</div></section>}
+      {byMonth.map(([k, list])=>(
+        <section className="panel" key={k} style={{ marginBottom: 14 }}>
+          <div className="grouphead">
+            <div><span className="gname">{monthName(k)}</span></div>
+            <span className="amt">{book==='llc'
+              ? <>net <b style={{color: inc(list)-exp(list)>=0?'var(--green)':'var(--red)'}}>{M(inc(list)-exp(list))}</b> <span style={{color:'var(--faint)'}}>· +{M(inc(list))} −{M(exp(list))}</span></>
+              : <>income <b style={{color:'var(--green)'}}>{M(inc(list))}</b></>}
+            </span>
+          </div>
+          {list.map((e)=><EntryRow key={e.id} e={e} patch={patch} remove={remove} showBook={false} />)}
+        </section>
       ))}
-    </section>
+    </>
+  )
+}
+
+function SummaryView({ summary: s, eoy, advisor }) {
+  const now = new Date()
+  const monthsElapsed = now.getMonth() + 1
+  const Row = ({ label, val, strong, accent }) => (
+    <div className={`taxrow${strong?' strong':''}`} style={{ gridTemplateColumns:'1fr 130px' }}>
+      <span className="tl">{label}</span>
+      <span className="num" style={{ textAlign:'right', color: accent==='green'?'var(--green)':accent==='red'?'var(--red)':undefined, fontWeight: strong?600:400 }}>{M(val)}</span>
+    </div>
+  )
+  return (
+    <>
+      <div className="screenhead"><h1>Summary · {new Date().getFullYear()}</h1></div>
+
+      {!advisor && eoy && (
+        <div className="statgrid" style={{ marginBottom: 16 }}>
+          <section className="panel">
+            <div className="eyebrow">Projected {eoy.owes?'balance owed':'refund'}</div>
+            <div className="bignum" style={{ color: eoy.owes?'var(--red)':'var(--green)' }}>{M(Math.abs(eoy.refund))}</div>
+            <div className="when">latest payslip annualised + LLC to date</div>
+          </section>
+          <section className="panel"><div className="eyebrow">LLC net (YTD)</div><div className="bignum" style={{color:s.llcNetYTD<0?'var(--red)':'var(--green)'}}>{M(s.llcNetYTD)}</div><div className="when">{s.counts.llcIncome+s.counts.llcExpense} entries</div></section>
+          <section className="panel"><div className="eyebrow">W-2 income (YTD)</div><div className="bignum">{M(s.w2IncomeYTD)}</div><div className="when">{s.counts.w2Income} payslips</div></section>
+        </div>
+      )}
+
+      <section className="panel">
+        <div className="grouphead"><div><span className="gname">Year to date</span></div></div>
+        <div className="taxsub">LLC (business)</div>
+        <Row label="Income" val={s.llcIncomeYTD} accent="green" />
+        <Row label="Expenses" val={-s.llcExpenseYTD} />
+        <Row label="Net" val={s.llcNetYTD} strong accent={s.llcNetYTD<0?'red':'green'} />
+        <div className="taxsub">W-2 (employment)</div>
+        <Row label="Income" val={s.w2IncomeYTD} accent="green" />
+      </section>
+
+      {!advisor && eoy && (
+        <section className="panel" style={{ marginTop: 16 }}>
+          <div className="grouphead"><div><span className="gname">End-of-year prediction</span><div className="when" style={{marginTop:1}}>if the latest payslip continues; LLC as recorded to date</div></div></div>
+          <Row label="W-2 taxable wages (annualised)" val={eoy.w2Taxable} />
+          <Row label="LLC net (offsets income if a loss)" val={eoy.llcNet} accent={eoy.llcNet<0?'red':undefined} />
+          <Row label="Adjusted gross income" val={eoy.agi} strong />
+          <div className="taxsub">Liability</div>
+          <Row label="Federal (incl. SE tax)" val={eoy.fedLiability} />
+          <Row label="State (VA)" val={eoy.stateLiability} />
+          <Row label="Total liability" val={eoy.totalLiability} strong />
+          <div className="taxsub">Settlement</div>
+          <Row label="Total withheld" val={eoy.totalWithheld} />
+          <Row label={eoy.owes?'Balance owed':'Refund'} val={Math.abs(eoy.refund)} strong accent={eoy.owes?'red':'green'} />
+          <div className="legend" style={{ marginTop: 10 }}>Estimate only, not tax advice. 2025 brackets, single filer, Virginia, standard deduction; ignores credits, itemising and QBI.</div>
+        </section>
+      )}
+    </>
   )
 }
