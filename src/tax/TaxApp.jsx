@@ -16,37 +16,55 @@ export default function TaxApp({ session, advisor = false }) {
   const year = new Date().getFullYear()
   const [tab, setTab] = useState(advisor ? 'ledger' : 'dump')
   const [entries, setEntries] = useState([])
-  const [busy, setBusy] = useState(false)
+  const [progress, setProgress] = useState(null)
+  const [dragging, setDragging] = useState(false)
   const [note, setNote] = useState(null)
   const [error, setError] = useState(null)
   const fileRef = useRef(null)
 
+  const busy = !!progress
   const refresh = async () => setEntries(await listEntries(advisor ? null : session.user.id, year))
   useEffect(() => { refresh() }, [session.user.id]) // eslint-disable-line
 
-  const onDump = async (e) => {
-    const file = e.target.files?.[0]; if (!file) return
-    setBusy(true); setError(null); setNote(null)
-    try {
-      const result = await extractDocument(file)
-      const stored = await uploadFile(session.user.id, file, result.doc_kind, year)
-      const rows = result.entries?.length ? result.entries : [{ entry_date: new Date().toISOString().slice(0,10), book: 'llc', direction: 'expense', category: 'Other', amount: 0, confident: false }]
-      for (const r of rows) {
-        await addEntry(session.user.id, {
-          entry_date: r.entry_date || new Date().toISOString().slice(0,10),
-          book: r.book === 'w2' ? 'w2' : 'llc',
-          direction: r.direction === 'income' ? 'income' : 'expense',
-          category: r.category || null, vendor: r.vendor || null, amount: Math.abs(Number(r.amount) || 0),
-          note: r.note || null, fed_withheld: r.fed_withheld ?? null, state_withheld: r.state_withheld ?? null,
-          pretax: r.pretax ?? null, periods_per_year: r.periods_per_year ?? null,
-          source_doc: stored.id, needs_review: r.confident === false, tax_year: year,
-        })
-      }
-      setNote(`Added ${rows.length} ${rows.length === 1 ? 'entry' : 'entries'} from ${file.name}${result.doc_kind ? ` (${result.doc_kind})` : ''}`)
-      await refresh()
-    } catch (err) { setError(err.message) }
-    finally { setBusy(false); if (fileRef.current) fileRef.current.value = '' }
+  const processOne = async (file) => {
+    const result = await extractDocument(file)
+    const stored = await uploadFile(session.user.id, file, result.doc_kind, year)
+    const rows = result.entries?.length ? result.entries : [{ entry_date: new Date().toISOString().slice(0,10), book: 'llc', direction: 'expense', category: 'Other', amount: 0, confident: false }]
+    for (const r of rows) {
+      await addEntry(session.user.id, {
+        entry_date: r.entry_date || new Date().toISOString().slice(0,10),
+        book: r.book === 'w2' ? 'w2' : 'llc',
+        direction: r.direction === 'income' ? 'income' : 'expense',
+        category: r.category || null, vendor: r.vendor || null, amount: Math.abs(Number(r.amount) || 0),
+        note: r.note || null, fed_withheld: r.fed_withheld ?? null, state_withheld: r.state_withheld ?? null,
+        pretax: r.pretax ?? null, periods_per_year: r.periods_per_year ?? null,
+        source_doc: stored.id, needs_review: r.confident === false, tax_year: year,
+      })
+    }
+    return rows.length
   }
+
+  const ACCEPT = /\.(pdf|png|jpe?g|webp|heic)$/i
+  const handleFiles = async (fileList) => {
+    const files = Array.from(fileList || []).filter((f) => ACCEPT.test(f.name))
+    if (!files.length) { setError('No supported files — use PDF or an image.'); return }
+    setError(null); setNote(null)
+    setProgress({ total: files.length, done: 0, current: files[0].name, added: 0, failed: [] })
+    let added = 0; const failed = []
+    for (let i = 0; i < files.length; i++) {
+      setProgress((p) => ({ ...p, current: files[i].name, done: i }))
+      try { added += await processOne(files[i]) }
+      catch (err) { failed.push(`${files[i].name}: ${err.message}`) }
+    }
+    setProgress(null)
+    await refresh()
+    const ok = files.length - failed.length
+    setNote(`Processed ${ok}/${files.length} file${files.length === 1 ? '' : 's'} · ${added} ${added === 1 ? 'entry' : 'entries'} added`)
+    if (failed.length) setError(failed.join(' · '))
+  }
+
+  const onDump = (e) => { handleFiles(e.target.files); if (fileRef.current) fileRef.current.value = '' }
+  const onDrop = (e) => { e.preventDefault(); setDragging(false); handleFiles(e.dataTransfer.files) }
 
   const patch = async (id, p) => { setEntries((es) => es.map((e) => e.id === id ? { ...e, ...p } : e)); await updateEntry(id, p) }
   const remove = async (id) => { if (confirm('Delete this entry?')) { await deleteEntry(id); refresh() } }
@@ -71,7 +89,7 @@ export default function TaxApp({ session, advisor = false }) {
       <main className="main">
         {advisor && <div className="notice" style={{ marginBottom: 16 }}><span style={{ color:'var(--mut)' }}>Advisor view — LLC income and expenses, and W-2 income totals. Ongoing payslips are not shared.</span></div>}
 
-        {tab === 'dump' && !advisor && <DumpView {...{ busy, note, error, fileRef, onDump, entries, patch, remove, year }} />}
+        {tab === 'dump' && !advisor && <DumpView {...{ busy, progress, dragging, setDragging, note, error, fileRef, onDump, onDrop, handleFiles, entries, patch, remove, year }} />}
         {tab === 'ledger' && <LedgerView entries={entries} patch={advisor ? null : patch} remove={advisor ? null : remove} />}
         {tab === 'summary' && <SummaryView summary={summary} eoy={eoy} advisor={advisor} />}
       </main>
@@ -106,20 +124,34 @@ function EntryRow({ e, patch, remove, showBook }) {
   )
 }
 
-function DumpView({ busy, note, error, fileRef, onDump, entries, patch, remove, year }) {
+function DumpView({ busy, progress, dragging, setDragging, note, error, fileRef, onDump, onDrop, entries, patch, remove, year }) {
   const recent = [...entries].sort((a,b)=>(a.created_at<b.created_at?1:-1)).slice(0,15)
   const review = recent.filter((e)=>e.needs_review)
   return (
     <>
       <div className="screenhead"><h1>Add documents</h1></div>
-      <section className="panel" style={{ marginBottom: 16, textAlign: 'center', padding: '32px 20px' }}>
-        <div className="eyebrow" style={{ marginBottom: 8 }}>Drop a payslip, W-2, 1099, receipt or invoice</div>
-        <button className="primary" disabled={busy} onClick={()=>fileRef.current?.click()} style={{ fontSize: 15, padding: '10px 22px' }}>
-          {busy ? 'Reading…' : 'Upload a document'}
-        </button>
-        <input ref={fileRef} type="file" hidden accept=".pdf,.png,.jpg,.jpeg,.webp,.heic" onChange={onDump} />
-        <div className="when" style={{ marginTop: 10 }}>It's read automatically, categorised, and added to your ledger. Fix anything below.</div>
-      </section>
+      <div
+        className={`dropzone${dragging ? ' drag' : ''}${busy ? ' busy' : ''}`}
+        onDragOver={(e)=>{ e.preventDefault(); if(!busy) setDragging(true) }}
+        onDragLeave={(e)=>{ e.preventDefault(); setDragging(false) }}
+        onDrop={busy ? (e)=>e.preventDefault() : onDrop}
+        onClick={()=>{ if(!busy) fileRef.current?.click() }}
+      >
+        <input ref={fileRef} type="file" hidden multiple accept=".pdf,.png,.jpg,.jpeg,.webp,.heic" onChange={onDump} />
+        {busy && progress ? (
+          <div>
+            <div className="eyebrow" style={{ marginBottom: 10 }}>Reading {progress.done + 1} of {progress.total}</div>
+            <div className="dropfile">{progress.current}</div>
+            <div className="progbar"><div className="progfill" style={{ width: `${Math.round((progress.done / progress.total) * 100)}%` }} /></div>
+          </div>
+        ) : (
+          <>
+            <div className="dropicon">↓</div>
+            <div className="droptitle">{dragging ? 'Drop to add them' : 'Drag files here, or click to choose'}</div>
+            <div className="when" style={{ marginTop: 6 }}>Payslips, W-2, 1099, receipts, invoices — several at once. Each is read, categorised, and added to your ledger.</div>
+          </>
+        )}
+      </div>
       {note && <div className="notice" style={{ marginBottom: 12 }}><span style={{ color:'var(--green)', fontWeight:600 }}>{note}</span></div>}
       {error && <div className="notice bad" style={{ marginBottom: 12 }}><span className="danger">{error}</span></div>}
 

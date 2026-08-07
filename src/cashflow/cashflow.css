@@ -173,3 +173,15 @@ margin-top:14px;padding:11px 14px;background:var(--bg);border:1px solid var(--li
 .rbtns{display:flex;gap:6px}
 .rbtns button{font-size:12.5px;padding:5px 12px;border-radius:7px;border:1px solid var(--line);background:var(--surface);cursor:pointer}
 .rbtns .active{background:var(--accent-soft);border-color:var(--green);color:var(--green);font-weight:600}
+
+/* tax drop zone */
+.dropzone{margin-bottom:16px;border:1.5px dashed var(--line);border-radius:14px;background:var(--surface);
+padding:36px 24px;text-align:center;cursor:pointer;transition:border-color .15s,background .15s;}
+.dropzone:hover{border-color:var(--green);background:var(--accent-soft)}
+.dropzone.drag{border-color:var(--green);background:var(--accent-soft);border-style:solid}
+.dropzone.busy{cursor:default;border-style:solid;border-color:var(--line)}
+.dropicon{font-size:26px;color:var(--green);line-height:1;margin-bottom:8px}
+.droptitle{font-size:15px;font-weight:600;color:var(--ink)}
+.dropfile{font-size:13.5px;color:var(--mut);margin-bottom:10px;word-break:break-all}
+.progbar{height:6px;background:var(--line-soft);border-radius:99px;overflow:hidden;max-width:320px;margin:0 auto}
+.progfill{height:100%;background:var(--green);border-radius:99px;transition:width .3s}
