@@ -76,6 +76,7 @@ export function predictEOY(s, opts = {}) {
   const stateTax = round2(fromBrackets(Math.max(0, w2Taxable + llcNet - VA_STD), VA_BR))
   const refund = round2((fedW + stateW) - (fedTax + stateTax))
   return {
+    asOf: p.entry_date || null,
     w2Taxable, w2Gross: annualGross, llcNet, seTax, agi, method,
     fedWithheld: fedW, stateWithheld: stateW,
     fedLiability: fedTax, stateLiability: stateTax,

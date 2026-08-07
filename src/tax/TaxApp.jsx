@@ -10,6 +10,7 @@ const M = (n) => usd.format(Number(n) || 0)
 const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']
 const monthKey = (d) => d.slice(0, 7)
 const monthName = (k) => `${MONTHS[+k.slice(5,7)-1]} ${k.slice(0,4)}`
+const prettyDate = (d) => d ? `${MONTHS[+d.slice(5,7)-1]} ${+d.slice(8,10)}, ${d.slice(0,4)}` : ''
 const CATS = { llc: ['Software','Meals','Office supplies','Travel','Contractor income','Client income','Equipment','Marketing','Fees','Other'], w2: ['Wages','Bonus','Other'] }
 
 export default function TaxApp({ session, advisor = false }) {
@@ -225,7 +226,7 @@ function SummaryView({ summary: s, eoy, advisor }) {
           <section className="panel">
             <div className="eyebrow">Projected {eoy.owes?'balance owed':'refund'}</div>
             <div className="bignum" style={{ color: eoy.owes?'var(--red)':'var(--green)' }}>{M(Math.abs(eoy.refund))}</div>
-            <div className="when">latest payslip annualised + LLC to date</div>
+            <div className="when">{eoy.asOf ? `as of your ${prettyDate(eoy.asOf)} payslip` : 'from your latest payslip + LLC to date'}</div>
           </section>
           <section className="panel"><div className="eyebrow">LLC net (YTD)</div><div className="bignum" style={{color:s.llcNetYTD<0?'var(--red)':'var(--green)'}}>{M(s.llcNetYTD)}</div><div className="when">{s.counts.llcIncome+s.counts.llcExpense} entries</div></section>
           <section className="panel"><div className="eyebrow">W-2 income (YTD)</div><div className="bignum">{M(s.w2IncomeYTD)}</div><div className="when">{s.counts.w2Income} payslips</div></section>
