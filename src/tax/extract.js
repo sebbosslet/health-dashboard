@@ -38,8 +38,19 @@ extract ledger entries. Reply with ONLY JSON (no prose, no code fence):
   ]
 }
 
-Guidance:
-- A payslip/pay stub -> book "w2", direction "income", category "Wages", amount = gross for THIS period, fill the per-period withholding fields, AND fill the YTD fields from the year-to-date columns (crucial — these are the actuals so far). entry_date = the pay date.
+Guidance for PAYSLIPS (very important — this drives a tax forecast):
+- These payslips have TWO number columns: "this period" and "year to date". Read BOTH.
+- book "w2", direction "income", category "Wages".
+- amount = "Gross Pay" for THIS period (the this-period column).
+- ytd_gross = "Gross Pay" in the YEAR TO DATE column (e.g. a large cumulative number).
+- fed_withheld = "Federal Income Tax" this period; ytd_fed = its year-to-date value.
+- state_withheld = the state income tax line this period (e.g. "VA State Income Tax"); ytd_state = its year-to-date value.
+- pretax (this period) = SUM of the deduction lines marked as excluded from federal taxable wages — typically 401(k), Dental, Vision, Medical, Health Savings/HSA (often flagged with an asterisk *). Do NOT include 401K Loan (post-tax), taxes, or car/insurance items.
+- ytd_pretax = SUM of the YEAR-TO-DATE column for those same pretax lines.
+- periods_per_year: biweekly pay period (~2 weeks between Period Beginning and Period Ending) = 26.
+- check_number: if "Gross Pay YTD divided by this-period Gross Pay" is a whole number you may use it; otherwise omit and it will be inferred.
+- entry_date = the Pay Date.
+- ALWAYS fill ytd_gross/ytd_fed/ytd_state/ytd_pretax for a payslip. If a YTD value is genuinely absent, use 0, but the gross YTD is always present.
 - A W-2 form -> book "w2", income, category "Wages", amount = box 1 wages.
 - A 1099 -> book "llc", income.
 - A receipt/invoice for the business -> book "llc", expense; guess a sensible category.

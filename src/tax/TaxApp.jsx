@@ -39,7 +39,13 @@ export default function TaxApp({ session, advisor = false }) {
         category: r.category || null, vendor: r.vendor || null, amount: Math.abs(Number(r.amount) || 0),
         note: r.note || null, fed_withheld: r.fed_withheld ?? null, state_withheld: r.state_withheld ?? null,
         pretax: r.pretax ?? null, periods_per_year: r.periods_per_year ?? null,
-        source_doc: stored.id, needs_review: r.confident === false, tax_year: year,
+        ytd_gross: r.ytd_gross ?? null, ytd_fed: r.ytd_fed ?? null,
+        ytd_state: r.ytd_state ?? null, ytd_pretax: r.ytd_pretax ?? null,
+        check_number: r.check_number ?? null,
+        source_doc: stored.id,
+        // a payslip with no YTD extracted is worth reviewing — the forecast needs it
+        needs_review: r.confident === false || (r.book === 'w2' && r.direction === 'income' && r.ytd_gross == null),
+        tax_year: year,
       })
     }
     return rows.length
@@ -125,6 +131,34 @@ function EntryRow({ e, patch, remove, showBook }) {
   )
 }
 
+function PayslipFigures({ e, patch }) {
+  const f = (k, lab) => (
+    <label style={{ display:'flex', flexDirection:'column', gap:2 }}>
+      <span className="lab">{lab}</span>
+      <input className="mini" type="number" value={e[k] ?? ''} onChange={(ev)=>patch(e.id,{[k]: ev.target.value===''?null:Number(ev.target.value)})} />
+    </label>
+  )
+  const missingYTD = e.ytd_gross == null
+  return (
+    <div className="payfig">
+      <div className="payfig-head">
+        Payslip figures{missingYTD && <span className="tag review-tag" style={{marginLeft:6}}>YTD missing — the forecast needs these</span>}
+      </div>
+      <div className="payfig-grid">
+        <div className="payfig-col"><div className="payfig-col-h">This period</div>
+          {f('amount','Gross')}{f('fed_withheld','Federal')}{f('state_withheld','State')}{f('pretax','Pre-tax')}
+        </div>
+        <div className="payfig-col"><div className="payfig-col-h">Year to date</div>
+          {f('ytd_gross','Gross YTD')}{f('ytd_fed','Federal YTD')}{f('ytd_state','State YTD')}{f('ytd_pretax','Pre-tax YTD')}
+        </div>
+        <div className="payfig-col"><div className="payfig-col-h">Schedule</div>
+          {f('periods_per_year','Checks/yr')}{f('check_number','This is check #')}
+        </div>
+      </div>
+    </div>
+  )
+}
+
 function DumpView({ busy, progress, dragging, setDragging, note, error, fileRef, onDump, onDrop, entries, patch, remove, year }) {
   const recent = [...entries].sort((a,b)=>(a.created_at<b.created_at?1:-1)).slice(0,15)
   const review = recent.filter((e)=>e.needs_review)
@@ -159,7 +193,12 @@ function DumpView({ busy, progress, dragging, setDragging, note, error, fileRef,
       {review.length > 0 && (
         <section className="panel" style={{ marginBottom: 16 }}>
           <div className="grouphead"><div><span className="gname">Needs review</span><div className="when" style={{marginTop:1}}>the detection wasn't sure — confirm the book and category</div></div></div>
-          {review.map((e)=><EntryRow key={e.id} e={e} patch={patch} remove={remove} showBook />)}
+          {review.map((e)=>(
+            <div key={e.id}>
+              <EntryRow e={e} patch={patch} remove={remove} showBook />
+              {e.book==='w2' && e.direction==='income' && <PayslipFigures e={e} patch={patch} />}
+            </div>
+          ))}
         </section>
       )}
 

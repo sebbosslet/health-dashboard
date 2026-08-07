@@ -185,3 +185,12 @@ padding:36px 24px;text-align:center;cursor:pointer;transition:border-color .15s,
 .dropfile{font-size:13.5px;color:var(--mut);margin-bottom:10px;word-break:break-all}
 .progbar{height:6px;background:var(--line-soft);border-radius:99px;overflow:hidden;max-width:320px;margin:0 auto}
 .progfill{height:100%;background:var(--green);border-radius:99px;transition:width .3s}
+
+/* payslip figure verification */
+.payfig{margin:2px 0 10px 92px;padding:10px 12px;background:var(--bg);border:1px solid var(--line-soft);border-radius:9px}
+.payfig-head{font-size:11px;letter-spacing:.05em;text-transform:uppercase;color:var(--faint);font-weight:600;margin-bottom:8px}
+.payfig-grid{display:grid;grid-template-columns:1fr 1fr auto;gap:16px}
+.payfig-col-h{font-size:10.5px;color:var(--mut);font-weight:600;margin-bottom:5px}
+.payfig-col label{margin-bottom:5px}
+.payfig-col .mini{width:104px}
+@media(max-width:720px){.payfig{margin-left:0}.payfig-grid{grid-template-columns:1fr}}
