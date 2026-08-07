@@ -434,7 +434,7 @@ export default function OSTree({ session }) {
 }
 
 const css = `
-.ost { height: 100%; overflow-y: auto; -webkit-overflow-scrolling: touch; font-family: inherit; color: #2C2C2A; }
+.ost { height: 100%; overflow-y: auto; -webkit-overflow-scrolling: touch; font-family: inherit; color: #2C2C2A; background: #FAF8F3; }
 .ost-inner { max-width: 1180px; margin: 0 auto; padding: 2.5rem 1.25rem 4rem; }
 .ost-header { text-align: center; margin-bottom: 1.5rem; }
 .ost-eyebrow { font-size: 12px; letter-spacing: 0.08em; text-transform: uppercase; color: #888780; margin: 0 0 6px; }
@@ -450,7 +450,7 @@ const css = `
 .ost-branch::before { content: ""; position: absolute; top: -24px; left: 50%; width: 1px; height: 24px; background: #D3D1C7; }
 .ost-branch-head h2 { font-size: 17px; font-weight: 600; margin: 0 0 2px; }
 .ost-branch-head p { font-size: 13px; color: #5F5E5A; margin: 0 0 14px; }
-.ost-opp { background: #FAF9F5; border: 1px solid #ECEAE4; border-radius: 12px; padding: 14px 16px; margin-bottom: 14px; }
+.ost-opp { background: #FFFFFF; border: 1px solid #E7E3D9; border-radius: 12px; padding: 14px 16px; margin-bottom: 14px; }
 .ost-problem { font-size: 14px; font-weight: 600; margin: 0 0 10px; }
 .ost-opp ul { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
 .ost-opp li { display: flex; align-items: flex-start; gap: 8px; font-size: 13.5px; line-height: 1.45; color: #444441; transition: opacity 0.15s; }
@@ -477,16 +477,4 @@ const css = `
 .ost-editor-btns { display: flex; gap: 6px; }
 .ost-save { border: none; background: #2D6A4F; color: #fff; border-radius: 6px; font-size: 12px; padding: 4px 12px; cursor: pointer; }
 .ost-cancel { border: 1px solid #D3D1C7; background: transparent; color: #5F5E5A; border-radius: 6px; font-size: 12px; padding: 4px 12px; cursor: pointer; }
-@media (prefers-color-scheme: dark) {
-  .ost { color: #E6E4DD; }
-  .ost-icon:hover { background: #333330; color: #E6E4DD; }
-  .ost-textarea, .ost-input { background: #1E1E1C; border-color: #46453F; color: #E6E4DD; }
-  .ost-cancel { color: #9C9A92; border-color: #46453F; }
-  .ost-add { border-color: #46453F; color: #9C9A92; }
-
-  .ost-opp { background: #262624; border-color: #3A3A37; }
-  .ost-opp li { color: #C2C0B6; }
-  .ost-branch-head p, .ost-meta, .ost-export { color: #9C9A92; }
-  .ost-trunk, .ost-branch::before, .ost-branches { border-color: #3A3A37; background-color: transparent; }
-}
 `;
