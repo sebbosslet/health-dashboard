@@ -244,7 +244,11 @@ function SummaryView({ summary: s, eoy, advisor }) {
 
       {!advisor && eoy && (
         <section className="panel" style={{ marginTop: 16 }}>
-          <div className="grouphead"><div><span className="gname">End-of-year prediction</span><div className="when" style={{marginTop:1}}>if the latest payslip continues; LLC as recorded to date</div></div></div>
+          <div className="grouphead"><div><span className="gname">End-of-year prediction</span><div className="when" style={{marginTop:1}}>
+            {eoy.method?.basis === 'ytd'
+              ? `${eoy.method.done} paychecks banked (YTD) + ${eoy.method.remaining} projected at the current rate`
+              : 'latest paycheck annualised (no YTD figures on file)'}; LLC as recorded to date
+          </div></div></div>
           <Row label="W-2 taxable wages (annualised)" val={eoy.w2Taxable} />
           <Row label="LLC net (offsets income if a loss)" val={eoy.llcNet} accent={eoy.llcNet<0?'red':undefined} />
           <Row label="Adjusted gross income" val={eoy.agi} strong />

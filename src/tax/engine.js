@@ -19,7 +19,7 @@ export function summarise(entries) {
     llcIncomeYTD: sum(llcIncome), llcExpenseYTD: sum(llcExpense),
     llcNetYTD: round2(sum(llcIncome) - sum(llcExpense)),
     w2IncomeYTD: sum(w2Income),
-    latestPayslip: [...w2Income].filter((e) => e.fed_withheld != null)
+    latestPayslip: [...w2Income].filter((e) => e.fed_withheld != null || e.ytd_gross != null)
       .sort((a, b) => (a.entry_date < b.entry_date ? 1 : -1))[0] || null,
     counts: { llcIncome: llcIncome.length, llcExpense: llcExpense.length, w2Income: w2Income.length },
   }
@@ -33,9 +33,35 @@ export function predictEOY(s, opts = {}) {
   const periods = Number(p.periods_per_year) || 26
   const gross = Number(p.amount) || 0
   const pretax = Number(p.pretax) || 0
-  const w2Taxable = Math.max(0, round2(gross * periods - pretax * periods))
-  const fedW = round2((Number(p.fed_withheld) || 0) * periods)
-  const stateW = round2((Number(p.state_withheld) || 0) * periods)
+  const perFed = Number(p.fed_withheld) || 0
+  const perState = Number(p.state_withheld) || 0
+
+  // If the payslip carries YTD figures, use them as banked actuals and project
+  // only the checks that remain. This beats annualising one check because it
+  // captures raises, bonuses and mid-year changes already reflected in YTD.
+  const hasYTD = p.ytd_gross != null
+  let annualGross, annualPretax, fedW, stateW, method
+  if (hasYTD) {
+    const ytdGross = Number(p.ytd_gross) || 0
+    const ytdPretax = Number(p.ytd_pretax) || 0
+    const ytdFed = Number(p.ytd_fed) || 0
+    const ytdState = Number(p.ytd_state) || 0
+    // how many checks are already banked, and how many remain
+    const done = Number(p.check_number) || Math.max(1, Math.round(ytdGross / (gross || 1)))
+    const remaining = Math.max(0, periods - done)
+    annualGross = round2(ytdGross + gross * remaining)
+    annualPretax = round2(ytdPretax + pretax * remaining)
+    fedW = round2(ytdFed + perFed * remaining)
+    stateW = round2(ytdState + perState * remaining)
+    method = { basis: 'ytd', done, remaining }
+  } else {
+    annualGross = round2(gross * periods)
+    annualPretax = round2(pretax * periods)
+    fedW = round2(perFed * periods)
+    stateW = round2(perState * periods)
+    method = { basis: 'annualised', done: null, remaining: null }
+  }
+  const w2Taxable = Math.max(0, round2(annualGross - annualPretax))
 
   // LLC net for the year: annualise YTD if requested, else use YTD as-is
   const llcNet = opts.annualiseLLC && opts.monthsElapsed
@@ -50,7 +76,7 @@ export function predictEOY(s, opts = {}) {
   const stateTax = round2(fromBrackets(Math.max(0, w2Taxable + llcNet - VA_STD), VA_BR))
   const refund = round2((fedW + stateW) - (fedTax + stateTax))
   return {
-    w2Taxable, llcNet, seTax, agi,
+    w2Taxable, w2Gross: annualGross, llcNet, seTax, agi, method,
     fedWithheld: fedW, stateWithheld: stateW,
     fedLiability: fedTax, stateLiability: stateTax,
     totalWithheld: round2(fedW + stateW), totalLiability: round2(fedTax + stateTax),

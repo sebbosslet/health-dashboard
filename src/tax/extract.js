@@ -24,17 +24,22 @@ extract ledger entries. Reply with ONLY JSON (no prose, no code fence):
       "vendor": "merchant or payer name, or ''",
       "amount": number,                       // positive, no $ or commas
       "note": "",
-      "fed_withheld": number,                 // payslips only, else omit
-      "state_withheld": number,               // payslips only, else omit
-      "pretax": number,                       // payslips only: 401k+HSA+Section125, else omit
-      "periods_per_year": number,             // payslips only: 26/24/12/52, else omit
+      "fed_withheld": number,                 // payslips only: THIS period's federal income tax
+      "state_withheld": number,               // payslips only: THIS period's state income tax
+      "pretax": number,                       // payslips only: THIS period's pre-tax (401k+HSA+Section125)
+      "periods_per_year": number,             // payslips only: 26/24/12/52
+      "ytd_gross": number,                    // payslips only: YEAR-TO-DATE gross from the YTD column
+      "ytd_fed": number,                      // payslips only: YEAR-TO-DATE federal income tax withheld
+      "ytd_state": number,                    // payslips only: YEAR-TO-DATE state income tax withheld
+      "ytd_pretax": number,                   // payslips only: YEAR-TO-DATE pre-tax deductions (401k+HSA+Section125)
+      "check_number": number,                 // payslips only: which paycheck this is in the year, if shown, else omit
       "confident": true                       // false if you are unsure of book/category
     }
   ]
 }
 
 Guidance:
-- A payslip/pay stub -> book "w2", direction "income", category "Wages", amount = gross for the period, and fill the withholding fields.
+- A payslip/pay stub -> book "w2", direction "income", category "Wages", amount = gross for THIS period, fill the per-period withholding fields, AND fill the YTD fields from the year-to-date columns (crucial — these are the actuals so far). entry_date = the pay date.
 - A W-2 form -> book "w2", income, category "Wages", amount = box 1 wages.
 - A 1099 -> book "llc", income.
 - A receipt/invoice for the business -> book "llc", expense; guess a sensible category.
