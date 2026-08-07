@@ -256,6 +256,67 @@ function Split3({ label, y, r, f, strong }) {
   )
 }
 
+function TaxDetail({ eoy }) {
+  const d = eoy.detail
+  const pct = (r) => `${(r*100).toFixed(r*100 % 1 === 0 ? 0 : 2)}%`
+  const band = (b) => b.to == null ? `over ${M(b.from)}` : `${M(b.from)}–${M(b.to)}`
+  const R = ({ label, val, strong, accent, sub, indent }) => (
+    <div className={`taxrow${strong?' strong':''}`} style={{ gridTemplateColumns:'1fr 140px' }}>
+      <span className="tl" style={{ paddingLeft: indent?18:0, color: sub?'var(--mut)':undefined, fontSize: sub?12.5:undefined }}>{label}</span>
+      <span className="num" style={{ textAlign:'right', color: accent==='green'?'var(--green)':accent==='red'?'var(--red)':undefined, fontWeight: strong?600:400 }}>{M(val)}</span>
+    </div>
+  )
+  return (
+    <section className="panel" style={{ marginTop: 16 }}>
+      <div className="grouphead"><div><span className="gname">End-of-year tax, line by line</span><div className="when" style={{marginTop:1}}>how the projected liability is built up</div></div>
+        <span className="amt">effective rate <b>{d.effectiveRate}%</b></span>
+      </div>
+
+      <div className="taxsub">Income</div>
+      <R label="W-2 gross wages (full year)" val={d.w2Gross} />
+      <R label="less pre-tax deductions (401k, HSA, medical)" val={-d.w2Pretax} indent sub />
+      <R label="W-2 taxable wages" val={d.w2Taxable} />
+      <R label="LLC net (Schedule C)" val={d.llcNet} accent={d.llcNet<0?'red':undefined} />
+      {d.halfSE>0 && <R label="less ½ self-employment tax deduction" val={-d.halfSE} indent sub />}
+      <R label="Adjusted gross income (AGI)" val={d.agi} strong />
+
+      <div className="taxsub">Federal income tax</div>
+      <R label="AGI" val={d.agi} sub />
+      <R label="less standard deduction" val={-d.fedStd} indent sub />
+      <R label="Federal taxable income" val={d.fedTaxableIncome} />
+      {d.fedBrackets.map((b,i)=>(
+        <R key={i} label={`${pct(b.rate)} on ${band(b)} — ${M(b.amount)}`} val={b.tax} indent sub />
+      ))}
+      <R label="Federal income tax" val={d.fedIncomeTax} strong />
+      {d.seTax>0 && <>
+        <R label={`Self-employment tax (15.3% on ${M(d.seBase)})`} val={d.seTax} />
+      </>}
+      {d.seTax>0 && <R label="Federal total (income + SE)" val={d.fedTotal} strong />}
+
+      <div className="taxsub">Virginia income tax</div>
+      <R label="W-2 taxable + LLC net" val={d.w2Taxable + d.llcNet} sub />
+      <R label="less VA standard deduction" val={-d.vaStd} indent sub />
+      <R label="VA taxable income" val={d.stateTaxableIncome} />
+      {d.stateBrackets.map((b,i)=>(
+        <R key={i} label={`${pct(b.rate)} on ${band(b)} — ${M(b.amount)}`} val={b.tax} indent sub />
+      ))}
+      <R label="Virginia income tax" val={d.stateTax} strong />
+
+      <div className="taxsub">Total tax & settlement</div>
+      <R label="Total tax liability (federal + state)" val={eoy.totalLiability} strong />
+      <R label="Federal withheld (full year)" val={-eoy.fedWithheld} indent sub />
+      <R label="State withheld (full year)" val={-eoy.stateWithheld} indent sub />
+      <R label={eoy.owes?'Balance owed':'Projected refund'} val={Math.abs(eoy.refund)} strong accent={eoy.owes?'red':'green'} />
+
+      <div className="legend" style={{ marginTop: 12 }}>
+        Estimate only, not tax advice. 2025 brackets, single filer, Virginia, standard deduction.
+        Ignores tax credits, itemised deductions, QBI (which could reduce this further), and any other income.
+        {d.llcNet<0 && ' Your LLC loss reduces taxable income, lowering the tax owed.'}
+      </div>
+    </section>
+  )
+}
+
 function SummaryView({ summary: s, eoy, advisor }) {
   const now = new Date()
   const monthsElapsed = now.getMonth() + 1
@@ -308,22 +369,7 @@ function SummaryView({ summary: s, eoy, advisor }) {
         </section>
       )}
 
-      {!advisor && eoy && (
-        <section className="panel" style={{ marginTop: 16 }}>
-          <div className="grouphead"><div><span className="gname">End-of-year tax</span><div className="when" style={{marginTop:1}}>full-year W-2 above, plus LLC as recorded to date</div></div></div>
-          <Row label="W-2 taxable wages (full year)" val={eoy.w2Taxable} />
-          <Row label="LLC net (offsets income if a loss)" val={eoy.llcNet} accent={eoy.llcNet<0?'red':undefined} />
-          <Row label="Adjusted gross income" val={eoy.agi} strong />
-          <div className="taxsub">Liability</div>
-          <Row label="Federal (incl. SE tax)" val={eoy.fedLiability} />
-          <Row label="State (VA)" val={eoy.stateLiability} />
-          <Row label="Total liability" val={eoy.totalLiability} strong />
-          <div className="taxsub">Settlement</div>
-          <Row label="Total withheld (full year)" val={eoy.totalWithheld} />
-          <Row label={eoy.owes?'Balance owed':'Projected refund'} val={Math.abs(eoy.refund)} strong accent={eoy.owes?'red':'green'} />
-          <div className="legend" style={{ marginTop: 10 }}>Estimate only, not tax advice. 2025 brackets, single filer, Virginia, standard deduction; ignores credits, itemising and QBI.</div>
-        </section>
-      )}
+      {!advisor && eoy && <TaxDetail eoy={eoy} />}
     </>
   )
 }

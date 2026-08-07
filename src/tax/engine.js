@@ -6,6 +6,18 @@ const VA_STD = 8500
 const VA_BR = [[0,0.02],[3000,0.03],[5000,0.05],[17000,0.0575]]
 function fromBrackets(t, br){ if(t<=0)return 0; let x=0; for(let i=0;i<br.length;i++){const[f,r]=br[i];const c=i+1<br.length?br[i+1][0]:Infinity; if(t>f)x+=(Math.min(t,c)-f)*r; else break;} return x }
 
+// Same maths, but returns each filled bracket so the UI can show the build-up.
+function bracketDetail(t, br){
+  const rows=[]; if(t<=0)return rows
+  for(let i=0;i<br.length;i++){
+    const[f,r]=br[i]; const c=i+1<br.length?br[i+1][0]:Infinity
+    if(t<=f)break
+    const amt=Math.min(t,c)-f
+    rows.push({ from:f, to:c===Infinity?null:c, rate:r, amount:Math.round(amt*100)/100, tax:Math.round(amt*r*100)/100 })
+  }
+  return rows
+}
+
 export function summarise(entries) {
   const llcIncome = [], llcExpense = [], w2Income = []
   for (const e of entries) {
@@ -76,9 +88,28 @@ export function predictEOY(s, opts = {}) {
   const seTax = round2(seBase * 0.153)
   const halfSE = round2(seTax / 2)
   const agi = round2(w2Taxable + llcNet - halfSE)
-  const fedTax = round2(fromBrackets(Math.max(0, agi - FED_STD), FED_BR) + seTax)
-  const stateTax = round2(fromBrackets(Math.max(0, w2Taxable + llcNet - VA_STD), VA_BR))
+
+  const fedTaxableIncome = Math.max(0, round2(agi - FED_STD))
+  const fedIncomeTax = round2(fromBrackets(fedTaxableIncome, FED_BR))
+  const fedBrackets = bracketDetail(fedTaxableIncome, FED_BR)
+  const fedTax = round2(fedIncomeTax + seTax)
+
+  const stateTaxableIncome = Math.max(0, round2(w2Taxable + llcNet - VA_STD))
+  const stateTax = round2(fromBrackets(stateTaxableIncome, VA_BR))
+  const stateBrackets = bracketDetail(stateTaxableIncome, VA_BR)
+
   const refund = round2((fedW + stateW) - (fedTax + stateTax))
+
+  const detail = {
+    grossCombined: round2(annualGross + llcNet),
+    w2Gross: annualGross, w2Pretax: annualPretax, w2Taxable,
+    llcNet, halfSE,
+    agi,
+    fedStd: FED_STD, fedTaxableIncome, fedBrackets, fedIncomeTax, seTax, seBase,
+    fedTotal: fedTax,
+    vaStd: VA_STD, stateTaxableIncome, stateBrackets, stateTax,
+    effectiveRate: agi > 0 ? round2((fedTax + stateTax) / agi * 1000) / 10 : 0,
+  }
   return {
     asOf: p.entry_date || null,
     split: { ytd, roy, full },
@@ -86,6 +117,6 @@ export function predictEOY(s, opts = {}) {
     fedWithheld: fedW, stateWithheld: stateW,
     fedLiability: fedTax, stateLiability: stateTax,
     totalWithheld: round2(fedW + stateW), totalLiability: round2(fedTax + stateTax),
-    refund, owes: refund < 0,
+    refund, owes: refund < 0, detail,
   }
 }
