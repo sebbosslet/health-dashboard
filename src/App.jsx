@@ -76,6 +76,14 @@ export default function App() {
   const tripOnly = TRIP_EMAILS.includes(session.user.email)
   const ostreeOnly = OSTREE_EMAILS.includes(session.user.email)
 
+  // Accounts locked to a single route see nothing else. `allow` names the one
+  // path each may reach; every other route falls through to "/", which itself
+  // redirects them back to their route.
+  const locked = ostreeOnly ? "/ostree" : tripOnly ? "/travel" : null
+  const gate = (path, element) => (!locked || locked === path)
+    ? element
+    : <Navigate to="/" replace />
+
   return (
     <LangProvider>
       <BrowserRouter>
@@ -87,14 +95,12 @@ export default function App() {
               : tripOnly ? <Navigate to="/travel" replace />
               : <HubPage session={session} />
           } />
-          <Route path="/ostree" element={
-            ostreeOnly ? <OSTree session={session} /> : <Navigate to="/" replace />
-          } />
-          <Route path="/health" element={<MainApp session={session} whoopCode={whoopCode} whoopError={whoopError} />} />
-          <Route path="/travel" element={<TripApp session={session} />} />
-          <Route path="/cashflow" element={<CashflowApp session={session} />} />
-          <Route path="/eur" element={<EurApp session={session} />} />
-          <Route path="/attendance" element={<AttendanceApp session={session} />} />
+          <Route path="/ostree" element={gate("/ostree", <OSTree session={session} />)} />
+          <Route path="/health" element={gate("/health", <MainApp session={session} whoopCode={whoopCode} whoopError={whoopError} />)} />
+          <Route path="/travel" element={gate("/travel", <TripApp session={session} />)} />
+          <Route path="/cashflow" element={gate("/cashflow", <CashflowApp session={session} />)} />
+          <Route path="/eur" element={gate("/eur", <EurApp session={session} />)} />
+          <Route path="/attendance" element={gate("/attendance", <AttendanceApp session={session} />)} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
         </Suspense>
