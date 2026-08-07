@@ -32,13 +32,19 @@ export default function TaxApp({ session, advisor = false }) {
     const stored = await uploadFile(session.user.id, file, result.doc_kind, year)
     const rows = result.entries?.length ? result.entries : [{ entry_date: new Date().toISOString().slice(0,10), book: 'llc', direction: 'expense', category: 'Other', amount: 0, confident: false }]
     for (const r of rows) {
+      // If the stub states federal taxable wages, trust it: pre-tax = gross − taxable.
+      // This avoids guessing which deduction lines are pre-tax.
+      const gross = Math.abs(Number(r.amount) || 0)
+      const statedPretax = (r.taxable_this != null && gross > 0)
+        ? Math.max(0, Math.round((gross - Number(r.taxable_this)) * 100) / 100)
+        : (r.pretax ?? null)
       await addEntry(session.user.id, {
         entry_date: r.entry_date || new Date().toISOString().slice(0,10),
         book: r.book === 'w2' ? 'w2' : 'llc',
         direction: r.direction === 'income' ? 'income' : 'expense',
-        category: r.category || null, vendor: r.vendor || null, amount: Math.abs(Number(r.amount) || 0),
+        category: r.category || null, vendor: r.vendor || null, amount: gross,
         note: r.note || null, fed_withheld: r.fed_withheld ?? null, state_withheld: r.state_withheld ?? null,
-        pretax: r.pretax ?? null, periods_per_year: r.periods_per_year ?? null,
+        pretax: statedPretax, periods_per_year: r.periods_per_year ?? null,
         ytd_gross: r.ytd_gross ?? null, ytd_fed: r.ytd_fed ?? null,
         ytd_state: r.ytd_state ?? null, ytd_pretax: r.ytd_pretax ?? null,
         check_number: r.check_number ?? null,

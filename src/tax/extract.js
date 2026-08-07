@@ -32,6 +32,7 @@ extract ledger entries. Reply with ONLY JSON (no prose, no code fence):
       "ytd_fed": number,                      // payslips only: YEAR-TO-DATE federal income tax withheld
       "ytd_state": number,                    // payslips only: YEAR-TO-DATE state income tax withheld
       "ytd_pretax": number,                   // payslips only: YEAR-TO-DATE pre-tax deductions (401k+HSA+Section125)
+      "taxable_this": number,                 // payslips only: the explicitly stated "federal taxable wages this period" figure, if the stub prints it (else omit)
       "check_number": number,                 // payslips only: which paycheck this is in the year, if shown, else omit
       "confident": true                       // false if you are unsure of book/category
     }
@@ -47,6 +48,7 @@ Guidance for PAYSLIPS (very important — this drives a tax forecast):
 - state_withheld = the state income tax line this period (e.g. "VA State Income Tax"); ytd_state = its year-to-date value.
 - pretax (this period) = SUM of the deduction lines marked as excluded from federal taxable wages — typically 401(k), Dental, Vision, Medical, Health Savings/HSA (often flagged with an asterisk *). Do NOT include 401K Loan (post-tax), taxes, or car/insurance items.
 - ytd_pretax = SUM of the YEAR-TO-DATE column for those same pretax lines.
+- taxable_this: MANY stubs print a line like "Your federal taxable wages this period are $X". If present, capture that exact number — it is authoritative and beats summing deduction lines.
 - periods_per_year: biweekly pay period (~2 weeks between Period Beginning and Period Ending) = 26.
 - check_number: if "Gross Pay YTD divided by this-period Gross Pay" is a whole number you may use it; otherwise omit and it will be inferred.
 - entry_date = the Pay Date.
