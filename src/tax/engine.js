@@ -15,10 +15,16 @@ export function summarise(entries) {
     else if (e.book === 'llc' && e.direction === 'expense') llcExpense.push(e)
   }
   const sum = (a) => round2(a.reduce((s, e) => s + (Number(e.amount) || 0), 0))
+  const latestWithYTD = [...w2Income].filter((e) => e.ytd_gross != null)
+    .sort((a, b) => (a.entry_date < b.entry_date ? 1 : -1))[0]
+  // W-2 income YTD: the payslip's own YTD gross is the truth when available,
+  // otherwise fall back to summing the individual payslip lines on file.
+  const w2IncomeYTD = latestWithYTD ? round2(Number(latestWithYTD.ytd_gross)) : sum(w2Income)
   return {
     llcIncomeYTD: sum(llcIncome), llcExpenseYTD: sum(llcExpense),
     llcNetYTD: round2(sum(llcIncome) - sum(llcExpense)),
-    w2IncomeYTD: sum(w2Income),
+    w2IncomeYTD,
+    w2FromYTD: !!latestWithYTD,
     latestPayslip: [...w2Income].filter((e) => e.fed_withheld != null || e.ytd_gross != null)
       .sort((a, b) => (a.entry_date < b.entry_date ? 1 : -1))[0] || null,
     counts: { llcIncome: llcIncome.length, llcExpense: llcExpense.length, w2Income: w2Income.length },
@@ -40,27 +46,25 @@ export function predictEOY(s, opts = {}) {
   // only the checks that remain. This beats annualising one check because it
   // captures raises, bonuses and mid-year changes already reflected in YTD.
   const hasYTD = p.ytd_gross != null
-  let annualGross, annualPretax, fedW, stateW, method
+  // Three-part split for every W-2 figure: banked YTD, projected rest-of-year, full year.
+  let ytd, roy, method
   if (hasYTD) {
-    const ytdGross = Number(p.ytd_gross) || 0
-    const ytdPretax = Number(p.ytd_pretax) || 0
-    const ytdFed = Number(p.ytd_fed) || 0
-    const ytdState = Number(p.ytd_state) || 0
-    // how many checks are already banked, and how many remain
-    const done = Number(p.check_number) || Math.max(1, Math.round(ytdGross / (gross || 1)))
+    const done = Number(p.check_number) || Math.max(1, Math.round((Number(p.ytd_gross) || 0) / (gross || 1)))
     const remaining = Math.max(0, periods - done)
-    annualGross = round2(ytdGross + gross * remaining)
-    annualPretax = round2(ytdPretax + pretax * remaining)
-    fedW = round2(ytdFed + perFed * remaining)
-    stateW = round2(ytdState + perState * remaining)
+    ytd = { gross: Number(p.ytd_gross) || 0, pretax: Number(p.ytd_pretax) || 0, fed: Number(p.ytd_fed) || 0, state: Number(p.ytd_state) || 0 }
+    roy = { gross: round2(gross * remaining), pretax: round2(pretax * remaining), fed: round2(perFed * remaining), state: round2(perState * remaining) }
     method = { basis: 'ytd', done, remaining }
   } else {
-    annualGross = round2(gross * periods)
-    annualPretax = round2(pretax * periods)
-    fedW = round2(perFed * periods)
-    stateW = round2(perState * periods)
-    method = { basis: 'annualised', done: null, remaining: null }
+    // No YTD on file — treat the whole year as projection from this one check.
+    ytd = { gross: 0, pretax: 0, fed: 0, state: 0 }
+    roy = { gross: round2(gross * periods), pretax: round2(pretax * periods), fed: round2(perFed * periods), state: round2(perState * periods) }
+    method = { basis: 'annualised', done: 0, remaining: periods }
   }
+  const full = {
+    gross: round2(ytd.gross + roy.gross), pretax: round2(ytd.pretax + roy.pretax),
+    fed: round2(ytd.fed + roy.fed), state: round2(ytd.state + roy.state),
+  }
+  const annualGross = full.gross, annualPretax = full.pretax, fedW = full.fed, stateW = full.state
   const w2Taxable = Math.max(0, round2(annualGross - annualPretax))
 
   // LLC net for the year: annualise YTD if requested, else use YTD as-is
@@ -77,7 +81,8 @@ export function predictEOY(s, opts = {}) {
   const refund = round2((fedW + stateW) - (fedTax + stateTax))
   return {
     asOf: p.entry_date || null,
-    w2Taxable, w2Gross: annualGross, llcNet, seTax, agi, method,
+    split: { ytd, roy, full },
+    w2Taxable, w2Gross: annualGross, w2YTDGross: ytd.gross, llcNet, seTax, agi, method,
     fedWithheld: fedW, stateWithheld: stateW,
     fedLiability: fedTax, stateLiability: stateTax,
     totalWithheld: round2(fedW + stateW), totalLiability: round2(fedTax + stateTax),

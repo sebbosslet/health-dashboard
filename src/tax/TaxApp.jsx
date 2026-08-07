@@ -208,6 +208,15 @@ function LedgerView({ entries, patch, remove }) {
   )
 }
 
+function Split3({ label, y, r, f, strong }) {
+  const C = ({ v }) => <span className="num" style={{ textAlign:'right', fontWeight: strong?600:400 }}>{usd.format(Number(v)||0)}</span>
+  return (
+    <div className={`taxrow${strong?' strong':''}`} style={{ gridTemplateColumns:'1.4fr 1fr 1fr 1fr' }}>
+      <span className="tl">{label}</span><C v={y} /><C v={r} /><C v={f} />
+    </div>
+  )
+}
+
 function SummaryView({ summary: s, eoy, advisor }) {
   const now = new Date()
   const monthsElapsed = now.getMonth() + 1
@@ -229,7 +238,7 @@ function SummaryView({ summary: s, eoy, advisor }) {
             <div className="when">{eoy.asOf ? `as of your ${prettyDate(eoy.asOf)} payslip` : 'from your latest payslip + LLC to date'}</div>
           </section>
           <section className="panel"><div className="eyebrow">LLC net (YTD)</div><div className="bignum" style={{color:s.llcNetYTD<0?'var(--red)':'var(--green)'}}>{M(s.llcNetYTD)}</div><div className="when">{s.counts.llcIncome+s.counts.llcExpense} entries</div></section>
-          <section className="panel"><div className="eyebrow">W-2 income (YTD)</div><div className="bignum">{M(s.w2IncomeYTD)}</div><div className="when">{s.counts.w2Income} payslips</div></section>
+          <section className="panel"><div className="eyebrow">W-2 income (YTD)</div><div className="bignum">{M(s.w2IncomeYTD)}</div><div className="when">{s.w2FromYTD ? 'from your payslip YTD' : `${s.counts.w2Income} payslip${s.counts.w2Income===1?'':'s'} on file`}</div></section>
         </div>
       )}
 
@@ -245,12 +254,25 @@ function SummaryView({ summary: s, eoy, advisor }) {
 
       {!advisor && eoy && (
         <section className="panel" style={{ marginTop: 16 }}>
-          <div className="grouphead"><div><span className="gname">End-of-year prediction</span><div className="when" style={{marginTop:1}}>
+          <div className="grouphead"><div><span className="gname">Full-year W-2 forecast</span><div className="when" style={{marginTop:1}}>
             {eoy.method?.basis === 'ytd'
-              ? `${eoy.method.done} paychecks banked (YTD) + ${eoy.method.remaining} projected at the current rate`
-              : 'latest paycheck annualised (no YTD figures on file)'}; LLC as recorded to date
+              ? `${eoy.method.done} paychecks banked + ${eoy.method.remaining} projected at the current rate, as of ${prettyDate(eoy.asOf)}`
+              : 'no YTD figures on file — the whole year is projected from your latest paycheck'}
           </div></div></div>
-          <Row label="W-2 taxable wages (annualised)" val={eoy.w2Taxable} />
+          <div className="taxhead" style={{ gridTemplateColumns:'1.4fr 1fr 1fr 1fr' }}>
+            <span>W-2 figure</span><span>YTD actual</span><span>Rest of year</span><span>Full year</span>
+          </div>
+          <Split3 label="Gross wages" y={eoy.split.ytd.gross} r={eoy.split.roy.gross} f={eoy.split.full.gross} />
+          <Split3 label="Pre-tax deductions" y={-eoy.split.ytd.pretax} r={-eoy.split.roy.pretax} f={-eoy.split.full.pretax} />
+          <Split3 label="Federal withheld" y={eoy.split.ytd.fed} r={eoy.split.roy.fed} f={eoy.split.full.fed} />
+          <Split3 label="State withheld" y={eoy.split.ytd.state} r={eoy.split.roy.state} f={eoy.split.full.state} strong />
+        </section>
+      )}
+
+      {!advisor && eoy && (
+        <section className="panel" style={{ marginTop: 16 }}>
+          <div className="grouphead"><div><span className="gname">End-of-year tax</span><div className="when" style={{marginTop:1}}>full-year W-2 above, plus LLC as recorded to date</div></div></div>
+          <Row label="W-2 taxable wages (full year)" val={eoy.w2Taxable} />
           <Row label="LLC net (offsets income if a loss)" val={eoy.llcNet} accent={eoy.llcNet<0?'red':undefined} />
           <Row label="Adjusted gross income" val={eoy.agi} strong />
           <div className="taxsub">Liability</div>
@@ -258,8 +280,8 @@ function SummaryView({ summary: s, eoy, advisor }) {
           <Row label="State (VA)" val={eoy.stateLiability} />
           <Row label="Total liability" val={eoy.totalLiability} strong />
           <div className="taxsub">Settlement</div>
-          <Row label="Total withheld" val={eoy.totalWithheld} />
-          <Row label={eoy.owes?'Balance owed':'Refund'} val={Math.abs(eoy.refund)} strong accent={eoy.owes?'red':'green'} />
+          <Row label="Total withheld (full year)" val={eoy.totalWithheld} />
+          <Row label={eoy.owes?'Balance owed':'Projected refund'} val={Math.abs(eoy.refund)} strong accent={eoy.owes?'red':'green'} />
           <div className="legend" style={{ marginTop: 10 }}>Estimate only, not tax advice. 2025 brackets, single filer, Virginia, standard deduction; ignores credits, itemising and QBI.</div>
         </section>
       )}
