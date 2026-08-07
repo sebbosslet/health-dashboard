@@ -13,9 +13,11 @@ const CashflowApp = lazy(() => import('./cashflow/CashflowApp'))
 const EurApp = lazy(() => import('./eurflow/EurApp'))
 const OSTree = lazy(() => import('./ostree/OSTree'))
 const AttendanceApp = lazy(() => import('./attendance/AttendanceApp'))
+const TaxApp = lazy(() => import('./tax/TaxApp'))
 
 const TRIP_EMAILS = ['trip@sebs.health']
 const OSTREE_EMAILS = ['ostree@sebs.health']
+const TAX_ADVISOR_EMAILS = ['advisor@sebs.health']
 
 export default function App() {
   const [session, setSession] = useState(null)
@@ -79,7 +81,8 @@ export default function App() {
   // Accounts locked to a single route see nothing else. `allow` names the one
   // path each may reach; every other route falls through to "/", which itself
   // redirects them back to their route.
-  const locked = ostreeOnly ? "/ostree" : tripOnly ? "/travel" : null
+  const advisorOnly = TAX_ADVISOR_EMAILS.includes(session.user.email)
+  const locked = ostreeOnly ? "/ostree" : tripOnly ? "/travel" : advisorOnly ? "/tax" : null
   const gate = (path, element) => (!locked || locked === path)
     ? element
     : <Navigate to="/" replace />
@@ -92,6 +95,7 @@ export default function App() {
         <Routes>
           <Route path="/" element={
             ostreeOnly ? <Navigate to="/ostree" replace />
+              : advisorOnly ? <Navigate to="/tax" replace />
               : tripOnly ? <Navigate to="/travel" replace />
               : <HubPage session={session} />
           } />
@@ -101,6 +105,10 @@ export default function App() {
           <Route path="/cashflow" element={gate("/cashflow", <CashflowApp session={session} />)} />
           <Route path="/eur" element={gate("/eur", <EurApp session={session} />)} />
           <Route path="/attendance" element={gate("/attendance", <AttendanceApp session={session} />)} />
+          <Route path="/tax" element={
+            advisorOnly ? <TaxApp session={session} advisor />
+              : gate("/tax", <TaxApp session={session} />)
+          } />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
         </Suspense>

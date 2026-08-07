@@ -102,6 +102,24 @@ const APPS = [
       </>
     ),
   },
+  {
+    id: "tax",
+    name: "tax",
+    href: "/tax",
+    tagline: "Return projection & document vault",
+    blurb: "Live refund/owed estimate from your latest paycheck, LLC loss offset, and a categorised document store to share with your advisor.",
+    accent: "#7C3AED",
+    stats: [
+      { label: "Projects", value: "refund/owed" },
+      { label: "Stores", value: "W-2 · 1099 · receipts" },
+    ],
+    icon: (
+      <>
+        <path d="M6 3h9l3 3v15H6z" fill="none" strokeWidth="1.8" strokeLinejoin="round" />
+        <path d="M14 3v4h4M9 12h6M9 16h6M9 8h2" fill="none" strokeWidth="1.6" strokeLinecap="round" />
+      </>
+    ),
+  },
 ];
 
 
