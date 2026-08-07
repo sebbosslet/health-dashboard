@@ -44,8 +44,17 @@ Guidance:
 
 export async function extractDocument(file) {
   const b64 = await toB64(file)
-  const isPdf = file.type === 'application/pdf'
-  const source = { type: 'base64', media_type: isPdf ? 'application/pdf' : (file.type || 'image/jpeg'), data: b64 }
+  const name = (file.name || '').toLowerCase()
+  const isPdf = file.type === 'application/pdf' || name.endsWith('.pdf')
+  // Some browsers report an empty or odd file.type; fall back by extension.
+  let media = isPdf ? 'application/pdf'
+    : file.type && file.type.startsWith('image/') ? file.type
+    : name.endsWith('.png') ? 'image/png'
+    : name.endsWith('.webp') ? 'image/webp'
+    : name.endsWith('.heic') ? 'image/heic'
+    : 'image/jpeg'
+  if (!b64) throw new Error('could not read the file contents')
+  const source = { type: 'base64', media_type: media, data: b64 }
   const res = await fetch('/.netlify/functions/claude-proxy', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },

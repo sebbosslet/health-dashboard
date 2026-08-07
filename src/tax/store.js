@@ -14,8 +14,8 @@ export async function saveTaxState(userId, doc) {
 }
 
 export async function uploadFile(userId, file, docKind, taxYear) {
-  const safe = file.name.replace(/[^\w.\-]+/g, '_')
-  const path = `${userId}/${taxYear}/${Date.now()}-${safe}`
+  const safe = (file.name || 'document.pdf').replace(/[^\w.\-]+/g, '_').replace(/_+/g, '_').slice(-120)
+  const path = `${userId}/${taxYear}/${Date.now()}-${safe || 'file'}`
   const up = await supabase.storage.from(BUCKET).upload(path, file, { contentType: file.type, upsert: false })
   if (up.error) throw up.error
   const { data, error } = await supabase.from('tax_documents').insert({
