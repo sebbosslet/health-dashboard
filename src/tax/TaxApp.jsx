@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { projectTax, DOC_TYPES } from './engine'
+import { extractPayslip } from './extract'
 import { loadTaxState, saveTaxState, uploadTaxDoc, listTaxDocs, signedUrl, deleteTaxDoc } from './store'
 import '../cashflow/cashflow.css' // shared design tokens only — no data crosses between apps
 
@@ -17,6 +18,9 @@ export default function TaxApp({ session, advisor = false }) {
   const [error, setError] = useState(null)
   const timer = useRef(null)
   const fileRef = useRef(null)
+  const payslipRef = useRef(null)
+  const [reading, setReading] = useState(false)
+  const [readNote, setReadNote] = useState(null)
   const [form, setForm] = useState({ category: 'llc', doc_type: 'receipt', year_end: false, note: '' })
 
   useEffect(() => {
@@ -55,6 +59,27 @@ export default function TaxApp({ session, advisor = false }) {
       llcNetIncome: Number(doc.llcNetIncome) || 0,
     })
   }, [doc, advisor, hasPay])
+
+  const onReadPayslip = async (e) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    setReading(true); setReadNote(null); setError(null)
+    try {
+      const f = await extractPayslip(file)
+      setDoc((d) => ({
+        ...d,
+        grossPerCheck: f.grossPerCheck ?? d.grossPerCheck,
+        fedPerCheck: f.fedPerCheck ?? d.fedPerCheck,
+        statePerCheck: f.statePerCheck ?? d.statePerCheck,
+        pretaxPerCheck: f.pretaxPerCheck ?? d.pretaxPerCheck,
+        periodsPerYear: f.periodsPerYear || d.periodsPerYear || 26,
+      }))
+      setReadNote('Figures read from the payslip — check them below, then they feed the projection.')
+      // also file the payslip itself, tagged employment
+      try { await uploadTaxDoc(session.user.id, file, { category: 'employment', doc_type: 'payslip', year_end: false, tax_year: year, note: 'auto-read' }); refreshDocs() } catch { /* keep the figures even if storing fails */ }
+    } catch (err) { setError(err.message) }
+    finally { setReading(false); if (payslipRef.current) payslipRef.current.value = '' }
+  }
 
   const onUpload = async (e) => {
     const file = e.target.files?.[0]
@@ -106,8 +131,13 @@ export default function TaxApp({ session, advisor = false }) {
           <>
             <section className="panel" style={{ marginBottom: 16 }}>
               <div className="grouphead">
-                <div><span className="gname">Your latest paycheck</span><div className="when" style={{ marginTop: 1 }}>enter the figures from your most recent payslip — the projection assumes it continues to year-end</div></div>
+                <div><span className="gname">Your latest paycheck</span><div className="when" style={{ marginTop: 1 }}>upload a payslip to read the figures automatically, or type them in — the projection assumes it continues to year-end</div></div>
+                <button className="primary" disabled={reading} onClick={() => payslipRef.current?.click()}>
+                  {reading ? 'Reading…' : 'Read from payslip'}
+                </button>
+                <input ref={payslipRef} type="file" hidden accept=".pdf,.png,.jpg,.jpeg,.webp,.heic" onChange={onReadPayslip} />
               </div>
+              {readNote && <div className="notice" style={{ marginTop: 10, marginBottom: 2 }}><span style={{ color: 'var(--green)', fontWeight: 600 }}>{readNote}</span></div>}
               <div className="formgrid" style={{ marginTop: 8 }}>
                 <Field lab="Gross per check"><input type="number" value={doc?.grossPerCheck ?? ''} onChange={(e) => setDoc((d) => ({ ...d, grossPerCheck: e.target.value }))} /></Field>
                 <Field lab="Federal withheld / check"><input type="number" value={doc?.fedPerCheck ?? ''} onChange={(e) => setDoc((d) => ({ ...d, fedPerCheck: e.target.value }))} /></Field>
