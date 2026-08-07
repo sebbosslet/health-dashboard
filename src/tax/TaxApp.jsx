@@ -11,7 +11,7 @@ const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov
 const monthKey = (d) => d.slice(0, 7)
 const monthName = (k) => `${MONTHS[+k.slice(5,7)-1]} ${k.slice(0,4)}`
 const prettyDate = (d) => d ? `${MONTHS[+d.slice(5,7)-1]} ${+d.slice(8,10)}, ${d.slice(0,4)}` : ''
-const CATS = { llc: ['Software','Meals','Office supplies','Travel','Contractor income','Client income','Equipment','Marketing','Fees','Other'], w2: ['Wages','Bonus','Other'] }
+const CATS = { llc: ['Ingredients & supplies','Equipment','Software','Props & styling','Meals','Travel','Marketing','Office supplies','Contractor income','Client income','Fees','Other'], w2: ['Wages','Bonus','Other'] }
 
 export default function TaxApp({ session, advisor = false }) {
   const year = new Date().getFullYear()
@@ -79,7 +79,14 @@ export default function TaxApp({ session, advisor = false }) {
   const onDump = (e) => { handleFiles(e.target.files); if (fileRef.current) fileRef.current.value = '' }
   const onDrop = (e) => { e.preventDefault(); setDragging(false); handleFiles(e.dataTransfer.files) }
 
-  const patch = async (id, p) => { setEntries((es) => es.map((e) => e.id === id ? { ...e, ...p } : e)); await updateEntry(id, p) }
+  const patch = async (id, p) => {
+    // Editing the book or category counts as reviewing it — clear the flag so
+    // the change is visible and the row leaves "Needs review".
+    const clears = ('book' in p || 'category' in p)
+    const full = clears ? { ...p, needs_review: false } : p
+    setEntries((es) => es.map((e) => e.id === id ? { ...e, ...full } : e))
+    await updateEntry(id, full)
+  }
   const remove = async (id) => { if (confirm('Delete this entry?')) { await deleteEntry(id); refresh() } }
   const openDoc = async (e) => { if (!e.source_doc) return; const path = e._path; if (path) { const u = await signedUrl(path); if (u) window.open(u, '_blank') } }
 
@@ -166,8 +173,9 @@ function PayslipFigures({ e, patch }) {
 }
 
 function DumpView({ busy, progress, dragging, setDragging, note, error, fileRef, onDump, onDrop, entries, patch, remove, year }) {
-  const recent = [...entries].sort((a,b)=>(a.created_at<b.created_at?1:-1)).slice(0,15)
-  const review = recent.filter((e)=>e.needs_review)
+  const sorted = [...entries].sort((a,b)=>(a.created_at<b.created_at?1:-1))
+  const review = sorted.filter((e)=>e.needs_review).slice(0,15)
+  const recent = sorted.filter((e)=>!e.needs_review).slice(0,15)
   return (
     <>
       <div className="screenhead"><h1>Add documents</h1></div>
@@ -203,6 +211,9 @@ function DumpView({ busy, progress, dragging, setDragging, note, error, fileRef,
             <div key={e.id}>
               <EntryRow e={e} patch={patch} remove={remove} showBook />
               {e.book==='w2' && e.direction==='income' && <PayslipFigures e={e} patch={patch} />}
+              <div style={{ display:'flex', justifyContent:'flex-end', margin:'2px 0 10px' }}>
+                <button className="ghost" style={{ fontSize:12 }} onClick={()=>patch(e.id,{ needs_review:false })}>Looks right — clear</button>
+              </div>
             </div>
           ))}
         </section>
