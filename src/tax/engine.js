@@ -108,7 +108,7 @@ export function predictEOY(s, opts = {}) {
     fedStd: FED_STD, fedTaxableIncome, fedBrackets, fedIncomeTax, seTax, seBase,
     fedTotal: fedTax,
     vaStd: VA_STD, stateTaxableIncome, stateBrackets, stateTax,
-    effectiveRate: agi > 0 ? round2((fedTax + stateTax) / agi * 1000) / 10 : 0,
+    effectiveRate: agi > 0 ? Math.round((fedTax + stateTax) / agi * 1000) / 10 : 0,
   }
   return {
     asOf: p.entry_date || null,

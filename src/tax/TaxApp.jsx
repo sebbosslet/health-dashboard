@@ -265,10 +265,11 @@ function LedgerView({ entries, patch, remove }) {
 }
 
 function Split3({ label, y, r, f, strong }) {
-  const C = ({ v }) => <span className="num" style={{ textAlign:'right', fontWeight: strong?600:400 }}>{usd.format(Number(v)||0)}</span>
+  const C = ({ v, dl }) => <span className="num split-c" data-label={dl} style={{ fontWeight: strong?600:400 }}>{usd.format(Number(v)||0)}</span>
   return (
-    <div className={`taxrow${strong?' strong':''}`} style={{ gridTemplateColumns:'1.4fr 1fr 1fr 1fr' }}>
-      <span className="tl">{label}</span><C v={y} /><C v={r} /><C v={f} />
+    <div className={`taxrow split3${strong?' strong':''}`}>
+      <span className="tl">{label}</span>
+      <C v={y} dl="YTD actual" /><C v={r} dl="Rest of year" /><C v={f} dl="Full year" />
     </div>
   )
 }
