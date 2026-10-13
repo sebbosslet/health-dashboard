@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { listAlbums, createAlbum, deleteAlbum, fetchAlbum, ownerUploadPhoto, ownerAddNote, deletePhoto, deleteNote, shareLink } from './store'
+import { listAlbums, createAlbum, deleteAlbum, fetchAlbum, ownerUploadPhoto, ownerAddNote, deletePhoto, deleteNote, shareLink, setAlbumPasscode } from './store'
 import { exifDate } from './exif'
 import { groupByDay, DiaryDays } from './Diary'
 import '../cashflow/cashflow.css'
@@ -91,8 +91,16 @@ function AlbumDetail({ session, albumId, onBack }) {
       <nav className="side">
         <button className="wordmark" onClick={onBack} style={{textAlign:'left',background:'none',border:'none',cursor:'pointer'}}>← albums</button>
         <div className="navbtn on">{album.title}</div>
-        <div style={{marginTop:'auto',padding:'0 8px'}}>
+        <div style={{marginTop:'auto',padding:'0 8px',display:'flex',flexDirection:'column',gap:6}}>
           <button className="ghost" style={{fontSize:12}} onClick={()=>{navigator.clipboard?.writeText(shareLink(album.share_token))}}>Copy share link</button>
+          <button className="ghost" style={{fontSize:12}} onClick={async()=>{
+            if (album.passcode_hash) {
+              if (confirm('Remove the passcode? Anyone with the link could then contribute.')) { await setAlbumPasscode(album.id, null); refresh() }
+            } else {
+              const pc = prompt('Set a passcode for this album (share it with family alongside the link):')
+              if (pc) { await setAlbumPasscode(album.id, pc); refresh() }
+            }
+          }}>{album.passcode_hash ? 'Passcode on · remove' : 'Add a passcode'}</button>
         </div>
       </nav>
       <main className="main">

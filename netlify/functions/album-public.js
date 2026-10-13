@@ -1,4 +1,5 @@
 import { createClient } from '@supabase/supabase-js'
+import { createHash } from 'node:crypto'
 
 const CORS = {
   'Access-Control-Allow-Origin': '*',
@@ -6,6 +7,7 @@ const CORS = {
   'Content-Type': 'application/json',
 }
 const admin = () => createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_KEY)
+const sha256 = (s) => createHash('sha256').update(String(s)).digest('hex')
 const ok = (b) => ({ statusCode: 200, headers: CORS, body: JSON.stringify(b) })
 const bad = (code, msg) => ({ statusCode: code, headers: CORS, body: JSON.stringify({ error: msg }) })
 
@@ -27,6 +29,14 @@ export const handler = async (event) => {
   try {
     const album = await albumByToken(db, token)
     if (!album) return bad(404, 'Album not found')
+
+    // If the album is passcode-protected, every read and write must present it.
+    if (album.passcode_hash) {
+      const given = body.passcode || event.queryStringParameters?.passcode
+      if (!given || sha256(given) !== album.passcode_hash) {
+        return ok({ locked: true, title: album.title })  // no data leaks; just the gate
+      }
+    }
 
     if (action === 'get') {
       const [{ data: photos }, { data: notes }] = await Promise.all([

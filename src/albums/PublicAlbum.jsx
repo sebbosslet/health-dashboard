@@ -12,20 +12,25 @@ export default function PublicAlbum() {
   const [data, setData] = useState(null)
   const [error, setError] = useState(null)
   const [name, setName] = useState(() => localStorage.getItem('album-author') || '')
+  const [passcode, setPasscode] = useState(() => localStorage.getItem(`album-pc-${token}`) || '')
+  const [locked, setLocked] = useState(false)
+  const [pcInput, setPcInput] = useState('')
   const [busy, setBusy] = useState(null)
   const fileRef = useRef(null)
 
-  const load = async () => {
+  const load = async (pc = passcode) => {
     try {
-      const res = await fetch(`${fn}?action=get&token=${encodeURIComponent(token)}`)
+      const qs = `action=get&token=${encodeURIComponent(token)}${pc ? `&passcode=${encodeURIComponent(pc)}` : ''}`
+      const res = await fetch(`${fn}?${qs}`)
       const j = await res.json()
       if (!res.ok) throw new Error(j.error || 'Could not load album')
-      setData(j)
+      if (j.locked) { setLocked(true); setData(null); return }
+      setLocked(false); setData(j)
     } catch (e) { setError(e.message) }
   }
   useEffect(() => { load() }, [token]) // eslint-disable-line
 
-  const call = (action, body) => fetch(fn, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ token, action, ...body }) }).then(r=>r.json())
+  const call = (action, body) => fetch(fn, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ token, action, passcode, ...body }) }).then(r=>r.json())
 
   const rememberName = (n) => { setName(n); localStorage.setItem('album-author', n) }
 
@@ -49,6 +54,18 @@ export default function PublicAlbum() {
   }
 
   if (error) return <div className="cf-root"><main className="main" style={{alignItems:'center',justifyContent:'center'}}><div className="notice bad"><span className="danger">{error}</span></div></main></div>
+  if (locked) return (
+    <div className="cf-root"><main className="main" style={{alignItems:'center',justifyContent:'center'}}>
+      <section className="panel" style={{ maxWidth: 360, width:'100%', textAlign:'center' }}>
+        <div className="eyebrow" style={{marginBottom:10}}>This album needs a passcode</div>
+        <input type="password" placeholder="Passcode" value={pcInput} autoFocus
+          onChange={(e)=>setPcInput(e.target.value)}
+          onKeyDown={(e)=>{ if(e.key==='Enter'){ setPasscode(pcInput); localStorage.setItem(`album-pc-${token}`, pcInput); load(pcInput) } }}
+          style={{ width:'100%', marginBottom:10 }} />
+        <button className="primary" style={{width:'100%'}} onClick={()=>{ setPasscode(pcInput); localStorage.setItem(`album-pc-${token}`, pcInput); load(pcInput) }}>Open album</button>
+      </section>
+    </main></div>
+  )
   if (!data) return <div className="cf-root"><main className="main"><div className="eyebrow">Loading…</div></main></div>
 
   const days = groupByDay(data.photos, data.notes, data.album)

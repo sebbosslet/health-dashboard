@@ -54,4 +54,15 @@ export async function deletePhoto(id) { await supabase.from('album_photos').dele
 export async function deleteNote(id) { await supabase.from('album_notes').delete().eq('id', id) }
 export async function updatePhoto(id, patch) { await supabase.from('album_photos').update(patch).eq('id', id) }
 
+export async function sha256Hex(text) {
+  const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(text))
+  return [...new Uint8Array(buf)].map((b) => b.toString(16).padStart(2, '0')).join('')
+}
+
+export async function setAlbumPasscode(albumId, passcode) {
+  const passcode_hash = passcode ? await sha256Hex(passcode) : null
+  const { error } = await supabase.from('albums').update({ passcode_hash }).eq('id', albumId)
+  if (error) throw error
+}
+
 export function shareLink(token) { return `${window.location.origin}/trip/${token}` }
