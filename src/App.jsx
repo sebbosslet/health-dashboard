@@ -14,6 +14,8 @@ const EurApp = lazy(() => import('./eurflow/EurApp'))
 const OSTree = lazy(() => import('./ostree/OSTree'))
 const AttendanceApp = lazy(() => import('./attendance/AttendanceApp'))
 const TaxApp = lazy(() => import('./tax/TaxApp'))
+const AlbumsApp = lazy(() => import('./albums/AlbumsApp'))
+const PublicAlbum = lazy(() => import('./albums/PublicAlbum'))
 
 const TRIP_EMAILS = ['trip@sebs.health']
 const OSTREE_EMAILS = ['ostree@sebs.health']
@@ -50,6 +52,24 @@ export default function App() {
     })
     return () => subscription.unsubscribe()
   }, [])
+
+  // Public vacation albums are shareable by link and require no login.
+  // Handle them before any auth/loading gate so link-holders always get through.
+  if (typeof window !== 'undefined' && window.location.pathname.startsWith('/trip/')) {
+    return (
+      <LangProvider>
+        <BrowserRouter>
+          <ErrorBoundary>
+            <Suspense fallback={<div className="loading-screen"><div className="spinner" /></div>}>
+              <Routes>
+                <Route path="/trip/:token" element={<PublicAlbum />} />
+              </Routes>
+            </Suspense>
+          </ErrorBoundary>
+        </BrowserRouter>
+      </LangProvider>
+    )
+  }
 
   if (loading) {
     return (
@@ -105,6 +125,7 @@ export default function App() {
           <Route path="/cashflow" element={gate("/cashflow", <CashflowApp session={session} />)} />
           <Route path="/eur" element={gate("/eur", <EurApp session={session} />)} />
           <Route path="/attendance" element={gate("/attendance", <AttendanceApp session={session} />)} />
+          <Route path="/albums" element={gate("/albums", <AlbumsApp session={session} />)} />
           <Route path="/tax" element={
             advisorOnly ? <TaxApp session={session} advisor />
               : gate("/tax", <TaxApp session={session} />)

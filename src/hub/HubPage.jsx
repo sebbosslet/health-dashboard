@@ -120,6 +120,26 @@ const APPS = [
       </>
     ),
   },
+  {
+    id: "trips",
+    name: "trips",
+    href: "/albums",
+    tagline: "Vacation diaries, day by day",
+    blurb: "Photo albums organised by day from each photo's date, with notes on what you did — and a share link so family can add their own photos and notes.",
+    accent: "#C2683D",
+    stats: [
+      { label: "Organised", value: "by day" },
+      { label: "Sharing", value: "public link" },
+    ],
+    icon: (
+      <>
+        <rect x="3" y="6" width="18" height="14" rx="2" fill="none" strokeWidth="1.8" />
+        <circle cx="8.5" cy="11" r="1.6" fill="none" strokeWidth="1.6" />
+        <path d="M4 18l5-4 3 2 4-3 4 3" fill="none" strokeWidth="1.6" strokeLinejoin="round" />
+        <path d="M8 6l1.2-2h5.6L16 6" fill="none" strokeWidth="1.6" strokeLinejoin="round" />
+      </>
+    ),
+  },
 ];
 
 
