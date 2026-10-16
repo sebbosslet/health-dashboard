@@ -4,6 +4,29 @@ const FED_STD = 15000
 const FED_BR = [[0,0.10],[11925,0.12],[48475,0.22],[103350,0.24],[197300,0.32],[250525,0.35],[626350,0.37]]
 const VA_STD = 8500
 const VA_BR = [[0,0.02],[3000,0.03],[5000,0.05],[17000,0.0575]]
+// Count pay periods in the pay date's calendar year: those banked up to and
+// including this pay date, and those still to come. Deterministic from the
+// date and cadence — unlike dividing YTD gross by a single (variable) check.
+function payPeriods(payDate, periodsPerYear){
+  if(!payDate) return null
+  const DAY=86400000
+  const [y,m,d]=payDate.split('-').map(Number)
+  const pay=Date.UTC(y,m-1,d), jan1=Date.UTC(y,0,1), dec31=Date.UTC(y,11,31)
+  const per=Number(periodsPerYear)||26
+  if(per>=52||per>=26){                      // weekly / biweekly: fixed day interval
+    const step=(per>=52?7:14)*DAY
+    let done=1,t=pay; while(t-step>=jan1){t-=step;done++}
+    let remaining=0; t=pay; while(t+step<=dec31){t+=step;remaining++}
+    return {done,remaining,total:done+remaining}
+  }
+  if(per>=24){                               // semi-monthly: 1st & 15th-ish
+    const done=(m-1)*2+(d>=15?2:1)
+    return {done,remaining:Math.max(0,24-done),total:24}
+  }
+  const done=m                               // monthly
+  return {done,remaining:Math.max(0,12-done),total:12}
+}
+
 function fromBrackets(t, br){ if(t<=0)return 0; let x=0; for(let i=0;i<br.length;i++){const[f,r]=br[i];const c=i+1<br.length?br[i+1][0]:Infinity; if(t>f)x+=(Math.min(t,c)-f)*r; else break;} return x }
 
 // Same maths, but returns each filled bracket so the UI can show the build-up.
@@ -61,8 +84,11 @@ export function predictEOY(s, opts = {}) {
   // Three-part split for every W-2 figure: banked YTD, projected rest-of-year, full year.
   let ytd, roy, method
   if (hasYTD) {
-    const done = Number(p.check_number) || Math.max(1, Math.round((Number(p.ytd_gross) || 0) / (gross || 1)))
-    const remaining = Math.max(0, periods - done)
+    // Prefer counting from the pay date; fall back to an explicit check number,
+    // then to the old gross-ratio estimate only if there is no date.
+    const pp = payPeriods(p.entry_date, periods)
+    const done = pp ? pp.done : (Number(p.check_number) || Math.max(1, Math.round((Number(p.ytd_gross) || 0) / (gross || 1))))
+    const remaining = pp ? pp.remaining : Math.max(0, periods - done)
     ytd = { gross: Number(p.ytd_gross) || 0, pretax: Number(p.ytd_pretax) || 0, fed: Number(p.ytd_fed) || 0, state: Number(p.ytd_state) || 0 }
     roy = { gross: round2(gross * remaining), pretax: round2(pretax * remaining), fed: round2(perFed * remaining), state: round2(perState * remaining) }
     method = { basis: 'ytd', done, remaining }
